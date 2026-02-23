@@ -10,7 +10,7 @@ import type { TMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { NavigationInterceptor } from '@/common/navigation';
 import { uuid } from '@/common/utils';
-import type { AcpBackend, AcpPermissionRequest, AcpResult, AcpSessionUpdate, ToolCallUpdate } from '@/types/acpTypes';
+import type { AcpBackend, AcpModelInfo, AcpPermissionRequest, AcpResult, AcpSessionUpdate, ToolCallUpdate } from '@/types/acpTypes';
 import { AcpErrorType, createAcpError } from '@/types/acpTypes';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
@@ -109,8 +109,18 @@ export class AcpAgent {
   private pendingNavigationTools = new Set<string>();
 
   // ApprovalStore for session-level "always allow" caching
-  // Workaround for claude-code-acp bug: it doesn't check suggestions to auto-approve
+  // Workaround for claude-agent-acp bug: it doesn't check suggestions to auto-approve
   private approvalStore = new AcpApprovalStore();
+
+  // Track user-initiated model override so we can re-assert before each prompt.
+  // Prevents model drift if the CLI subprocess loses the override state.
+  private userModelOverride: string | null = null;
+
+  // Pending model switch notice to inject into the next user prompt.
+  // Equivalent to the terminal's "/model" command output that appears in conversation,
+  // which lets the AI know its model identity has changed (since the env_info system
+  // prompt section is cached with cacheBreak:false and never refreshed on model switch).
+  private pendingModelSwitchNotice: string | null = null;
 
   // Store permission request metadata for later use in confirmMessage
   private permissionRequestMeta = new Map<string, { kind?: string; title?: string; rawInput?: Record<string, unknown> }>();
@@ -240,7 +250,10 @@ export class AcpAgent {
         }
       }
 
-      // Auto-set model from ~/.claude/settings.json for Claude backend
+      // Apply model from ~/.claude/settings.json for Claude backend.
+      // claude-agent-acp may default to a region-mismatched Bedrock model;
+      // explicitly setting the model from settings ensures correctness.
+      // Uses session/set_model (direct CLI control) for consistency with runtime switching.
       if (this.extra.backend === 'claude') {
         const configuredModel = getClaudeModel();
         if (configuredModel) {
@@ -249,11 +262,13 @@ export class AcpAgent {
             await this.connection.setModel(configuredModel);
             if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: model set ${Date.now() - modelStart}ms`);
           } catch (error) {
-            // Log warning but don't fail - fallback to default model
             console.warn(`[ACP] Failed to set model from settings: ${error instanceof Error ? error.message : String(error)}`);
           }
         }
       }
+
+      // Emit initial model info after session setup completes
+      this.emitModelInfo();
 
       this.emitStatusMessage('session_active');
       if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: total ${Date.now() - startTotal}ms`);
@@ -282,6 +297,106 @@ export class AcpAgent {
       if (sessionMode) {
         await this.connection.setSessionMode(sessionMode);
       }
+    }
+  }
+
+  /**
+   * Get unified model info from ACP connection.
+   * Prefers stable configOptions API, falls back to unstable models API.
+   */
+  getModelInfo(): AcpModelInfo | null {
+    // Try stable API first: configOptions with category 'model'
+    const configOptions = this.connection.getConfigOptions();
+    if (configOptions) {
+      const modelOption = configOptions.find((opt) => opt.category === 'model');
+      if (modelOption && modelOption.type === 'select' && modelOption.options) {
+        // Support both currentValue (ACP spec) and selectedValue (some agents)
+        const activeValue = modelOption.currentValue || modelOption.selectedValue || null;
+        return {
+          currentModelId: activeValue,
+          currentModelLabel: modelOption.options.find((o) => o.value === activeValue)?.name || modelOption.options.find((o) => o.value === activeValue)?.label || activeValue,
+          availableModels: modelOption.options.map((o) => ({ id: o.value, label: o.name || o.label || o.value })),
+          canSwitch: modelOption.options.length > 1,
+          source: 'configOption',
+          configOptionId: modelOption.id,
+        };
+      }
+    }
+
+    // Fallback to unstable models API
+    const models = this.connection.getModels();
+    if (models) {
+      const available = models.availableModels || [];
+      // Support both 'id' (spec) and 'modelId' (OpenCode) field names
+      const getModelId = (m: (typeof available)[0]) => m.id || m.modelId || '';
+      return {
+        currentModelId: models.currentModelId || null,
+        currentModelLabel: available.find((m) => getModelId(m) === models.currentModelId)?.name || models.currentModelId || null,
+        availableModels: available.map((m) => ({ id: getModelId(m), label: m.name || getModelId(m) })),
+        canSwitch: available.length > 1,
+        source: 'models',
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Switch model using session/set_model (preferred) with configOption fallback.
+   *
+   * session/set_model is preferred because it maps to unstable_setSessionModel()
+   * in claude-agent-acp which:
+   *   1. Calls query.setModel() → sends set_model control request to CLI
+   *   2. Calls updateConfigOption() → sends config_option_update notification
+   * This provides both the actual CLI model change AND a cache sync notification.
+   *
+   * session/set_config_option only returns updated configOptions in the response
+   * but does NOT send a separate notification, making it less robust for cache sync.
+   */
+  async setModelByConfigOption(modelId: string): Promise<AcpModelInfo | null> {
+    const modelInfo = this.getModelInfo();
+    if (!modelInfo) {
+      throw new Error('No model info available');
+    }
+
+    // Always use session/set_model for direct CLI control.
+    // Falls back to session/set_config_option only for non-Claude backends
+    // that don't support the unstable_setSessionModel method.
+    try {
+      await this.connection.setModel(modelId);
+    } catch (setModelError) {
+      // Fallback to set_config_option if set_model is not supported
+      if (modelInfo.source === 'configOption' && modelInfo.configOptionId) {
+        await this.connection.setConfigOption(modelInfo.configOptionId, modelId);
+      } else {
+        throw setModelError;
+      }
+    }
+
+    this.userModelOverride = modelId;
+
+    // Queue a model switch notice for the next prompt.
+    // In terminal mode, "/model haiku" outputs "Set model to haiku" into the conversation,
+    // and the AI reads this to update its self-identification. In ACP mode, set_model is
+    // silent, so we inject an equivalent notice into the next user message.
+    this.pendingModelSwitchNotice = modelId;
+
+    // Return updated model info after switch
+    return this.getModelInfo();
+  }
+
+  /**
+   * Emit current model info to the stream event handler.
+   */
+  private emitModelInfo(): void {
+    const modelInfo = this.getModelInfo();
+    if (modelInfo) {
+      this.onStreamEvent({
+        type: 'acp_model_info',
+        conversation_id: this.id,
+        msg_id: uuid(),
+        data: modelInfo,
+      });
     }
   }
 
@@ -357,6 +472,30 @@ export class AcpAgent {
       const atFileDuration = Date.now() - atFileStart;
       if (atFileDuration > 10) {
         if (ACP_PERF_LOG) console.log(`[ACP-PERF] send: @file references processed ${atFileDuration}ms`);
+      }
+
+      // Re-assert model override before sending prompt.
+      // This ensures the CLI subprocess uses the correct model even if it
+      // lost the override state (e.g., after internal compaction or restart).
+      if (this.userModelOverride) {
+        const currentInfo = this.getModelInfo();
+        const expected = this.userModelOverride;
+        if (currentInfo?.currentModelId !== expected) {
+          try {
+            await this.connection.setModel(expected);
+          } catch (err) {
+            console.warn(`[ACP] Pre-prompt model re-assert failed: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+
+      // Inject model switch notice for Claude backend.
+      // In terminal, "/model X" output appears in conversation so the AI knows about
+      // the switch. In ACP mode set_model is silent, so we prepend an equivalent notice.
+      if (this.pendingModelSwitchNotice && this.extra.backend === 'claude') {
+        const modelNotice = `<system-reminder>\n` + `Model switch: The active model has been changed to ${this.pendingModelSwitchNotice} via the /model command. ` + `You are now running as ${this.pendingModelSwitchNotice}. ` + `The ANTHROPIC_MODEL environment variable and the earlier "You are powered by" text in the system prompt are stale (cached from session start) and no longer reflect the actual model. ` + `When asked which model you are, answer ${this.pendingModelSwitchNotice}.\n` + `</system-reminder>\n\n`;
+        processedContent = modelNotice + processedContent;
+        this.pendingModelSwitchNotice = null;
       }
 
       const promptStart = Date.now();
@@ -573,7 +712,7 @@ export class AcpAgent {
         this.pendingPermissions.delete(data.callId);
 
         // Store "allow_always" decision to ApprovalStore for future auto-approval
-        // Workaround for claude-code-acp bug: it returns updatedPermissions but doesn't check suggestions
+        // Workaround for claude-agent-acp bug: it returns updatedPermissions but doesn't check suggestions
         if (data.confirmKey === 'allow_always') {
           const meta = this.permissionRequestMeta.get(data.callId);
           if (meta) {
@@ -654,6 +793,11 @@ export class AcpAgent {
         }
       }
 
+      // Emit updated model info when config_option_update arrives
+      if (data.update?.sessionUpdate === 'config_option_update') {
+        this.emitModelInfo();
+      }
+
       const messages = this.adapter.convertSessionUpdate(data);
 
       for (let i = 0; i < messages.length; i++) {
@@ -676,7 +820,7 @@ export class AcpAgent {
       const requestId = data.toolCall.toolCallId; // 使用 toolCallId 作为 requestId
 
       // Check ApprovalStore for cached "always allow" decision
-      // Workaround for claude-code-acp bug: it returns updatedPermissions but doesn't check suggestions
+      // Workaround for claude-agent-acp bug: it returns updatedPermissions but doesn't check suggestions
       const approvalKey = createAcpApprovalKey(data.toolCall);
       if (this.approvalStore.isApprovedForSession(approvalKey)) {
         // Auto-approve without showing dialog - no metadata storage needed
@@ -1041,16 +1185,11 @@ export class AcpAgent {
    * @returns Promise that resolves when mode is set
    */
   async setMode(mode: string): Promise<{ success: boolean; error?: string }> {
-    console.log(`[AcpAgent] setMode called: mode=${mode}, isConnected=${this.connection.isConnected}, hasActiveSession=${this.connection.hasActiveSession}`);
-
     if (!this.connection.isConnected || !this.connection.hasActiveSession) {
-      console.log('[AcpAgent] No active session, cannot switch mode');
       return { success: false, error: 'No active session. Please send a message first to establish a session.' };
     }
     try {
-      console.log(`[AcpAgent] Calling connection.setSessionMode(${mode})`);
-      const response = await this.connection.setSessionMode(mode);
-      console.log('[AcpAgent] setSessionMode response:', JSON.stringify(response));
+      await this.connection.setSessionMode(mode);
       return { success: true };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
