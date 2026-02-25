@@ -500,7 +500,7 @@ class ImageGenerationInvocation extends BaseToolInvocation<ImageGenerationToolPa
       let images = choice.message.images;
 
       // If no images field, try to extract from markdown in content
-      // OpenAI-compatible APIs may return images as markdown: ![alt](data:mime;base64,xxx) or ![alt](filename.jpg)
+      // OpenAI-compatible APIs may return images as markdown: ![alt](data:mime;base64,xxx) or ![alt](filename.jpg) or ![alt](https://url)
       // Support various alt text formats: ![image](...), ![](...), ![generated](...), etc.
       if ((!images || images.length === 0) && responseText) {
         // First try: Match markdown images with data URL format
@@ -512,29 +512,38 @@ class ImageGenerationInvocation extends BaseToolInvocation<ImageGenerationToolPa
             image_url: { url: match[1] },
           }));
         } else {
-          // Second try: Match markdown images with file path (e.g., ![alt](img-xxx.jpg) or ![alt](path/to/image.png))
-          const filePathRegex = /!\[[^\]]*\]\(([^)]+\.(?:jpg|jpeg|png|gif|webp|bmp|tiff|svg))\)/gi;
-          const filePathMatches = [...responseText.matchAll(filePathRegex)];
-          if (filePathMatches.length > 0) {
+          // Second try: Match markdown images with HTTP URLs or file paths
+          // 同时匹配 HTTP URL 和本地文件路径
+          const imageMarkdownRegex = /!\[[^\]]*\]\(([^)]+\.(?:jpg|jpeg|png|gif|webp|bmp|tiff|svg))\)/gi;
+          const imageMarkdownMatches = [...responseText.matchAll(imageMarkdownRegex)];
+          if (imageMarkdownMatches.length > 0) {
             const workspaceDir = this.config.getWorkingDir();
 
-            // Process file paths - convert to full path and read as base64
             const processedImages: Array<{ type: 'image_url'; image_url: { url: string } }> = [];
-            for (const match of filePathMatches) {
-              const filePath = match[1];
-              const fullPath = path.isAbsolute(filePath) ? filePath : path.join(workspaceDir, filePath);
+            for (const match of imageMarkdownMatches) {
+              const imageRef = match[1];
 
-              try {
-                // Check if file exists and read it
-                await fs.promises.access(fullPath);
-                const base64Data = await fileToBase64(fullPath);
-                const mimeType = getImageMimeType(fullPath);
+              if (isHttpUrl(imageRef)) {
+                // HTTP URL: use directly as image source, let frontend handle display
+                // HTTP URL：直接使用，由前端处理展示
                 processedImages.push({
                   type: 'image_url',
-                  image_url: { url: `data:${mimeType};base64,${base64Data}` },
+                  image_url: { url: imageRef },
                 });
-              } catch (fileError) {
-                console.warn(`[ImageGen] Could not load image file: ${filePath}`, fileError);
+              } else {
+                // Local file path: resolve and read as base64
+                const fullPath = path.isAbsolute(imageRef) ? imageRef : path.join(workspaceDir, imageRef);
+                try {
+                  await fs.promises.access(fullPath);
+                  const base64Data = await fileToBase64(fullPath);
+                  const mimeType = getImageMimeType(fullPath);
+                  processedImages.push({
+                    type: 'image_url',
+                    image_url: { url: `data:${mimeType};base64,${base64Data}` },
+                  });
+                } catch (fileError) {
+                  console.warn(`[ImageGen] Could not load image file: ${imageRef}`, fileError);
+                }
               }
             }
 
@@ -573,8 +582,16 @@ class ImageGenerationInvocation extends BaseToolInvocation<ImageGenerationToolPa
         );
         const relativeImagePath = path.relative(this.config.getWorkingDir(), imagePath);
 
+        // Build llmContent for the AI model:
+        // - Strip base64 data URLs from responseText to avoid wasting context window
+        // - Image display is handled by the agent (emits content event), not by llmContent
+        // 构建给 AI 模型的 llmContent：
+        // - 从 responseText 中移除 base64 数据，避免浪费上下文窗口
+        // - 图片展示由 agent 直接发送 content 事件处理，不依赖 llmContent
+        const cleanedResponseText = responseText.replace(/!\[[^\]]*\]\(data:image\/[^)]+\)/g, '[image]').trim();
+
         const result = {
-          llmContent: `${responseText}\n\nGenerated image saved to: ${imagePath}`,
+          llmContent: `${cleanedResponseText}\n\nImage saved at: ${relativeImagePath}`,
           returnDisplay: {
             img_url: imagePath,
             relative_path: relativeImagePath,

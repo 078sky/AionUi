@@ -421,7 +421,29 @@ export class GeminiAgent {
                 return false;
               });
 
-              this.submitQuery(response, this.activeMsgId ?? uuid(), this.createAbortController(), {
+              // Emit generated images as content events BEFORE the AI responds,
+              // so the image is guaranteed to appear in the conversation.
+              // The content event will be merged with the AI's text response (same msg_id + type).
+              // 在 AI 回复之前发送图片 content 事件，确保图片一定出现在会话中。
+              // 相同 msg_id + type 的 content 事件会被合并到一条消息中。
+              const msgId = this.activeMsgId ?? uuid();
+              for (const tc of completedToolCalls) {
+                if (tc.status === 'success' && tc.response?.resultDisplay) {
+                  const display = tc.response.resultDisplay;
+                  if (typeof display === 'object' && display !== null && 'img_url' in display && 'relative_path' in display) {
+                    const imageResult = display as { img_url: string; relative_path: string };
+                    if (imageResult.relative_path) {
+                      this.onStreamEvent({
+                        type: 'content',
+                        data: `![Generated Image](${imageResult.relative_path})\n\n`,
+                        msg_id: msgId,
+                      });
+                    }
+                  }
+                }
+              }
+
+              this.submitQuery(response, msgId, this.createAbortController(), {
                 isContinuation: true,
                 prompt_id: geminiTools[0].request.prompt_id,
               });
