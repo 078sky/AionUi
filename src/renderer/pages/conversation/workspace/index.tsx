@@ -457,7 +457,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
     <>
       {shouldRenderLocalMessageContext && messageContext}
       <div
-        className='size-full flex flex-col relative'
+        className='chat-workspace size-full flex flex-col relative'
         tabIndex={0}
         onFocus={pasteHook.onFocusPaste}
         onClick={pasteHook.onFocusPaste}
@@ -707,7 +707,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           {(showSearch || searchText) && (
             <div className='pb-8px workspace-toolbar-search'>
               <Input
-                className='w-full'
+                className='w-full workspace-search-input'
                 ref={searchInputRef}
                 placeholder={t('conversation.workspace.searchPlaceholder')}
                 value={searchText}
@@ -728,22 +728,22 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
           {!isWorkspaceCollapsed && (showSearch || searchText) && <div className='border-b border-b-base' />}
 
           {/* Directory name with collapse and action icons */}
-          <div className='flex items-center justify-between gap-8px'>
+          <div className='workspace-toolbar-row flex items-center justify-between gap-8px'>
             <div className='flex items-center gap-8px cursor-pointer flex-1 min-w-0' onClick={() => setIsWorkspaceCollapsed(!isWorkspaceCollapsed)}>
               <Down size={16} fill={iconColors.primary} className={`line-height-0 transition-transform duration-200 flex-shrink-0 ${isWorkspaceCollapsed ? '-rotate-90' : 'rotate-0'}`} />
-              <span className='font-bold text-14px text-t-primary overflow-hidden text-ellipsis whitespace-nowrap'>{workspaceDisplayName}</span>
+              <span className='workspace-title-label font-bold text-14px text-t-primary overflow-hidden text-ellipsis whitespace-nowrap'>{workspaceDisplayName}</span>
             </div>
-            <div className='flex items-center gap-8px flex-shrink-0'>
+            <div className='workspace-toolbar-actions flex items-center gap-8px flex-shrink-0'>
               {isTemporaryWorkspace && (
                 <Tooltip content={t('conversation.workspace.changeWorkspace')}>
                   <span>
-                    <ChangeWorkspaceIcon className='line-height-0 cursor-pointer w-24px h-24px flex-shrink-0' onClick={handleOpenMigrationModal} />
+                    <ChangeWorkspaceIcon className='workspace-toolbar-icon-btn line-height-0 cursor-pointer w-24px h-24px flex-shrink-0' onClick={handleOpenMigrationModal} />
                   </span>
                 </Tooltip>
               )}
               <Tooltip content={t('conversation.workspace.refresh')}>
                 <span>
-                  <Refresh className={treeHook.loading ? 'loading lh-[1] flex cursor-pointer' : 'flex cursor-pointer'} theme='outline' size='16' fill={iconColors.secondary} onClick={() => treeHook.refreshWorkspace()} />
+                  <Refresh className={treeHook.loading ? 'workspace-toolbar-icon-btn loading lh-[1] flex cursor-pointer' : 'workspace-toolbar-icon-btn flex cursor-pointer'} theme='outline' size='16' fill={iconColors.secondary} onClick={() => treeHook.refreshWorkspace()} />
                 </span>
               </Tooltip>
             </div>
@@ -846,7 +846,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
               </div>
             ) : (
               <Tree
-                className={'!pl-32px !pr-16px workspace-tree'}
+                className={`${isMobile ? '!pl-20px !pr-10px chat-workspace-tree--mobile' : '!pl-32px !pr-16px'} workspace-tree`}
                 showLine
                 key={treeHook.treeKey}
                 selectedKeys={treeHook.selected}
@@ -887,7 +887,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({ conversation_id, workspace, e
                       {isMobile && (
                         <button
                           type='button'
-                          className='workspace-header__toggle h-28px w-28px rd-8px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
+                          className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
                           aria-label={t('common.more', { defaultValue: 'More' })}
                           onMouseDown={(event) => {
                             event.stopPropagation();
