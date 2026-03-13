@@ -20,9 +20,11 @@ const AgentModalContent: React.FC = () => {
       {agentMessageContext}
 
       <AionScrollArea className='flex-1 min-h-0 pb-16px scrollbar-hide' disableOverflow={isPageMode}>
-        <Collapse defaultActiveKey={['smart-assistants']}>
-          <AssistantManagement message={agentMessage} />
-        </Collapse>
+        <div className='space-y-16px'>
+          <Collapse defaultActiveKey={['smart-assistants']}>
+            <AssistantManagement message={agentMessage} />
+          </Collapse>
+        </div>
       </AionScrollArea>
     </div>
   );

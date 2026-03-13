@@ -30,24 +30,52 @@ import useSWR from 'swr';
  * cached model info before the agent manager is created (pre-first-message).
  * When preview panel is open, shows compact version (truncated label).
  */
+const resolveModelInfo = (modelInfo: AcpModelInfo | null, initialModelId?: string): AcpModelInfo | null => {
+  if (!modelInfo) {
+    return null;
+  }
+
+  const effectiveModelId = initialModelId || modelInfo.currentModelId || null;
+  const matchedModel = effectiveModelId ? modelInfo.availableModels?.find((item) => item.id === effectiveModelId) : undefined;
+
+  return {
+    ...modelInfo,
+    currentModelId: effectiveModelId,
+    currentModelLabel: matchedModel?.label || modelInfo.currentModelLabel || effectiveModelId || '',
+  };
+};
+
 const AcpModelSelector: React.FC<{
-  conversationId: string;
+  conversationId?: string;
   /** ACP backend name for loading cached models (e.g., 'claude', 'qwen') */
   backend?: string;
   /** Pre-selected model ID from Guid page */
   initialModelId?: string;
-}> = ({ conversationId, backend, initialModelId }) => {
+  /** Optional local/cached model info source for non-conversation usage */
+  localModelInfo?: AcpModelInfo | null;
+  /** Optional local change handler for non-conversation usage */
+  onSelectModel?: (modelId: string) => void;
+}> = ({ conversationId, backend, initialModelId, localModelInfo, onSelectModel }) => {
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
   const layout = useLayoutContext();
-  const [modelInfo, setModelInfo] = useState<AcpModelInfo | null>(null);
+  const [modelInfo, setModelInfo] = useState<AcpModelInfo | null>(() => resolveModelInfo(localModelInfo ?? null, initialModelId));
+  const [dropdownVisible, setDropdownVisible] = useState(false);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
   const modelInfoRef = useRef(modelInfo);
   modelInfoRef.current = modelInfo;
   // Track whether user has manually switched model via dropdown
   const hasUserChangedModel = useRef(false);
+  const isUsingLocalModelInfo = localModelInfo !== undefined;
+
+  useEffect(() => {
+    if (!isUsingLocalModelInfo) return;
+    setModelInfo(resolveModelInfo(localModelInfo ?? null, initialModelId));
+  }, [initialModelId, isUsingLocalModelInfo, localModelInfo]);
 
   // Fetch initial model info on mount, fallback to cached models if manager not ready
   useEffect(() => {
+    if (isUsingLocalModelInfo || !conversationId) return;
     let cancelled = false;
     ipcBridge.acpConversation.getModelInfo
       .invoke({ conversationId })
@@ -103,10 +131,11 @@ const AcpModelSelector: React.FC<{
         // Silently ignore
       }
     }
-  }, [conversationId, backend, initialModelId]);
+  }, [conversationId, backend, initialModelId, isUsingLocalModelInfo]);
 
   // Listen for acp_model_info / codex_model_info events from responseStream
   useEffect(() => {
+    if (isUsingLocalModelInfo || !conversationId) return;
     const handler = (message: IResponseMessage) => {
       if (message.conversation_id !== conversationId) return;
       if (message.type === 'acp_model_info' && message.data) {
@@ -144,11 +173,29 @@ const AcpModelSelector: React.FC<{
       }
     };
     return ipcBridge.acpConversation.responseStream.on(handler);
-  }, [conversationId, initialModelId]);
+  }, [conversationId, initialModelId, isUsingLocalModelInfo, backend]);
 
   const handleSelectModel = useCallback(
     (modelId: string) => {
       hasUserChangedModel.current = true;
+      if (onSelectModel) {
+        setModelInfo((prev) => {
+          if (!prev) return prev;
+          const matchedModel = prev.availableModels?.find((item) => item.id === modelId);
+          return {
+            ...prev,
+            currentModelId: modelId,
+            currentModelLabel: matchedModel?.label || modelId,
+          };
+        });
+        onSelectModel(modelId);
+        return;
+      }
+
+      if (!conversationId) {
+        return;
+      }
+
       ipcBridge.acpConversation.setModel
         .invoke({ conversationId, modelId })
         .then((result) => {
@@ -160,7 +207,7 @@ const AcpModelSelector: React.FC<{
           console.error('[AcpModelSelector] Failed to set model:', error);
         });
     },
-    [conversationId]
+    [conversationId, onSelectModel]
   );
 
   const defaultModelLabel = t('common.defaultModel');
@@ -173,6 +220,10 @@ const AcpModelSelector: React.FC<{
   });
   const compact = isPreviewOpen || layout?.isMobile;
   const isMobileCompact = Boolean(layout?.isMobile);
+  useEffect(() => {
+    setDropdownVisible(false);
+    setTooltipVisible(false);
+  }, [conversationId, backend, initialModelId, modelInfo]);
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
@@ -189,7 +240,7 @@ const AcpModelSelector: React.FC<{
   // State 1: No model info — show disabled "Use CLI model" button
   if (!modelInfo) {
     return (
-      <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
+      <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top' popupVisible={tooltipVisible} onVisibleChange={setTooltipVisible} unmountOnExit>
         <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small' style={{ cursor: 'default' }}>
           <span className='flex items-center gap-6px min-w-0'>
             <span className={compact ? 'block truncate' : undefined}>{t('conversation.welcome.useCliModel')}</span>
@@ -202,7 +253,7 @@ const AcpModelSelector: React.FC<{
   // State 2: Has model info but cannot switch — read-only display
   if (!modelInfo.canSwitch) {
     return (
-      <Tooltip content={displayLabel} position='top'>
+      <Tooltip content={displayLabel} position='top' popupVisible={tooltipVisible} onVisibleChange={setTooltipVisible} unmountOnExit>
         <Button className={classNames('sendbox-model-btn header-model-btn', compact && '!max-w-[120px]', isMobileCompact && '!max-w-[160px]')} shape='round' size='small' style={{ cursor: 'default' }}>
           <span className='flex items-center gap-6px min-w-0'>
             {currentModelHealth.status !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${currentModelHealth.color}`} />}
@@ -217,6 +268,9 @@ const AcpModelSelector: React.FC<{
   return (
     <Dropdown
       trigger='click'
+      popupVisible={dropdownVisible}
+      onVisibleChange={setDropdownVisible}
+      unmountOnExit
       droplist={
         <Menu>
           {modelInfo.availableModels.map((model) => {
@@ -226,7 +280,14 @@ const AcpModelSelector: React.FC<{
             const healthColor = healthStatus === 'healthy' ? 'bg-green-500' : healthStatus === 'unhealthy' ? 'bg-red-500' : 'bg-gray-400';
 
             return (
-              <Menu.Item key={model.id} className={model.id === modelInfo.currentModelId ? 'bg-2!' : ''} onClick={() => handleSelectModel(model.id)}>
+              <Menu.Item
+                key={model.id}
+                className={model.id === modelInfo.currentModelId ? 'bg-2!' : ''}
+                onClick={() => {
+                  setDropdownVisible(false);
+                  handleSelectModel(model.id);
+                }}
+              >
                 <div className='flex items-center gap-8px w-full'>
                   {healthStatus !== 'unknown' && <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />}
                   <span>{model.label}</span>

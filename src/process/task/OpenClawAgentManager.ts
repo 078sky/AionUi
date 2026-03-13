@@ -14,6 +14,7 @@ import { uuid } from '@/common/utils';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { ConversationTurnCompletionService } from '@process/services/ConversationTurnCompletionService';
 import BaseAgentManager from '@process/task/BaseAgentManager';
 
 export interface OpenClawAgentManagerData {
@@ -154,6 +155,10 @@ class OpenClawAgentManager extends BaseAgentManager<OpenClawAgentManagerData> {
 
     // Forward signals to Channel global event bus
     channelEventBus.emitAgentMessage(this.conversation_id, msg);
+
+    if (msg.type === 'finish') {
+      void ConversationTurnCompletionService.getInstance().notifyPotentialCompletion(this.conversation_id);
+    }
   }
 
   private handleSessionKeyUpdate(sessionKey: string): void {

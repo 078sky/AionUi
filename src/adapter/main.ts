@@ -57,6 +57,18 @@ export function registerWebSocketBroadcaster(broadcastFn: WebSocketBroadcastFn):
  */
 let bridgeEmitter: { emit: (name: string, data: unknown) => unknown } | null = null;
 
+const emitToLocalBridge = (name: string, data: unknown): void => {
+  if (!bridgeEmitter) {
+    return;
+  }
+
+  try {
+    bridgeEmitter.emit(name, data);
+  } catch (error) {
+    console.error('[MainAdapter] Local bridge emit error:', error);
+  }
+};
+
 /**
  * 获取 bridge emitter（供 WebSocket 处理器使用）
  * Get bridge emitter (for WebSocket handler)
@@ -70,6 +82,8 @@ export function getBridgeEmitter(): typeof bridgeEmitter {
  * */
 bridge.adapter({
   emit(name, data) {
+    emitToLocalBridge(name, data);
+
     // 1. 发送到所有 Electron BrowserWindow / Send to all Electron BrowserWindows
     for (let i = 0, len = adapterWindowList.length; i < len; i++) {
       const win = adapterWindowList[i];

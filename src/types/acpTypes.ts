@@ -716,16 +716,19 @@ export interface UsageUpdatePayload extends BaseSessionUpdate {
   update: {
     sessionUpdate: 'usage_update';
     /** Total tokens currently in context */
-    used: number;
+    used?: number;
     /** Context window capacity (max tokens) */
-    size: number;
+    size?: number;
     /** Cumulative session cost */
     cost?: {
       amount: number;
       currency: string;
     };
+    [key: string]: unknown;
   };
 }
+
+export type UsageUpdate = UsageUpdatePayload;
 
 /** Per-turn token usage from PromptResponse (unstable ACP spec, supported by codex-acp) */
 export interface AcpPromptResponseUsage {

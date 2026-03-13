@@ -11,6 +11,7 @@ import { getDatabase } from './database/export';
 import { ProcessChat } from './initStorage';
 
 const Cache = new Map<string, ConversationManageWithDB>();
+const MESSAGE_CACHE_IDLE_RELEASE_MS = 60000;
 
 // Place all messages in a unified update queue based on the conversation
 // Ensure that the update mechanism for each message is consistent with the front end, meaning that the database and UI data are in sync
@@ -18,20 +19,32 @@ const Cache = new Map<string, ConversationManageWithDB>();
 class ConversationManageWithDB {
   private stack: Array<['insert' | 'accumulate', TMessage]> = [];
   private db = getDatabase();
-  private timer: NodeJS.Timeout;
-  private savePromise = Promise.resolve();
+  private timer?: NodeJS.Timeout;
+  private savePromise: Promise<void> = Promise.resolve();
+  private lastActivityAt = Date.now();
+  private releaseTimer?: NodeJS.Timeout;
+
   constructor(private conversation_id: string) {
-    this.savePromise = ensureConversationExists(this.db, this.conversation_id).catch(() => {});
+    this.savePromise = ensureConversationExists(this.db, this.conversation_id).catch((): void => {});
   }
+
   static get(conversation_id: string) {
     if (Cache.has(conversation_id)) return Cache.get(conversation_id);
     const manage = new ConversationManageWithDB(conversation_id);
     Cache.set(conversation_id, manage);
     return manage;
   }
+
   sync(type: 'insert' | 'accumulate', message: TMessage) {
+    this.lastActivityAt = Date.now();
+    if (this.releaseTimer) {
+      clearTimeout(this.releaseTimer);
+      this.releaseTimer = undefined;
+    }
     this.stack.push([type, message]);
-    clearTimeout(this.timer);
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
     if (type === 'insert') {
       this.save2DataBase();
       return;
@@ -66,13 +79,60 @@ class ConversationManageWithDB {
         executePendingCallbacks();
       })
       .then(() => {
-        return new Promise((resolve) => {
+        return new Promise<void>((resolve) => {
           const timer = setTimeout(() => {
             resolve();
             clearTimeout(timer);
           }, 10);
         });
+      })
+      .finally(() => {
+        this.scheduleReleaseIfIdle();
       });
+  }
+
+  flush(): Promise<void> {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+
+    if (this.stack.length === 0) {
+      return this.savePromise;
+    }
+
+    this.save2DataBase();
+    return this.savePromise;
+  }
+
+  release(): void {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+    if (this.releaseTimer) {
+      clearTimeout(this.releaseTimer);
+      this.releaseTimer = undefined;
+    }
+    Cache.delete(this.conversation_id);
+  }
+
+  private scheduleReleaseIfIdle(): void {
+    if (this.releaseTimer) {
+      clearTimeout(this.releaseTimer);
+    }
+
+    if (this.stack.length > 0) {
+      return;
+    }
+
+    const releaseAt = this.lastActivityAt + MESSAGE_CACHE_IDLE_RELEASE_MS;
+    const delay = Math.max(releaseAt - Date.now(), 0);
+    this.releaseTimer = setTimeout(() => {
+      if (this.stack.length === 0 && Date.now() - this.lastActivityAt >= MESSAGE_CACHE_IDLE_RELEASE_MS) {
+        Cache.delete(this.conversation_id);
+      }
+    }, delay);
   }
 }
 
@@ -128,6 +188,18 @@ export const addOrUpdateMessage = (conversation_id: string, message: TMessage, b
   }
 
   ConversationManageWithDB.get(conversation_id).sync('accumulate', message);
+};
+
+export const flushConversationMessages = (conversation_id: string): Promise<void> => {
+  const manage = Cache.get(conversation_id);
+  if (!manage) {
+    return Promise.resolve();
+  }
+  return manage.flush();
+};
+
+export const releaseConversationMessageCache = (conversation_id: string): void => {
+  Cache.get(conversation_id)?.release();
 };
 
 /**

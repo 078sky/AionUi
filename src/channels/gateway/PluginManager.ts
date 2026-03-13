@@ -6,6 +6,7 @@
 
 import { channel as channelBridge } from '@/common/ipcBridge';
 import { getDatabase } from '@/process/database';
+import type { ChannelServiceRegistry } from '../core/ChannelServiceRegistry';
 import type { SessionManager } from '../core/SessionManager';
 import type { BasePlugin, PluginMessageHandler, PluginConfirmHandler } from '../plugins/BasePlugin';
 import { hasPluginCredentials } from '../types';
@@ -51,8 +52,11 @@ export class PluginManager {
   // 运行时错误缓存：pluginId -> 错误消息
   private pluginErrors: Map<string, string> = new Map();
 
-  constructor(sessionManager: SessionManager) {
+  private serviceRegistry: ChannelServiceRegistry | null = null;
+
+  constructor(sessionManager: SessionManager, serviceRegistry?: ChannelServiceRegistry) {
     this.sessionManager = sessionManager;
+    this.serviceRegistry = serviceRegistry ?? null;
   }
 
   /**
@@ -142,6 +146,7 @@ export class PluginManager {
       // Initialize plugin
       // 初始化插件
       await plugin.initialize(config);
+      await this.bindPluginServices(plugin, config.id);
     } catch (error) {
       const errorMsg = `Plugin initialization failed: ${error instanceof Error ? error.message : String(error)}`;
       console.error(`[PluginManager] ${errorMsg}`, error);
@@ -209,8 +214,12 @@ export class PluginManager {
       return;
     }
 
-    // Stop plugin
-    await plugin.stop();
+    try {
+      // Stop plugin
+      await plugin.stop();
+    } finally {
+      this.serviceRegistry?.unregisterOwner(pluginId);
+    }
 
     // Remove from registry
     this.plugins.delete(pluginId);
@@ -230,6 +239,24 @@ export class PluginManager {
     const stopPromises = Array.from(this.plugins.keys()).map((id) => this.stopPlugin(id));
     await Promise.allSettled(stopPromises);
     console.log('[PluginManager] All plugins stopped');
+  }
+
+  /**
+   * Bind plugin to the public service registry and allow plugin-level registration.
+   */
+  private async bindPluginServices(plugin: BasePlugin, pluginId: string): Promise<void> {
+    if (!this.serviceRegistry) {
+      return;
+    }
+
+    const pluginRegistry = this.serviceRegistry.createPluginRegistry(pluginId);
+
+    try {
+      plugin.setServiceRegistry(pluginRegistry);
+      await plugin.registerServices(pluginRegistry);
+    } catch (error) {
+      console.warn(`[PluginManager] Plugin ${pluginId} service binding failed:`, error);
+    }
   }
 
   /**

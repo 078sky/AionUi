@@ -291,7 +291,6 @@ const AssistantManagement: React.FC<AssistantManagementProps> = ({ message }) =>
 
   const activeAssistant = assistants.find((assistant) => assistant.id === activeAssistantId) || null;
   const isReadonlyAssistant = Boolean(activeAssistant && isExtensionAssistant(activeAssistant));
-
   // Check if string is an emoji (simple check for common emoji patterns)
   const isEmoji = useCallback((str: string) => {
     if (!str) return false;

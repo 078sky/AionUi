@@ -35,6 +35,7 @@ export const conversation = {
   getSlashCommands: bridge.buildProvider<IBridgeResponse<{ commands: SlashCommandItem[] }>, { conversation_id: string }>('conversation.get-slash-commands'),
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
+  turnCompleted: bridge.buildEmitter<IConversationTurnCompletedEvent>('conversation.turn.completed'),
   getWorkspace: bridge.buildProvider<IDirOrFile[], { conversation_id: string; workspace: string; path: string; search?: string }>('conversation.get-workspace'),
   responseSearchWorkSpace: bridge.buildProvider<void, { file: number; dir: number; match?: IDirOrFile }>('conversation.response.search.workspace'),
   reloadContext: bridge.buildProvider<IBridgeResponse, { conversation_id: string }>('conversation.reload-context'),
@@ -267,7 +268,7 @@ export const acpConversation = {
   getModelInfo: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { conversationId: string }>('acp.get-model-info'),
   // Probe model info for an ACP backend without creating a visible conversation
   // 预探测 ACP 后端的模型信息，不创建可见会话
-  probeModelInfo: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { backend: AcpBackend }>('acp.probe-model-info'),
+  probeModelInfo: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null; configOptions: import('../types/acpTypes').AcpSessionConfigOption[] }>, { backend: AcpBackend }>('acp.probe-model-info'),
   // Set model for ACP agents
   // 设置 ACP 代理的模型
   setModel: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { conversationId: string; modelId: string }>('acp.set-model'),
@@ -334,6 +335,9 @@ export const openclawConversation = {
 export const database = {
   getConversationMessages: bridge.buildProvider<import('@/common/chatLib').TMessage[], { conversation_id: string; page?: number; pageSize?: number }>('database.get-conversation-messages'),
   getUserConversations: bridge.buildProvider<import('@/common/storage').TChatConversation[], { page?: number; pageSize?: number }>('database.get-user-conversations'),
+  getApiConfig: bridge.buildProvider<import('@/common/storage').IApiConfig | null, void>('database.get-api-config'),
+  updateApiEnabled: bridge.buildProvider<{ success: boolean; error?: string }, { enabled: boolean }>('database.update-api-enabled'),
+  saveApiConfig: bridge.buildProvider<{ success: boolean; error?: string }, Partial<import('@/common/storage').IApiConfig>>('database.save-api-config'),
 };
 
 export const previewHistory = {
@@ -526,6 +530,8 @@ export interface ICreateConversationParams {
     codexModel?: string;
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
+    /** Pre-selected ACP config options from Guid page */
+    configOptionValues?: Record<string, string>;
     /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
     runtimeValidation?: {
       expectedWorkspace?: string;
@@ -572,6 +578,34 @@ export interface IResponseMessage {
   data: unknown;
   msg_id: string;
   conversation_id: string;
+}
+
+export interface IConversationTurnCompletedEvent {
+  sessionId: string;
+  status: 'pending' | 'running' | 'finished';
+  state: 'ai_generating' | 'ai_waiting_input' | 'ai_waiting_confirmation' | 'initializing' | 'stopped' | 'error' | 'unknown';
+  detail: string;
+  canSendMessage: boolean;
+  runtime: {
+    hasTask: boolean;
+    taskStatus?: 'pending' | 'running' | 'finished';
+    isProcessing: boolean;
+    pendingConfirmations: number;
+    dbStatus?: 'pending' | 'running' | 'finished';
+  };
+  workspace: string;
+  model: {
+    platform: string;
+    name: string;
+    useModel: string;
+  };
+  lastMessage: {
+    id?: string;
+    type?: string;
+    content: unknown;
+    status?: string | null;
+    createdAt: number;
+  };
 }
 
 interface IBridgeResponse<D = {}> {

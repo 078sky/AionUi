@@ -18,6 +18,7 @@ import { registerAuthRoutes } from './routes/authRoutes';
 import { registerApiRoutes } from './routes/apiRoutes';
 import { registerStaticRoutes } from './routes/staticRoutes';
 import { generateQRLoginUrlDirect } from '@/process/bridge/webuiBridge';
+import { ApiCallbackManager } from '@process/services/ApiCallbackManager';
 
 // Express Request 类型扩展定义在 src/webserver/types/express.d.ts
 // Express Request type extension is defined in src/webserver/types/express.d.ts
@@ -290,6 +291,9 @@ export async function startWebServerWithInstance(port: number, allowRemote = fal
 
       // 初始化 WebSocket 适配器 / Initialize WebSocket adapter
       initWebAdapter(wss);
+
+      // 初始化 API 回调管理器 / Initialize API callback manager
+      ApiCallbackManager.getInstance();
 
       resolve({
         server,

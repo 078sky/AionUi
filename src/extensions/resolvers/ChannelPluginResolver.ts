@@ -7,6 +7,7 @@
 import * as path from 'path';
 import fs from 'fs';
 import { BasePlugin, type PluginConfirmHandler, type PluginMessageHandler } from '@/channels/plugins/BasePlugin';
+import type { IChannelPluginServiceRegistry } from '@/channels/core/ChannelServiceRegistry';
 import type { LoadedExtension, ExtChannelPlugin } from '../types';
 import { isPathWithinDirectory } from '../pathSafety';
 import { resolveRuntimeEntryPath } from '../entryPointResolver';
@@ -42,6 +43,8 @@ type LegacyExternalPlugin = {
   getBotInfo?: () => { username?: string; displayName?: string } | null;
   onMessage?: (handler: PluginMessageHandler) => void;
   onConfirm?: (handler: PluginConfirmHandler) => void;
+  setServiceRegistry?: (registry: IChannelPluginServiceRegistry) => void;
+  registerServices?: (registry: IChannelPluginServiceRegistry) => Promise<void> | void;
 };
 
 function isValidPluginClass(PluginClass: unknown): boolean {
@@ -65,6 +68,14 @@ function createDuckTypedWrapper(pluginType: string, PluginClass: new (config?: u
     override onConfirm(handler: PluginConfirmHandler): void {
       super.onConfirm(handler);
       this.impl?.onConfirm?.(handler);
+    }
+
+    override setServiceRegistry(registry: IChannelPluginServiceRegistry): void {
+      this.impl?.setServiceRegistry?.(registry);
+    }
+
+    override async registerServices(registry: IChannelPluginServiceRegistry): Promise<void> {
+      await this.impl?.registerServices?.(registry);
     }
 
     protected async onInitialize(config: import('@/channels/types').IChannelPluginConfig): Promise<void> {

@@ -9,7 +9,7 @@ import { ipcBridge } from '@/common';
 import type { CronMessageMeta, IMessageText, IMessageToolGroup, TMessage } from '@/common/chatLib';
 import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import type { IMcpServer, TProviderWithModel } from '@/common/storage';
+import type { IMcpServer, TProviderWithModel, TokenUsageData } from '@/common/storage';
 import { ProcessConfig, getSkillsDir } from '@/process/initStorage';
 import { ExtensionRegistry } from '@/extensions';
 import { buildSystemInstructionsWithSkillsIndex } from './agentUtils';
@@ -20,8 +20,9 @@ import { AuthType, getOauthInfoWithCache, Storage } from '@office-ai/aioncli-cor
 import { GeminiApprovalStore } from '../../agent/gemini/GeminiApprovalStore';
 import { ToolConfirmationOutcome } from '../../agent/gemini/cli/tools/tools';
 import { getDatabase } from '@process/database';
-import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
+import { addMessage, addOrUpdateMessage, flushConversationMessages, nextTickToLocalFinish } from '../message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { ConversationTurnCompletionService } from '@process/services/ConversationTurnCompletionService';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
@@ -101,6 +102,14 @@ export class GeminiAgentManager extends BaseAgentManager<
 
   /** Stored webSearchEngine for worker re-bootstrap / 保存 webSearchEngine 用于重建 worker */
   private webSearchEngine?: 'google' | 'default';
+  private lastProcessedFinishMessageKey: string | null = null;
+  private pendingUsageMetadata: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+    cachedContentTokenCount?: number;
+  } | null = null;
+  private currentAssistantMessageId: string | null = null;
 
   constructor(
     data: {
@@ -569,12 +578,15 @@ export class GeminiAgentManager extends BaseAgentManager<
       }
 
       if (data.type === 'finish') {
+        this.persistCurrentTurnTokenUsage();
         // When stream finishes, check for cron commands in the accumulated message
         // Use longer delay and retry logic to ensure message is persisted
         this.checkCronWithRetry(0);
       }
       if (data.type === 'start') {
         this.status = 'running';
+        this.pendingUsageMetadata = null;
+        this.currentAssistantMessageId = null;
         const traceData = {
           agentType: 'gemini' as const,
           provider: this.model.name,
@@ -608,9 +620,26 @@ export class GeminiAgentManager extends BaseAgentManager<
         const tMessage = transformMessage(data as IResponseMessage);
         if (tMessage) {
           addOrUpdateMessage(this.conversation_id, tMessage, 'gemini');
+          if (tMessage.position === 'left') {
+            this.currentAssistantMessageId = tMessage.msg_id || tMessage.id;
+          }
           if (tMessage.type === 'tool_group') {
             this.handleConformationMessage(tMessage);
           }
+        }
+      }
+
+      if (data.type === 'finished') {
+        const finishedData = data.data as {
+          usageMetadata?: {
+            promptTokenCount?: number;
+            candidatesTokenCount?: number;
+            totalTokenCount?: number;
+            cachedContentTokenCount?: number;
+          };
+        } | null;
+        if (finishedData?.usageMetadata) {
+          this.pendingUsageMetadata = finishedData.usageMetadata;
         }
       }
 
@@ -627,40 +656,47 @@ export class GeminiAgentManager extends BaseAgentManager<
 
   /**
    * Retry checking for cron commands with increasing delays
-   * Max 3 retries: 1s, 2s, 3s
+   * Max 3 retries: immediate, 200ms, 500ms
    * @param attempt - current attempt number
-   * @param checkAfterTimestamp - only process messages created after this timestamp
+   * @param checkAfterTimestamp - reference timestamp for the current finish cycle
    */
   private checkCronWithRetry(attempt: number, checkAfterTimestamp?: number): void {
-    const delays = [1000, 2000, 3000];
+    const delays = [0, 200, 500];
     const maxAttempts = delays.length;
 
     if (attempt >= maxAttempts) {
       return;
     }
 
-    // Record timestamp on first attempt to avoid re-processing old messages
     const timestamp = checkAfterTimestamp ?? Date.now();
     const delay = delays[attempt];
-
-    setTimeout(async () => {
+    const runCheck = async () => {
       const found = await this.checkCronCommandsOnFinish(timestamp);
       if (!found && attempt < maxAttempts - 1) {
-        // No assistant messages found, retry with same timestamp
         this.checkCronWithRetry(attempt + 1, timestamp);
       }
+    };
+
+    if (delay === 0) {
+      void runCheck();
+      return;
+    }
+
+    setTimeout(() => {
+      void runCheck();
     }, delay);
   }
 
   /**
    * Check for cron commands when stream finishes
    * Gets recent assistant messages from database and processes them
-   * @param afterTimestamp - Only process messages created after this timestamp
+   * @param afterTimestamp - Reference timestamp used when synthesizing a fallback message key
    * Returns true if assistant messages were found (regardless of cron commands)
    */
   private async checkCronCommandsOnFinish(afterTimestamp: number): Promise<boolean> {
     try {
-      const { getDatabase } = await import('@process/database');
+      await flushConversationMessages(this.conversation_id);
+
       const db = getDatabase();
       const result = db.getConversationMessages(this.conversation_id, 0, 20, 'DESC');
 
@@ -668,11 +704,9 @@ export class GeminiAgentManager extends BaseAgentManager<
         return false;
       }
 
-      // Check recent assistant messages for cron commands (position: left means assistant)
-      // Filter by timestamp to avoid re-processing old messages
-      const assistantMsgs = result.data.filter((m) => m.position === 'left' && (m.createdAt ?? 0) > afterTimestamp);
-
-      // Return false if no assistant messages found after timestamp (will trigger retry)
+      // Flush pending chunks first, then inspect the newest persisted assistant message.
+      // If none exists yet, the caller can retry shortly.
+      const assistantMsgs = result.data.filter((m) => m.position === 'left');
       if (assistantMsgs.length === 0) {
         return false;
       }
@@ -680,6 +714,11 @@ export class GeminiAgentManager extends BaseAgentManager<
       // Only check the LATEST assistant message to avoid re-processing old messages
       // Messages are sorted DESC, so the first one is the latest
       const latestMsg = assistantMsgs[0];
+      const latestMsgKey = latestMsg.msg_id || latestMsg.id || `createdAt:${latestMsg.createdAt ?? afterTimestamp}`;
+      if (latestMsgKey === this.lastProcessedFinishMessageKey) {
+        return true;
+      }
+      this.lastProcessedFinishMessageKey = latestMsgKey;
       const textContent = extractTextFromMessage(latestMsg);
 
       // Collect system responses to send back to AI
@@ -728,12 +767,65 @@ export class GeminiAgentManager extends BaseAgentManager<
           input: feedbackMessage,
           msg_id: uuid(),
         });
+      } else {
+        void ConversationTurnCompletionService.getInstance().notifyPotentialCompletion(this.conversation_id);
       }
 
       // Found assistant messages, no need to retry
       return true;
     } catch {
       return false;
+    }
+  }
+
+  private persistCurrentTurnTokenUsage(): void {
+    const usageMetadata = this.pendingUsageMetadata;
+    if (!usageMetadata) {
+      return;
+    }
+
+    const totalTokens = usageMetadata.totalTokenCount || 0;
+    if (totalTokens <= 0) {
+      this.pendingUsageMetadata = null;
+      return;
+    }
+
+    const db = getDatabase();
+    const result = db.recordConversationTokenUsage({
+      conversationId: this.conversation_id,
+      backend: 'gemini',
+      assistantMessageId: this.currentAssistantMessageId ?? undefined,
+      inputTokens: usageMetadata.promptTokenCount || 0,
+      outputTokens: usageMetadata.candidatesTokenCount || 0,
+      cachedReadTokens: usageMetadata.cachedContentTokenCount || 0,
+      cachedWriteTokens: 0,
+      thoughtTokens: 0,
+      totalTokens,
+    });
+
+    if (!result.success) {
+      mainWarn('[GeminiAgentManager]', 'Failed to persist conversation token usage', result.error);
+    }
+
+    this.saveTokenUsageToConversationExtra({ totalTokens });
+    this.pendingUsageMetadata = null;
+    this.currentAssistantMessageId = null;
+  }
+
+  private saveTokenUsageToConversationExtra(tokenUsage: TokenUsageData): void {
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (result.success && result.data && result.data.type === 'gemini') {
+        const conversation = result.data;
+        const updatedExtra = {
+          ...conversation.extra,
+          lastTokenUsage: tokenUsage,
+        };
+        db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
+      }
+    } catch (error) {
+      mainWarn('[GeminiAgentManager]', 'Failed to save token usage', error);
     }
   }
 

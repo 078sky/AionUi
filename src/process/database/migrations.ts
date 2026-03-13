@@ -826,14 +826,114 @@ const migration_v14: IMigration = {
 };
 
 /**
- * All migrations in order
- */
-/**
- * Migration v14 -> v15: Remove strict CHECK constraints on type/source
- * to allow extension-contributed channel plugins.
+ * Migration v14 -> v15: Add api_config table for HTTP API functionality
  */
 const migration_v15: IMigration = {
   version: 15,
+  name: 'Add api_config table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS api_config (
+        id INTEGER PRIMARY KEY CHECK(id = 1),
+        enabled INTEGER NOT NULL DEFAULT 0,
+        auth_token TEXT,
+        callback_url TEXT,
+        callback_method TEXT DEFAULT 'POST' CHECK(callback_method IN ('POST', 'GET', 'PUT')),
+        callback_headers TEXT,
+        callback_body TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `);
+    console.log('[Migration v15] Added api_config table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP TABLE IF EXISTS api_config;
+    `);
+    console.log('[Migration v15] Rolled back: Removed api_config table');
+  },
+};
+
+/**
+ * Migration v15 -> v16: Add callback_enabled to api_config
+ */
+const migration_v16: IMigration = {
+  version: 16,
+  name: 'Add callback_enabled to api_config',
+  up: (db) => {
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'api_config'").get() as { name: string } | undefined;
+
+    if (!tableExists) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS api_config (
+          id INTEGER PRIMARY KEY CHECK(id = 1),
+          enabled INTEGER NOT NULL DEFAULT 0,
+          auth_token TEXT,
+          callback_enabled INTEGER NOT NULL DEFAULT 0,
+          callback_url TEXT,
+          callback_method TEXT DEFAULT 'POST' CHECK(callback_method IN ('POST', 'GET', 'PUT')),
+          callback_headers TEXT,
+          callback_body TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+      console.log('[Migration v16] Created api_config table with callback_enabled');
+      return;
+    }
+
+    const tableInfo = db.prepare('PRAGMA table_info(api_config)').all() as Array<{ name: string }>;
+    const hasCallbackEnabled = tableInfo.some((col) => col.name === 'callback_enabled');
+
+    if (!hasCallbackEnabled) {
+      db.exec(`
+        ALTER TABLE api_config ADD COLUMN callback_enabled INTEGER NOT NULL DEFAULT 0;
+      `);
+      db.exec(`
+        UPDATE api_config
+        SET callback_enabled = CASE
+          WHEN callback_url IS NOT NULL AND TRIM(callback_url) != '' THEN 1
+          ELSE 0
+        END;
+      `);
+    }
+
+    console.log('[Migration v16] Added callback_enabled to api_config');
+  },
+  down: (db) => {
+    // SQLite does not support DROP COLUMN directly, recreate table.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS api_config_rollback (
+        id INTEGER PRIMARY KEY CHECK(id = 1),
+        enabled INTEGER NOT NULL DEFAULT 0,
+        auth_token TEXT,
+        callback_url TEXT,
+        callback_method TEXT DEFAULT 'POST' CHECK(callback_method IN ('POST', 'GET', 'PUT')),
+        callback_headers TEXT,
+        callback_body TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT INTO api_config_rollback (id, enabled, auth_token, callback_url, callback_method, callback_headers, callback_body, created_at, updated_at)
+      SELECT id, enabled, auth_token, callback_url, callback_method, callback_headers, callback_body, created_at, updated_at
+      FROM api_config;
+
+      DROP TABLE api_config;
+      ALTER TABLE api_config_rollback RENAME TO api_config;
+    `);
+
+    console.log('[Migration v16] Rolled back: Removed callback_enabled from api_config');
+  },
+};
+
+/**
+ * Migration v16 -> v17: Remove strict CHECK constraints on type/source
+ * to allow extension-contributed channel plugins.
+ */
+const migration_v17: IMigration = {
+  version: 17,
   name: 'Remove strict constraints for extension channels',
   up: (db) => {
     // 1. Recreate assistant_plugins without strict type constraint
@@ -890,12 +990,144 @@ const migration_v15: IMigration = {
       CREATE INDEX IF NOT EXISTS idx_conversations_source_chat ON conversations(source, channel_chat_id, updated_at DESC);
     `);
 
-    console.log('[Migration v15] Removed strict constraints for extension channels');
+    console.log('[Migration v17] Removed strict constraints for extension channels');
   },
   down: (db) => {
     // Cannot safely rollback if there are custom types/sources in the database.
     // For now, we just log a warning and do nothing, or we could delete them.
-    console.warn('[Migration v15] Rollback skipped to prevent data loss of extension channels.');
+    console.warn('[Migration v17] Rollback skipped to prevent data loss of extension channels.');
+  },
+};
+
+/**
+ * Migration v17 -> v18: Add JS filter config for callback payloads
+ */
+const migration_v18: IMigration = {
+  version: 18,
+  name: 'Add callback JS filter config',
+  up: (db) => {
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'api_config'").get() as { name: string } | undefined;
+
+    if (!tableExists) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS api_config (
+          id INTEGER PRIMARY KEY CHECK(id = 1),
+          enabled INTEGER NOT NULL DEFAULT 0,
+          auth_token TEXT,
+          callback_enabled INTEGER NOT NULL DEFAULT 0,
+          callback_url TEXT,
+          callback_method TEXT DEFAULT 'POST' CHECK(callback_method IN ('POST', 'GET', 'PUT')),
+          callback_headers TEXT,
+          callback_body TEXT,
+          js_filter_enabled INTEGER NOT NULL DEFAULT 0,
+          js_filter_script TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+      console.log('[Migration v18] Created api_config table with JS filter columns');
+      return;
+    }
+
+    const tableInfo = db.prepare('PRAGMA table_info(api_config)').all() as Array<{ name: string }>;
+    const hasJsFilterEnabled = tableInfo.some((col) => col.name === 'js_filter_enabled');
+    const hasJsFilterScript = tableInfo.some((col) => col.name === 'js_filter_script');
+
+    if (!hasJsFilterEnabled) {
+      db.exec(`
+        ALTER TABLE api_config ADD COLUMN js_filter_enabled INTEGER NOT NULL DEFAULT 0;
+      `);
+    }
+
+    if (!hasJsFilterScript) {
+      db.exec(`
+        ALTER TABLE api_config ADD COLUMN js_filter_script TEXT;
+      `);
+    }
+
+    console.log('[Migration v18] Added JS filter config to api_config');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS api_config_rollback (
+        id INTEGER PRIMARY KEY CHECK(id = 1),
+        enabled INTEGER NOT NULL DEFAULT 0,
+        auth_token TEXT,
+        callback_enabled INTEGER NOT NULL DEFAULT 0,
+        callback_url TEXT,
+        callback_method TEXT DEFAULT 'POST' CHECK(callback_method IN ('POST', 'GET', 'PUT')),
+        callback_headers TEXT,
+        callback_body TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      INSERT INTO api_config_rollback (
+        id, enabled, auth_token, callback_enabled, callback_url,
+        callback_method, callback_headers, callback_body, created_at, updated_at
+      )
+      SELECT
+        id, enabled, auth_token, callback_enabled, callback_url,
+        callback_method, callback_headers, callback_body, created_at, updated_at
+      FROM api_config;
+
+      DROP TABLE api_config;
+      ALTER TABLE api_config_rollback RENAME TO api_config;
+    `);
+
+    console.log('[Migration v18] Rolled back: Removed JS filter config from api_config');
+  },
+};
+
+/**
+ * Migration v18 -> v19: Add structured token usage table
+ */
+const migration_v19: IMigration = {
+  version: 19,
+  name: 'Add conversation token usage table',
+  up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS conversation_token_usage (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        backend TEXT NOT NULL,
+        reply_index INTEGER NOT NULL,
+        assistant_message_id TEXT,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        cached_read_tokens INTEGER NOT NULL DEFAULT 0,
+        cached_write_tokens INTEGER NOT NULL DEFAULT 0,
+        thought_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        context_used INTEGER,
+        context_size INTEGER,
+        session_cost_amount REAL,
+        session_cost_currency TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        UNIQUE (conversation_id, reply_index)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_conversation_token_usage_conversation_id
+        ON conversation_token_usage(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_conversation_token_usage_reply_index
+        ON conversation_token_usage(conversation_id, reply_index DESC);
+      CREATE INDEX IF NOT EXISTS idx_conversation_token_usage_created_at
+        ON conversation_token_usage(created_at DESC);
+    `);
+
+    console.log('[Migration v19] Added conversation token usage table');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_conversation_token_usage_created_at;
+      DROP INDEX IF EXISTS idx_conversation_token_usage_reply_index;
+      DROP INDEX IF EXISTS idx_conversation_token_usage_conversation_id;
+      DROP TABLE IF EXISTS conversation_token_usage;
+    `);
+
+    console.log('[Migration v19] Rolled back: Removed conversation token usage table');
   },
 };
 
@@ -906,7 +1138,7 @@ const migration_v15: IMigration = {
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15,
+  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18, migration_v19,
 ];
 
 /**

@@ -105,6 +105,109 @@ function saveCurrentHash(hash) {
   } catch {}
 }
 
+function readJsonFile(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function getPackageDir(nodeModulesDir, packageName) {
+  if (packageName.startsWith('@')) {
+    const [scope, name] = packageName.split('/');
+    return path.join(nodeModulesDir, scope, name);
+  }
+
+  return path.join(nodeModulesDir, packageName);
+}
+
+function getInstalledPackageVersion(nodeModulesDir, packageName) {
+  const packageJsonPath = path.join(getPackageDir(nodeModulesDir, packageName), 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return null;
+  }
+
+  try {
+    return readJsonFile(packageJsonPath).version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getExactVersion(spec) {
+  return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(spec) ? spec : null;
+}
+
+function getAionCliOpenTelemetryRepairs() {
+  const packageDir = path.resolve(__dirname, '../node_modules/@office-ai/aioncli-core');
+  const nodeModulesDir = path.join(packageDir, 'node_modules');
+  const sdkMetricsPackageJsonPath = path.join(
+    nodeModulesDir,
+    '@opentelemetry',
+    'sdk-metrics',
+    'package.json'
+  );
+
+  if (!fs.existsSync(sdkMetricsPackageJsonPath)) {
+    return { packageDir, repairs: [] };
+  }
+
+  const sdkMetricsPackageJson = readJsonFile(sdkMetricsPackageJsonPath);
+  const repairs = [];
+
+  for (const [dependencyName, versionSpec] of Object.entries(sdkMetricsPackageJson.dependencies ?? {})) {
+    const exactVersion = getExactVersion(versionSpec);
+    if (!exactVersion) {
+      continue;
+    }
+
+    const installedVersion = getInstalledPackageVersion(nodeModulesDir, dependencyName);
+    if (installedVersion !== exactVersion) {
+      repairs.push(`${dependencyName}@${exactVersion}`);
+    }
+  }
+
+  return { packageDir, repairs };
+}
+
+function repairAionCliOpenTelemetryDeps() {
+  const { packageDir, repairs } = getAionCliOpenTelemetryRepairs();
+  if (repairs.length === 0) {
+    return;
+  }
+
+  console.log(
+    `🔧 Repairing nested OpenTelemetry deps for @office-ai/aioncli-core: ${repairs.join(', ')}`
+  );
+
+  const installArgs = ['install', '--no-save', '--ignore-scripts', '--no-package-lock', ...repairs];
+  const result = process.platform === 'win32'
+    ? spawnSync('cmd.exe', ['/d', '/s', '/c', 'npm.cmd', ...installArgs], {
+        cwd: packageDir,
+        stdio: 'inherit',
+      })
+    : spawnSync('npm', installArgs, {
+        cwd: packageDir,
+        stdio: 'inherit',
+      });
+
+  if (result.error) {
+    throw new Error(
+      `Failed to launch nested OpenTelemetry repair command: ${result.error.message}`
+    );
+  }
+
+  if (result.status !== 0) {
+    throw new Error(
+      `Failed to repair nested OpenTelemetry dependencies (exit code ${result.status})`
+    );
+  }
+
+  const verification = getAionCliOpenTelemetryRepairs();
+  if (verification.repairs.length > 0) {
+    throw new Error(
+      `Nested OpenTelemetry dependency repair incomplete: ${verification.repairs.join(', ')}`
+    );
+  }
+}
+
 function viteBuildExists() {
   const outDir = path.resolve(__dirname, '../out');
   const mainDir = path.join(outDir, 'main');
@@ -423,6 +526,9 @@ try {
     throw new Error('Missing renderer entry: out/renderer/index.html');
   }
 
+  // Bun can flatten exact-version nested deps in a way electron-builder cannot traverse.
+  repairAionCliOpenTelemetryDeps();
+
   // If --pack-only, skip electron-builder distributable creation
   if (packOnly) {
     console.log('✅ Package completed! (skipped distributable creation)');
@@ -458,6 +564,23 @@ try {
     // Single arch mode: use the determined target arch
     archFlag = `--${targetArch}`;
     console.log(`🚀 Creating distributables for ${targetArch}...`);
+  }
+
+  if (process.platform === 'win32' && builderArgs.includes('--win')) {
+    const winUnpackedDir = path.join(outDir, 'win-unpacked');
+    let cleaned = tryRemoveDir(winUnpackedDir);
+    if (!cleaned) {
+      const aionRunning = isProcessRunningWindows('AionUi.exe');
+      const electronRunning = isProcessRunningWindows('electron.exe');
+      if (aionRunning || electronRunning) {
+        console.log('⚠️  Detected running AionUi/Electron process. Attempting to close...');
+        killWindowsProcesses(['AionUi.exe', 'electron.exe']);
+        cleaned = tryRemoveDir(winUnpackedDir);
+        if (!cleaned) {
+          console.log('⚠️  Directory still locked. Please close any running AionUi/Electron processes and retry.');
+        }
+      }
+    }
   }
 
   // 为 Windows 构建添加架构检测脚本

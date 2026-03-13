@@ -20,8 +20,18 @@ export interface ExecRequestMeta {
   cwd?: string;
 }
 
+const MAX_STREAM_OUTPUT_CHARS = 64 * 1024;
+const TRUNCATED_OUTPUT_PREFIX = '[output truncated, showing latest 64KB]\n';
+
+type CommandOutputBuffer = {
+  stdout: string;
+  stderr: string;
+  output: string;
+  truncated: boolean;
+};
+
 export class CodexToolHandlers {
-  private cmdBuffers: Map<string, { stdout: string; stderr: string; combined: string }> = new Map();
+  private cmdBuffers: Map<string, CommandOutputBuffer> = new Map();
   private patchBuffers: Map<string, string> = new Map();
   private patchChanges: Map<string, Record<string, FileChange>> = new Map();
   private execRequestMeta: Map<string, ExecRequestMeta> = new Map(); // callId -> exec metadata for ApprovalStore
@@ -29,6 +39,7 @@ export class CodexToolHandlers {
   private toolRegistry: ToolRegistry;
   private activeToolGroups: Map<string, string> = new Map(); // callId -> msg_id mapping
   private activeToolCalls: Map<string, string> = new Map(); // callId -> msg_id mapping for tool calls
+  private activeMcpCallIdsBySignature: Map<string, string[]> = new Map();
 
   constructor(
     private conversation_id: string,
@@ -41,7 +52,7 @@ export class CodexToolHandlers {
   handleExecCommandBegin(msg: Extract<CodexEventMsg, { type: 'exec_command_begin' }>) {
     const callId = msg.call_id;
     const cmd = Array.isArray(msg.command) ? msg.command.join(' ') : String(msg.command);
-    this.cmdBuffers.set(callId, { stdout: '', stderr: '', combined: '' });
+    this.cmdBuffers.set(callId, { stdout: '', stderr: '', output: '', truncated: false });
     // 试点启用确认流：先置为 Confirming
     this.pendingConfirmations.add(callId);
 
@@ -70,10 +81,15 @@ export class CodexToolHandlers {
         // If base64 decoding fails, use the original string
       }
     }
-    const buf = this.cmdBuffers.get(callId) || { stdout: '', stderr: '', combined: '' };
-    if (stream === 'stderr') buf.stderr += chunk;
-    else buf.stdout += chunk;
-    buf.combined += chunk;
+    const buf = this.cmdBuffers.get(callId) || { stdout: '', stderr: '', output: '', truncated: false };
+    if (stream === 'stderr') {
+      buf.stderr = this.appendOutputChunk(buf.stderr, chunk).value;
+    } else {
+      buf.stdout = this.appendOutputChunk(buf.stdout, chunk).value;
+    }
+    const combined = this.appendOutputChunk(buf.output, chunk);
+    buf.output = combined.value;
+    buf.truncated = buf.truncated || combined.truncated;
     this.cmdBuffers.set(callId, buf);
 
     // Use new CodexToolCall approach with subtype and original data
@@ -85,7 +101,7 @@ export class CodexToolHandlers {
       content: [
         {
           type: 'output',
-          output: buf.combined,
+          output: this.formatBufferedOutput(buf.output, buf.truncated),
         },
       ],
     });
@@ -97,7 +113,7 @@ export class CodexToolHandlers {
 
     // 获取累积的输出，优先使用缓存的数据，回退到消息中的数据
     const buf = this.cmdBuffers.get(callId);
-    const finalOutput = buf?.combined || msg.aggregated_output || '';
+    const finalOutput = this.limitOutputForDisplay(msg.aggregated_output || buf?.output || '');
 
     // 确定最终状态：exit_code 0 为成功，其他为错误
     const isSuccess = exitCode === 0;
@@ -193,6 +209,10 @@ export class CodexToolHandlers {
     // Use type assertion since call_id may exist in runtime data but not in type definition
     // 使用类型断言，因为 call_id 可能在运行时数据中存在但不在类型定义中
     const callId = (msg as unknown as { call_id?: string }).call_id || `mcp_${toolName}_${uuid()}`;
+    const invocationSignature = this.getMcpInvocationSignature(inv);
+    const existingQueue = this.activeMcpCallIdsBySignature.get(invocationSignature) || [];
+    existingQueue.push(callId);
+    this.activeMcpCallIdsBySignature.set(invocationSignature, existingQueue);
     const title = this.formatMcpInvocation(inv);
 
     // Intercept chrome-devtools navigation tools using unified NavigationInterceptor
@@ -229,7 +249,14 @@ export class CodexToolHandlers {
     // MCP events don't have call_id, generate one based on tool name
     const inv = msg.invocation || {};
     const toolName = inv.tool || inv.name || inv.method || 'unknown';
-    const callId = `mcp_${toolName}_${uuid()}`;
+    const invocationSignature = this.getMcpInvocationSignature(inv);
+    const pendingCallIds = this.activeMcpCallIdsBySignature.get(invocationSignature) || [];
+    const callId = pendingCallIds.shift() || `mcp_${toolName}_${uuid()}`;
+    if (pendingCallIds.length > 0) {
+      this.activeMcpCallIdsBySignature.set(invocationSignature, pendingCallIds);
+    } else {
+      this.activeMcpCallIdsBySignature.delete(invocationSignature);
+    }
     const title = this.formatMcpInvocation(inv);
     const result = msg.result;
 
@@ -264,7 +291,7 @@ export class CodexToolHandlers {
   // Web search handlers
   handleWebSearchBegin(msg: Extract<CodexEventMsg, { type: 'web_search_begin' }>) {
     const callId = msg.call_id;
-    this.cmdBuffers.set(callId, { stdout: '', stderr: '', combined: '' });
+    this.cmdBuffers.set(callId, { stdout: '', stderr: '', output: '', truncated: false });
     // 试点启用确认流：先置为 Confirming
     this.pendingConfirmations.add(callId);
     // Use new CodexToolCall approach with subtype and original data
@@ -419,8 +446,40 @@ export class CodexToolHandlers {
     this.patchChanges.clear();
     this.execRequestMeta.clear();
     this.pendingConfirmations.clear();
+    this.activeMcpCallIdsBySignature.clear();
     this.activeToolGroups.clear();
     this.activeToolCalls.clear();
+  }
+
+  private appendOutputChunk(current: string, chunk: string): { value: string; truncated: boolean } {
+    const next = current + chunk;
+    if (next.length <= MAX_STREAM_OUTPUT_CHARS) {
+      return {
+        value: next,
+        truncated: false,
+      };
+    }
+
+    return {
+      value: next.slice(-MAX_STREAM_OUTPUT_CHARS),
+      truncated: true,
+    };
+  }
+
+  private formatBufferedOutput(output: string, truncated: boolean): string {
+    return truncated ? `${TRUNCATED_OUTPUT_PREFIX}${output}` : output;
+  }
+
+  private limitOutputForDisplay(output: string): string {
+    const limited = this.appendOutputChunk('', output);
+    return this.formatBufferedOutput(limited.value, limited.truncated);
+  }
+
+  private getMcpInvocationSignature(invocation: McpInvocation | Record<string, unknown>): string {
+    const server = String(invocation.server || '');
+    const tool = String(invocation.tool || invocation.name || invocation.method || 'unknown');
+    const args = 'arguments' in invocation && invocation.arguments ? JSON.stringify(invocation.arguments) : '';
+    return `${server}::${tool}::${args}`;
   }
 
   private isValidBase64(str: string): boolean {

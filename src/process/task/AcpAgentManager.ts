@@ -2,12 +2,13 @@ import { AcpAgent } from '@/agent/acp';
 import { channelEventBus } from '@/channels/agent/ChannelEventBus';
 import { ipcBridge } from '@/common';
 import type { CronMessageMeta, TMessage } from '@/common/chatLib';
+import { isCodexAutoApproveMode } from '@/common/codex/codexModes';
 import type { SlashCommandItem } from '@/common/slash/types';
 import { transformMessage } from '@/common/chatLib';
 import { AIONUI_FILES_MARKER } from '@/common/constants';
 import type { IResponseMessage } from '@/common/ipcBridge';
 import { parseError, uuid } from '@/common/utils';
-import type { AcpBackend, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpSessionConfigOption } from '@/types/acpTypes';
+import type { AcpBackend, AcpModelInfo, AcpPermissionOption, AcpPermissionRequest, AcpPromptResponseUsage, AcpSessionConfigOption } from '@/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/types/acpTypes';
 import { ExtensionRegistry } from '@/extensions';
 import { getDatabase } from '@process/database';
@@ -15,6 +16,8 @@ import { ProcessConfig } from '../initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '../message';
 import { handlePreviewOpenEvent } from '../utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { ConversationTurnCompletionService } from '@process/services/ConversationTurnCompletionService';
+import { getCodexSandboxModeForSessionMode, writeCodexSandboxMode, type CodexSandboxMode } from '@process/utils/codexConfig';
 import { mainLog, mainWarn, mainError } from '../utils/mainLogger';
 import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
@@ -47,6 +50,9 @@ interface AcpAgentManagerData {
   sessionMode?: string;
   /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */
   currentModelId?: string;
+  /** Persisted ACP config option values for resume support / 持久化的 ACP 配置选项值，用于恢复 */
+  configOptionValues?: Record<string, string>;
+  sandboxMode?: CodexSandboxMode;
 }
 
 type BufferedStreamTextMessage = {
@@ -64,6 +70,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   options: AcpAgentManagerData;
   private currentMode: string = 'default';
   private persistedModelId: string | null = null;
+  private persistedConfigOptionValues: Record<string, string>;
+  private pendingPromptUsage: AcpPromptResponseUsage | null = null;
+  private pendingContextUsage: { used: number; size: number; cost?: { amount: number; currency: string } } | null = null;
   // Track current message for cron detection (accumulated from streaming chunks)
   private currentMsgId: string | null = null;
   private currentMsgContent: string = '';
@@ -79,9 +88,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     this.options = data;
     this.currentMode = data.sessionMode || 'default';
     this.persistedModelId = data.currentModelId || null;
+    this.persistedConfigOptionValues = { ...(data.configOptionValues || {}) };
     this.status = 'pending';
     // Sync yoloMode from sessionMode so addConfirmation auto-approves when Full Auto is selected
-    this.yoloMode = this.yoloMode || this.currentMode === 'yolo' || this.currentMode === 'bypassPermissions';
+    this.yoloMode = this.yoloMode || this.isYoloMode(this.currentMode);
   }
 
   private makeStreamBufferKey(message: Extract<TMessage, { type: 'text' }>): string {
@@ -187,6 +197,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       } else if (data.backend !== 'custom') {
         // Handle built-in backends: read from acp.config
         const config = await ProcessConfig.get('acp.config');
+        const codexConfig = data.backend === 'codex' ? await ProcessConfig.get('codex.config') : undefined;
         if (!cliPath && config?.[data.backend]?.cliPath) {
           cliPath = config[data.backend].cliPath;
         }
@@ -229,6 +240,12 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         if (!cliPath && backendConfig?.cliCommand) {
           cliPath = backendConfig.cliCommand;
         }
+
+        if (data.backend === 'codex') {
+          const sandboxMode = getCodexSandboxModeForSessionMode(data.sessionMode || this.currentMode, data.sandboxMode || codexConfig?.sandboxMode || 'workspace-write') as CodexSandboxMode;
+          await writeCodexSandboxMode(sandboxMode);
+          data.sandboxMode = sandboxMode;
+        }
       } else {
         // backend === 'custom' but no customAgentId - this is an invalid state
         // 自定义后端但缺少 customAgentId - 这是无效状态
@@ -253,6 +270,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           agentName: data.agentName,
           acpSessionId: data.acpSessionId,
           acpSessionUpdatedAt: data.acpSessionUpdatedAt,
+        },
+        onPromptUsage: (usage) => {
+          this.pendingPromptUsage = usage;
         },
         onSessionIdUpdate: (sessionId: string) => {
           // Save ACP session ID to database for resume support
@@ -308,6 +328,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
 
           // Emit request trace on each model generation start
           if (message.type === 'start') {
+            this.resetCurrentTurnTracking();
             const modelInfo = this.agent?.getModelInfo();
             const traceData = {
               agentType: 'acp' as const,
@@ -327,7 +348,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
 
           // Persist context usage to conversation extra for restore on page switch
           if (message.type === 'acp_context_usage') {
-            const usageData = message.data as { used: number; size: number };
+            const usageData = message.data as { used: number; size: number; cost?: { amount: number; currency: string } };
+            this.pendingContextUsage = usageData;
             this.saveContextUsage(usageData);
           }
 
@@ -390,6 +412,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           }
         },
         onSignalEvent: async (v) => {
+          let shouldNotifyTurnCompleted = v.type === 'finish';
           // Flush buffered text chunks before handling turn-level signals
           this.flushBufferedStreamTextMessages();
 
@@ -421,6 +444,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
 
           // Clear busy guard when turn ends
           if (v.type === 'finish') {
+            this.persistCurrentTurnTokenUsage();
             cronBusyGuard.setProcessing(this.conversation_id, false);
           }
 
@@ -452,6 +476,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             });
             // Send collected responses back to AI agent so it can continue
             if (collectedResponses.length > 0 && this.agent) {
+              shouldNotifyTurnCompleted = false;
               const feedbackMessage = `[System Response]\n${collectedResponses.join('\n')}`;
               await this.agent.sendMessage({ content: feedbackMessage });
             }
@@ -467,6 +492,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             ...(v as any),
             conversation_id: this.conversation_id,
           });
+
+          if (shouldNotifyTurnCompleted) {
+            void ConversationTurnCompletionService.getInstance().notifyPotentialCompletion(this.conversation_id);
+          }
         },
       });
       return this.agent.start().then(async () => {
@@ -508,6 +537,35 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
               this.persistedModelId = null;
             }
           }
+        }
+        const configOptions = this.agent.getConfigOptions();
+        if (configOptions.length > 0) {
+          for (const option of configOptions) {
+            const nextValue = this.persistedConfigOptionValues[option.id];
+            if (!nextValue) continue;
+
+            const isValueAvailable = option.options?.some((choice) => choice.value === nextValue) ?? true;
+            if (!isValueAvailable) {
+              mainWarn('[AcpAgentManager]', `Persisted config option ${option.id}=${nextValue} is not available, clearing`);
+              delete this.persistedConfigOptionValues[option.id];
+              continue;
+            }
+
+            const currentValue = option.currentValue || option.selectedValue || '';
+            if (currentValue === nextValue) {
+              continue;
+            }
+
+            try {
+              await this.agent.setConfigOption(option.id, nextValue);
+            } catch (error) {
+              mainWarn('[AcpAgentManager]', `Failed to re-apply config option ${option.id}=${nextValue}`, error);
+              delete this.persistedConfigOptionValues[option.id];
+            }
+          }
+        }
+        if (configOptions.length > 0) {
+          void this.cacheConfigOptions(configOptions);
         }
         // Cache model list for Guid page pre-selection after agent starts
         const modelInfo = this.agent.getModelInfo();
@@ -626,6 +684,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         data: null,
       };
       ipcBridge.acpConversation.responseStream.emit(finishMessage);
+      void ConversationTurnCompletionService.getInstance().notifyPotentialCompletion(this.conversation_id);
 
       return new Promise((_, reject) => {
         nextTickToLocalFinish(() => {
@@ -833,7 +892,13 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       }
     }
     if (!this.agent) return [];
-    return await this.agent.setConfigOption(configId, value);
+    const configOptions = await this.agent.setConfigOption(configId, value);
+    this.persistedConfigOptionValues[configId] = value;
+    this.saveConfigOptionValues();
+    if (configOptions.length > 0) {
+      void this.cacheConfigOptions(configOptions);
+    }
+    return configOptions;
   }
 
   /**
@@ -854,6 +919,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       const prev = this.currentMode;
       this.currentMode = mode;
       this.yoloMode = this.isYoloMode(mode);
+      const sandboxMode = getCodexSandboxModeForSessionMode(mode, this.options.sandboxMode);
+      this.options.sandboxMode = sandboxMode;
+      await writeCodexSandboxMode(sandboxMode);
       this.saveSessionMode(mode);
 
       if (this.isYoloMode(prev) && !this.isYoloMode(mode)) {
@@ -896,7 +964,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
 
   /** Check if a mode value represents YOLO mode for any backend */
   private isYoloMode(mode: string): boolean {
-    return mode === 'yolo' || mode === 'bypassPermissions';
+    return mode === 'bypassPermissions' || mode === 'yolo' || isCodexAutoApproveMode(mode);
   }
 
   /**
@@ -944,6 +1012,53 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
    * Save context usage to database for restore on page switch.
    * 保存上下文使用量到数据库，以便在页面切换时恢复。
    */
+  private resetCurrentTurnTracking(): void {
+    this.pendingPromptUsage = null;
+    this.pendingContextUsage = null;
+    this.currentMsgId = null;
+    this.currentMsgContent = '';
+  }
+
+  private persistCurrentTurnTokenUsage(): void {
+    if (!this.pendingPromptUsage && !this.pendingContextUsage) {
+      return;
+    }
+
+    const promptUsage = this.pendingPromptUsage;
+    const contextUsage = this.pendingContextUsage;
+    const totalTokens = promptUsage?.totalTokens ?? contextUsage?.used ?? 0;
+
+    if (totalTokens <= 0) {
+      this.pendingPromptUsage = null;
+      this.pendingContextUsage = null;
+      return;
+    }
+
+    const db = getDatabase();
+    const result = db.recordConversationTokenUsage({
+      conversationId: this.conversation_id,
+      backend: this.options.backend,
+      assistantMessageId: this.currentMsgId ?? undefined,
+      inputTokens: promptUsage?.inputTokens ?? 0,
+      outputTokens: promptUsage?.outputTokens ?? 0,
+      cachedReadTokens: promptUsage?.cachedReadTokens ?? 0,
+      cachedWriteTokens: promptUsage?.cachedWriteTokens ?? 0,
+      thoughtTokens: promptUsage?.thoughtTokens ?? 0,
+      totalTokens,
+      contextUsed: contextUsage?.used,
+      contextSize: contextUsage && contextUsage.size > 0 ? contextUsage.size : undefined,
+      sessionCostAmount: contextUsage?.cost?.amount,
+      sessionCostCurrency: contextUsage?.cost?.currency,
+    });
+
+    if (!result.success) {
+      mainWarn('[AcpAgentManager]', 'Failed to persist conversation token usage', result.error);
+    }
+
+    this.pendingPromptUsage = null;
+    this.pendingContextUsage = null;
+  }
+
   private saveContextUsage(usage: { used: number; size: number }): void {
     try {
       const db = getDatabase();
@@ -980,6 +1095,23 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       }
     } catch (error) {
       mainError('[AcpAgentManager]', 'Failed to save session mode', error);
+    }
+  }
+
+  private saveConfigOptionValues(): void {
+    try {
+      const db = getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (result.success && result.data && result.data.type === 'acp') {
+        const conversation = result.data;
+        const updatedExtra = {
+          ...conversation.extra,
+          configOptionValues: { ...this.persistedConfigOptionValues },
+        };
+        db.updateConversation(this.conversation_id, { extra: updatedExtra } as Partial<typeof conversation>);
+      }
+    } catch (error) {
+      mainWarn('[AcpAgentManager]', 'Failed to save config option values', error);
     }
   }
 
@@ -1030,6 +1162,23 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       })
       .then(() => new Promise<void>((r) => setTimeout(r, GRACE_PERIOD_MS)))
       .finally(doKill);
+  }
+
+  private async cacheConfigOptions(configOptions: AcpSessionConfigOption[]): Promise<void> {
+    const nextCachedOptions = configOptions.filter((option) => option.category !== 'model' && option.category !== 'mode');
+    if (nextCachedOptions.length === 0) {
+      return;
+    }
+
+    try {
+      const cached = (await ProcessConfig.get('acp.cachedConfigOptions')) || {};
+      await ProcessConfig.set('acp.cachedConfigOptions', {
+        ...cached,
+        [this.options.backend]: nextCachedOptions,
+      });
+    } catch (error) {
+      mainWarn('[AcpAgentManager]', 'Failed to cache config options', error);
+    }
   }
 
   /**

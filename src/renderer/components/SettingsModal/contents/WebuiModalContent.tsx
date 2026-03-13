@@ -14,10 +14,11 @@ import ChannelSlackLogo from '@/renderer/assets/channel-logos/slack.svg';
 import ChannelTelegramLogo from '@/renderer/assets/channel-logos/telegram.svg';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Button, Form, Input, Message, Switch, Tabs, Tooltip } from '@arco-design/web-react';
-import { CheckOne, Communication, Copy, Earth, EditTwo, Refresh } from '@icon-park/react';
+import { CheckOne, Communication, Copy, Earth, EditTwo, Refresh, Api } from '@icon-park/react';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../settingsViewContext';
+import ApiSettingsContent from './ApiSettingsContent';
 
 /**
  * 偏好设置行组件
@@ -58,7 +59,7 @@ const WebuiModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
-  const [activeTab, setActiveTab] = useState<'webui' | 'channels'>('webui');
+  const [activeTab, setActiveTab] = useState<'webui' | 'channels' | 'api'>('webui');
 
   // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
   const isDesktop = isElectronDesktop();
@@ -697,13 +698,22 @@ const WebuiModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab((key as 'webui' | 'channels') || 'webui')} type='line' className='mb-12px settings-remote-tabs'>
+      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab((key as 'webui' | 'channels' | 'api') || 'webui')} type='line' className='mb-12px settings-remote-tabs'>
         <Tabs.TabPane
           key='webui'
           title={
             <span data-webui-tab='webui' className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'webui' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
               <Earth theme='outline' size='15' />
               <span>WebUI</span>
+            </span>
+          }
+        />
+        <Tabs.TabPane
+          key='api'
+          title={
+            <span className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'api' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
+              <Api theme='outline' size='15' />
+              <span>API</span>
             </span>
           }
         />
@@ -727,6 +737,12 @@ const WebuiModalContent: React.FC = () => {
 
       {activeTab === 'webui' ? (
         webuiPanel
+      ) : activeTab === 'api' ? (
+        <div className='flex-1 min-h-0'>
+          <AionScrollArea>
+            <ApiSettingsContent />
+          </AionScrollArea>
+        </div>
       ) : (
         <div className='flex-1 min-h-0'>
           <Suspense fallback={<div className='px-[12px] md:px-[28px] text-13px text-t-secondary'>{t('common.loading')}</div>}>

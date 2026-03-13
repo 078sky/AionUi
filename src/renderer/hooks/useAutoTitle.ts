@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { buildConversationTitleFromMessage } from '@/common/utils/conversationTitle';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
 import { emitter } from '@/renderer/utils/emitter';
-import { stripThinkTags, hasThinkTags } from '@/renderer/utils/thinkTagFilter';
 
 export const useAutoTitle = () => {
   const { t } = useTranslation();
@@ -16,10 +16,7 @@ export const useAutoTitle = () => {
         const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
         // Only update if current name matches the default "New Chat" name
         if (conversation && conversation.name === defaultTitle) {
-          // Strip think tags before extracting title to avoid thinking content in conversation name
-          const cleanContent = hasThinkTags(messageContent) ? stripThinkTags(messageContent) : messageContent;
-          // Create title from message: take first 50 chars, remove newlines
-          const newTitle = cleanContent.split('\n')[0].substring(0, 50).trim();
+          const newTitle = buildConversationTitleFromMessage(messageContent);
           if (!newTitle) return; // Don't update if empty
 
           await ipcBridge.conversation.update.invoke({

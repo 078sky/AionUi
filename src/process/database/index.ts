@@ -5,14 +5,15 @@
  */
 
 import { ensureDirectory, getDataPath } from '@process/utils';
+import type { ConversationTokenUsageMonitorResult, ConversationTokenUsageMonitorSummary, ConversationTokenUsageRange, ConversationTokenUsageRecord, ConversationTokenUsageRecordInput, ConversationTokenUsageSummary } from '@/common/tokenUsage';
 import type Database from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { runMigrations as executeMigrations } from './migrations';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
-import type { IConversationRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
-import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
+import type { IConversationRow, IConversationTokenUsageRow, IMessageRow, IPaginatedResult, IQueryResult, IUser, TChatConversation, TMessage } from './types';
+import { conversationToRow, messageToRow, rowToConversation, rowToConversationTokenUsage, rowToMessage } from './types';
 import type { IChannelPluginConfig, IChannelUser, IChannelSession, IChannelPairingRequest, IChannelUserRow, IChannelSessionRow, IChannelPairingCodeRow, PluginType, PluginStatus } from '@/channels/types';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
@@ -755,6 +756,399 @@ export class AionUIDatabase {
     }
   }
 
+  private buildConversationTokenUsageRangeClause(
+    range: ConversationTokenUsageRange = {},
+    columnName = 'created_at'
+  ): {
+    clause: string;
+    params: number[];
+  } {
+    const conditions: string[] = [];
+    const params: number[] = [];
+
+    if (typeof range.startTime === 'number') {
+      conditions.push(`${columnName} >= ?`);
+      params.push(range.startTime);
+    }
+
+    if (typeof range.endTime === 'number') {
+      conditions.push(`${columnName} <= ?`);
+      params.push(range.endTime);
+    }
+
+    return {
+      clause: conditions.length > 0 ? ` AND ${conditions.join(' AND ')}` : '',
+      params,
+    };
+  }
+
+  private mapConversationTokenUsageMonitorSummary(row: { conversation_count: number | null; reply_count: number | null; total_input_tokens: number | null; total_output_tokens: number | null; total_cached_read_tokens: number | null; total_cached_write_tokens: number | null; total_thought_tokens: number | null; total_tokens: number | null; first_recorded_at: number | null; last_recorded_at: number | null }): ConversationTokenUsageMonitorSummary {
+    return {
+      conversationCount: row.conversation_count ?? 0,
+      replyCount: row.reply_count ?? 0,
+      totalInputTokens: row.total_input_tokens ?? 0,
+      totalOutputTokens: row.total_output_tokens ?? 0,
+      totalCachedReadTokens: row.total_cached_read_tokens ?? 0,
+      totalCachedWriteTokens: row.total_cached_write_tokens ?? 0,
+      totalThoughtTokens: row.total_thought_tokens ?? 0,
+      totalTokens: row.total_tokens ?? 0,
+      firstRecordedAt: row.first_recorded_at ?? undefined,
+      lastRecordedAt: row.last_recorded_at ?? undefined,
+    };
+  }
+
+  recordConversationTokenUsage(record: ConversationTokenUsageRecordInput): IQueryResult<ConversationTokenUsageRecord> {
+    try {
+      const nextReplyIndex = record.replyIndex || ((this.db.prepare('SELECT COALESCE(MAX(reply_index), 0) + 1 as next_reply_index FROM conversation_token_usage WHERE conversation_id = ?').get(record.conversationId) as { next_reply_index: number }).next_reply_index ?? 1);
+
+      const now = Date.now();
+      const finalRecord: ConversationTokenUsageRecord = {
+        id: `token_usage_${record.conversationId}_${nextReplyIndex}_${now}`,
+        conversationId: record.conversationId,
+        backend: record.backend,
+        replyIndex: nextReplyIndex,
+        assistantMessageId: record.assistantMessageId,
+        inputTokens: record.inputTokens,
+        outputTokens: record.outputTokens,
+        cachedReadTokens: record.cachedReadTokens,
+        cachedWriteTokens: record.cachedWriteTokens,
+        thoughtTokens: record.thoughtTokens,
+        totalTokens: record.totalTokens,
+        contextUsed: record.contextUsed,
+        contextSize: record.contextSize,
+        sessionCostAmount: record.sessionCostAmount,
+        sessionCostCurrency: record.sessionCostCurrency,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      this.db
+        .prepare(
+          `
+            INSERT INTO conversation_token_usage (
+              id, conversation_id, backend, reply_index, assistant_message_id,
+              input_tokens, output_tokens, cached_read_tokens, cached_write_tokens, thought_tokens, total_tokens,
+              context_used, context_size, session_cost_amount, session_cost_currency,
+              created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `
+        )
+        .run(finalRecord.id, finalRecord.conversationId, finalRecord.backend, finalRecord.replyIndex, finalRecord.assistantMessageId ?? null, finalRecord.inputTokens, finalRecord.outputTokens, finalRecord.cachedReadTokens, finalRecord.cachedWriteTokens, finalRecord.thoughtTokens, finalRecord.totalTokens, finalRecord.contextUsed ?? null, finalRecord.contextSize ?? null, finalRecord.sessionCostAmount ?? null, finalRecord.sessionCostCurrency ?? null, finalRecord.createdAt, finalRecord.updatedAt);
+
+      return { success: true, data: finalRecord };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getConversationTokenUsage(conversationId: string, page = 0, pageSize = 100, order: 'ASC' | 'DESC' = 'DESC', range: ConversationTokenUsageRange = {}): IPaginatedResult<ConversationTokenUsageRecord> {
+    try {
+      const { clause, params } = this.buildConversationTokenUsageRangeClause(range);
+      const countResult = this.db.prepare(`SELECT COUNT(*) as count FROM conversation_token_usage WHERE conversation_id = ?${clause}`).get(conversationId, ...params) as {
+        count: number;
+      };
+
+      const rows = this.db
+        .prepare(
+          `
+            SELECT *
+            FROM conversation_token_usage
+            WHERE conversation_id = ?${clause}
+            ORDER BY reply_index ${order} LIMIT ?
+            OFFSET ?
+          `
+        )
+        .all(conversationId, ...params, pageSize, page * pageSize) as IConversationTokenUsageRow[];
+
+      return {
+        data: rows.map(rowToConversationTokenUsage),
+        total: countResult.count,
+        page,
+        pageSize,
+        hasMore: (page + 1) * pageSize < countResult.count,
+      };
+    } catch (error: any) {
+      console.error('[Database] Get conversation token usage error:', error);
+      return {
+        data: [],
+        total: 0,
+        page,
+        pageSize,
+        hasMore: false,
+      };
+    }
+  }
+
+  getConversationTokenUsageSummary(conversationId: string, range: ConversationTokenUsageRange = {}): IQueryResult<ConversationTokenUsageSummary> {
+    try {
+      const { clause, params } = this.buildConversationTokenUsageRangeClause(range);
+      const aggregateRow = this.db
+        .prepare(
+          `
+            SELECT
+              COUNT(*) as reply_count,
+              COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+              COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+              COALESCE(SUM(cached_read_tokens), 0) as total_cached_read_tokens,
+              COALESCE(SUM(cached_write_tokens), 0) as total_cached_write_tokens,
+              COALESCE(SUM(thought_tokens), 0) as total_thought_tokens,
+              COALESCE(SUM(total_tokens), 0) as total_tokens,
+              MIN(created_at) as first_recorded_at,
+              MAX(updated_at) as last_recorded_at
+            FROM conversation_token_usage
+            WHERE conversation_id = ?${clause}
+          `
+        )
+        .get(conversationId, ...params) as {
+        reply_count: number;
+        total_input_tokens: number;
+        total_output_tokens: number;
+        total_cached_read_tokens: number;
+        total_cached_write_tokens: number;
+        total_thought_tokens: number;
+        total_tokens: number;
+        first_recorded_at: number | null;
+        last_recorded_at: number | null;
+      };
+
+      const latestRow = this.db
+        .prepare(
+          `
+            SELECT backend, reply_index, updated_at, context_used, context_size, session_cost_amount, session_cost_currency
+            FROM conversation_token_usage
+            WHERE conversation_id = ?${clause}
+            ORDER BY reply_index DESC
+            LIMIT 1
+          `
+        )
+        .get(conversationId, ...params) as
+        | {
+            backend: string;
+            reply_index: number;
+            updated_at: number;
+            context_used: number | null;
+            context_size: number | null;
+            session_cost_amount: number | null;
+            session_cost_currency: string | null;
+          }
+        | undefined;
+
+      const summary: ConversationTokenUsageSummary = {
+        conversationId,
+        backend: latestRow?.backend,
+        replyCount: aggregateRow.reply_count ?? 0,
+        totalInputTokens: aggregateRow.total_input_tokens ?? 0,
+        totalOutputTokens: aggregateRow.total_output_tokens ?? 0,
+        totalCachedReadTokens: aggregateRow.total_cached_read_tokens ?? 0,
+        totalCachedWriteTokens: aggregateRow.total_cached_write_tokens ?? 0,
+        totalThoughtTokens: aggregateRow.total_thought_tokens ?? 0,
+        totalTokens: aggregateRow.total_tokens ?? 0,
+        latestContextUsed: latestRow?.context_used ?? undefined,
+        latestContextSize: latestRow?.context_size ?? undefined,
+        latestSessionCostAmount: latestRow?.session_cost_amount ?? undefined,
+        latestSessionCostCurrency: latestRow?.session_cost_currency ?? undefined,
+        lastReplyIndex: latestRow?.reply_index ?? undefined,
+        firstRecordedAt: aggregateRow.first_recorded_at ?? undefined,
+        lastRecordedAt: latestRow?.updated_at ?? aggregateRow.last_recorded_at ?? undefined,
+      };
+
+      return { success: true, data: summary };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getConversationTokenUsageSummaries(conversationIds: string[], range: ConversationTokenUsageRange = {}): IQueryResult<ConversationTokenUsageSummary[]> {
+    try {
+      if (conversationIds.length === 0) {
+        return { success: true, data: [] };
+      }
+
+      const summaries = conversationIds.map((conversationId) => {
+        const summaryResult = this.getConversationTokenUsageSummary(conversationId, range);
+        if (!summaryResult.success || !summaryResult.data) {
+          throw new Error(summaryResult.error || `Failed to load conversation token usage summary: ${conversationId}`);
+        }
+        return summaryResult.data;
+      });
+
+      return { success: true, data: summaries };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getConversationTokenUsageMonitor(range: ConversationTokenUsageRange = {}): IQueryResult<ConversationTokenUsageMonitorResult> {
+    try {
+      const { clause, params } = this.buildConversationTokenUsageRangeClause(range, 'ctu.created_at');
+      const baseFromSql = `
+        FROM conversation_token_usage ctu
+        LEFT JOIN conversations c ON c.id = ctu.conversation_id
+        WHERE 1 = 1${clause}
+      `;
+
+      const summaryRow = this.db
+        .prepare(
+          `
+            SELECT
+              COUNT(DISTINCT ctu.conversation_id) as conversation_count,
+              COUNT(*) as reply_count,
+              COALESCE(SUM(ctu.input_tokens), 0) as total_input_tokens,
+              COALESCE(SUM(ctu.output_tokens), 0) as total_output_tokens,
+              COALESCE(SUM(ctu.cached_read_tokens), 0) as total_cached_read_tokens,
+              COALESCE(SUM(ctu.cached_write_tokens), 0) as total_cached_write_tokens,
+              COALESCE(SUM(ctu.thought_tokens), 0) as total_thought_tokens,
+              COALESCE(SUM(ctu.total_tokens), 0) as total_tokens,
+              MIN(ctu.created_at) as first_recorded_at,
+              MAX(ctu.updated_at) as last_recorded_at
+            ${baseFromSql}
+          `
+        )
+        .get(...params) as {
+        conversation_count: number | null;
+        reply_count: number | null;
+        total_input_tokens: number | null;
+        total_output_tokens: number | null;
+        total_cached_read_tokens: number | null;
+        total_cached_write_tokens: number | null;
+        total_thought_tokens: number | null;
+        total_tokens: number | null;
+        first_recorded_at: number | null;
+        last_recorded_at: number | null;
+      };
+
+      const byAgentRows = this.db
+        .prepare(
+          `
+            SELECT
+              COALESCE(c.type, 'unknown') as agent,
+              COUNT(DISTINCT ctu.conversation_id) as conversation_count,
+              COUNT(*) as reply_count,
+              COALESCE(SUM(ctu.input_tokens), 0) as total_input_tokens,
+              COALESCE(SUM(ctu.output_tokens), 0) as total_output_tokens,
+              COALESCE(SUM(ctu.cached_read_tokens), 0) as total_cached_read_tokens,
+              COALESCE(SUM(ctu.cached_write_tokens), 0) as total_cached_write_tokens,
+              COALESCE(SUM(ctu.thought_tokens), 0) as total_thought_tokens,
+              COALESCE(SUM(ctu.total_tokens), 0) as total_tokens,
+              MIN(ctu.created_at) as first_recorded_at,
+              MAX(ctu.updated_at) as last_recorded_at
+            ${baseFromSql}
+            GROUP BY COALESCE(c.type, 'unknown')
+            ORDER BY total_tokens DESC, agent ASC
+          `
+        )
+        .all(...params) as Array<{
+        agent: string;
+        conversation_count: number | null;
+        reply_count: number | null;
+        total_input_tokens: number | null;
+        total_output_tokens: number | null;
+        total_cached_read_tokens: number | null;
+        total_cached_write_tokens: number | null;
+        total_thought_tokens: number | null;
+        total_tokens: number | null;
+        first_recorded_at: number | null;
+        last_recorded_at: number | null;
+      }>;
+
+      const byBackendRows = this.db
+        .prepare(
+          `
+            SELECT
+              COALESCE(NULLIF(ctu.backend, ''), 'unknown') as backend,
+              COUNT(DISTINCT ctu.conversation_id) as conversation_count,
+              COUNT(*) as reply_count,
+              COALESCE(SUM(ctu.input_tokens), 0) as total_input_tokens,
+              COALESCE(SUM(ctu.output_tokens), 0) as total_output_tokens,
+              COALESCE(SUM(ctu.cached_read_tokens), 0) as total_cached_read_tokens,
+              COALESCE(SUM(ctu.cached_write_tokens), 0) as total_cached_write_tokens,
+              COALESCE(SUM(ctu.thought_tokens), 0) as total_thought_tokens,
+              COALESCE(SUM(ctu.total_tokens), 0) as total_tokens,
+              MIN(ctu.created_at) as first_recorded_at,
+              MAX(ctu.updated_at) as last_recorded_at
+            ${baseFromSql}
+            GROUP BY COALESCE(NULLIF(ctu.backend, ''), 'unknown')
+            ORDER BY total_tokens DESC, backend ASC
+          `
+        )
+        .all(...params) as Array<{
+        backend: string;
+        conversation_count: number | null;
+        reply_count: number | null;
+        total_input_tokens: number | null;
+        total_output_tokens: number | null;
+        total_cached_read_tokens: number | null;
+        total_cached_write_tokens: number | null;
+        total_thought_tokens: number | null;
+        total_tokens: number | null;
+        first_recorded_at: number | null;
+        last_recorded_at: number | null;
+      }>;
+
+      const byAgentBackendRows = this.db
+        .prepare(
+          `
+            SELECT
+              COALESCE(c.type, 'unknown') as agent,
+              COALESCE(NULLIF(ctu.backend, ''), 'unknown') as backend,
+              COUNT(DISTINCT ctu.conversation_id) as conversation_count,
+              COUNT(*) as reply_count,
+              COALESCE(SUM(ctu.input_tokens), 0) as total_input_tokens,
+              COALESCE(SUM(ctu.output_tokens), 0) as total_output_tokens,
+              COALESCE(SUM(ctu.cached_read_tokens), 0) as total_cached_read_tokens,
+              COALESCE(SUM(ctu.cached_write_tokens), 0) as total_cached_write_tokens,
+              COALESCE(SUM(ctu.thought_tokens), 0) as total_thought_tokens,
+              COALESCE(SUM(ctu.total_tokens), 0) as total_tokens,
+              MIN(ctu.created_at) as first_recorded_at,
+              MAX(ctu.updated_at) as last_recorded_at
+            ${baseFromSql}
+            GROUP BY COALESCE(c.type, 'unknown'), COALESCE(NULLIF(ctu.backend, ''), 'unknown')
+            ORDER BY total_tokens DESC, agent ASC, backend ASC
+          `
+        )
+        .all(...params) as Array<{
+        agent: string;
+        backend: string;
+        conversation_count: number | null;
+        reply_count: number | null;
+        total_input_tokens: number | null;
+        total_output_tokens: number | null;
+        total_cached_read_tokens: number | null;
+        total_cached_write_tokens: number | null;
+        total_thought_tokens: number | null;
+        total_tokens: number | null;
+        first_recorded_at: number | null;
+        last_recorded_at: number | null;
+      }>;
+
+      return {
+        success: true,
+        data: {
+          range,
+          summary: this.mapConversationTokenUsageMonitorSummary(summaryRow),
+          groups: {
+            byAgent: byAgentRows.map((row) => ({
+              agent: row.agent,
+              summary: this.mapConversationTokenUsageMonitorSummary(row),
+            })),
+            byBackend: byBackendRows.map((row) => ({
+              backend: row.backend,
+              summary: this.mapConversationTokenUsageMonitorSummary(row),
+            })),
+            byAgentBackend: byAgentBackendRows.map((row) => ({
+              agent: row.agent,
+              backend: row.backend,
+              summary: this.mapConversationTokenUsageMonitorSummary(row),
+            })),
+          },
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
   /**
    * ==================
    * Channel Plugin operations
@@ -1125,6 +1519,100 @@ export class AionUIDatabase {
       return { success: true, data: result.changes };
     } catch (error: any) {
       return { success: false, error: error.message, data: 0 };
+    }
+  }
+
+  /**
+   * ==================
+   * API Configuration operations
+   * API 配置操作
+   * ==================
+   */
+
+  /**
+   * Get API configuration (singleton - id=1)
+   */
+  getApiConfig(): IQueryResult<import('@/common/storage').IApiConfig | null> {
+    try {
+      const row = this.db.prepare('SELECT * FROM api_config WHERE id = 1').get() as any | undefined;
+      if (!row) {
+        return { success: true, data: null };
+      }
+
+      // Parse JSON fields
+      const config: import('@/common/storage').IApiConfig = {
+        id: row.id,
+        enabled: row.enabled === 1,
+        authToken: row.auth_token ?? undefined,
+        callbackEnabled: row.callback_enabled === 1,
+        callbackUrl: row.callback_url ?? undefined,
+        callbackMethod: row.callback_method || 'POST',
+        callbackHeaders: row.callback_headers ? JSON.parse(row.callback_headers) : undefined,
+        callbackBody: row.callback_body ?? undefined,
+        jsFilterEnabled: row.js_filter_enabled === 1,
+        jsFilterScript: row.js_filter_script ?? undefined,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+
+      return { success: true, data: config };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Save or update API configuration
+   */
+  saveApiConfig(config: Partial<import('@/common/storage').IApiConfig>): IQueryResult<boolean> {
+    try {
+      const now = Date.now();
+
+      const stmt = this.db.prepare(`
+        INSERT INTO api_config (
+          id, enabled, auth_token, callback_enabled, callback_url,
+          callback_method, callback_headers, callback_body, js_filter_enabled,
+          js_filter_script, created_at, updated_at
+        )
+        VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          enabled = excluded.enabled,
+          auth_token = excluded.auth_token,
+          callback_enabled = excluded.callback_enabled,
+          callback_url = excluded.callback_url,
+          callback_method = excluded.callback_method,
+          callback_headers = excluded.callback_headers,
+          callback_body = excluded.callback_body,
+          js_filter_enabled = excluded.js_filter_enabled,
+          js_filter_script = excluded.js_filter_script,
+          updated_at = excluded.updated_at
+      `);
+
+      stmt.run(config.enabled ? 1 : 0, config.authToken ?? null, config.callbackEnabled ? 1 : 0, config.callbackUrl ?? null, config.callbackMethod ?? 'POST', config.callbackHeaders ? JSON.stringify(config.callbackHeaders) : null, config.callbackBody ?? null, config.jsFilterEnabled ? 1 : 0, config.jsFilterScript ?? null, config.createdAt ?? now, now);
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update API enabled status
+   */
+  updateApiEnabled(enabled: boolean): IQueryResult<boolean> {
+    try {
+      const now = Date.now();
+      const result = this.db.prepare('UPDATE api_config SET enabled = ?, updated_at = ? WHERE id = 1').run(enabled ? 1 : 0, now);
+
+      if (result.changes === 0) {
+        // If no row exists, create default config
+        const insertStmt = this.db.prepare('INSERT INTO api_config (id, enabled, created_at, updated_at) VALUES (1, ?, ?, ?)');
+        insertStmt.run(enabled ? 1 : 0, now, now);
+      }
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   }
 

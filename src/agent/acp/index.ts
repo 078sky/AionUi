@@ -86,6 +86,7 @@ export interface AcpAgentConfig {
     acpSessionUpdatedAt?: number;
   };
   onStreamEvent: (data: IResponseMessage) => void;
+  onPromptUsage?: (usage: AcpPromptResponseUsage) => void;
   onSignalEvent?: (data: IResponseMessage) => void; // 新增：仅发送信号，不更新UI
   /** Callback when ACP session ID is updated / 当 ACP session ID 更新时的回调 */
   onSessionIdUpdate?: (sessionId: string) => void;
@@ -116,6 +117,7 @@ export class AcpAgent {
   private pendingPermissions = new Map<string, { resolve: (response: { optionId: string }) => void; reject: (error: Error) => void }>();
   private statusMessageId: string | null = null;
   private readonly onStreamEvent: (data: IResponseMessage) => void;
+  private readonly onPromptUsage?: (usage: AcpPromptResponseUsage) => void;
   private readonly onSignalEvent?: (data: IResponseMessage) => void;
   private readonly onSessionIdUpdate?: (sessionId: string) => void;
   private readonly onAvailableCommandsUpdate?: (commands: AcpAvailableCommand[]) => void;
@@ -147,6 +149,7 @@ export class AcpAgent {
   constructor(config: AcpAgentConfig) {
     this.id = config.id;
     this.onStreamEvent = config.onStreamEvent;
+    this.onPromptUsage = config.onPromptUsage;
     this.onSignalEvent = config.onSignalEvent;
     this.onSessionIdUpdate = config.onSessionIdUpdate;
     this.onAvailableCommandsUpdate = config.onAvailableCommandsUpdate;
@@ -177,6 +180,7 @@ export class AcpAgent {
       this.handleEndTurn();
     };
     this.connection.onPromptUsage = (usage: AcpPromptResponseUsage) => {
+      this.onPromptUsage?.(usage);
       this.handlePromptUsage(usage);
     };
     this.connection.onFileOperation = (operation) => {

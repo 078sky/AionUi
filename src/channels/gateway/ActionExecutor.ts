@@ -13,6 +13,7 @@ import { handlePairingShow, platformActions } from '../actions/PlatformActions';
 import { getChannelDefaultModel, systemActions } from '../actions/SystemActions';
 import type { IActionContext, IRegisteredAction } from '../actions/types';
 import { getChannelMessageService } from '../agent/ChannelMessageService';
+import type { ChannelServiceRegistry, IChannelMessageServiceContract } from '../core/ChannelServiceRegistry';
 import type { SessionManager } from '../core/SessionManager';
 import type { PairingService } from '../pairing/PairingService';
 import type { PluginMessageHandler } from '../plugins/BasePlugin';
@@ -255,14 +256,16 @@ export class ActionExecutor {
   private pluginManager: PluginManager;
   private sessionManager: SessionManager;
   private pairingService: PairingService;
+  private serviceRegistry: ChannelServiceRegistry | null = null;
 
   // Action registry
   private actionRegistry: Map<string, IRegisteredAction> = new Map();
 
-  constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService) {
+  constructor(pluginManager: PluginManager, sessionManager: SessionManager, pairingService: PairingService, serviceRegistry?: ChannelServiceRegistry) {
     this.pluginManager = pluginManager;
     this.sessionManager = sessionManager;
     this.pairingService = pairingService;
+    this.serviceRegistry = serviceRegistry ?? null;
 
     // Register all actions
     this.registerActions();
@@ -511,7 +514,7 @@ export class ActionExecutor {
         throw new Error('Session not initialized');
       }
 
-      const messageService = getChannelMessageService();
+      const messageService = this.serviceRegistry?.resolve<IChannelMessageServiceContract>('channel.message.service') ?? getChannelMessageService();
 
       // 节流控制：使用定时器机制确保最后一条消息能被发送
       // Throttle control: use timer mechanism to ensure last message is sent

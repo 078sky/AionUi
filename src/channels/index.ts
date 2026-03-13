@@ -16,6 +16,8 @@ export * from './types';
 
 // Core exports
 export { ChannelManager, getChannelManager } from './core/ChannelManager';
+export { ChannelServiceRegistry } from './core/ChannelServiceRegistry';
+export type { ChannelServiceScope, IChannelServiceRegistration, IChannelServiceResolveOptions, IChannelPluginServiceRegistry, IChannelMessageServiceContract } from './core/ChannelServiceRegistry';
 export { SessionManager } from './core/SessionManager';
 
 // Gateway exports

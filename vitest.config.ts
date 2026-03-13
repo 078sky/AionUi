@@ -62,6 +62,8 @@ export default defineConfig({
         // Common
         'src/common/chatLib.ts',
         'src/common/update/models/VersionInfo.ts',
+        // Channels
+        'src/channels/core/ChannelServiceRegistry.ts',
         // Renderer utils
         'src/renderer/messages/useAutoScroll.ts',
         'src/renderer/utils/emitter.ts',

@@ -104,9 +104,7 @@ export class AcpAdapter {
       // Config option updates (e.g., model switch) are handled by AcpConnection
       // directly in handleIncomingRequest; no chat message conversion needed.
       case 'config_option_update':
-        break;
-
-      // Usage updates are emitted directly by AcpAgent; no chat message conversion needed.
+      case 'user_message_chunk':
       case 'usage_update':
         break;
 

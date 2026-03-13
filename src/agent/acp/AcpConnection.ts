@@ -5,17 +5,17 @@
  */
 
 import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpPromptResponseUsage, AcpRequest, AcpResponse, AcpSessionConfigOption, AcpSessionModels, AcpSessionUpdate } from '@/types/acpTypes';
-import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
+import { ACP_METHODS, JSONRPC_VERSION, CLAUDE_ACP_NPX_PACKAGE, CODEX_ACP_BRIDGE_VERSION, CODEX_ACP_NPX_PACKAGE } from '@/types/acpTypes';
 import type { ChildProcess } from 'child_process';
-import { execFile as execFileCb } from 'child_process';
+import { execFile as execFileCb, spawn } from 'child_process';
 import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
-import { mainLog } from '@process/utils/mainLogger';
+import { mainLog, mainWarn } from '@process/utils/mainLogger';
 import { resolveNpxPath } from '@process/utils/shellEnv';
-import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
+import { ACP_PERF_LOG, connectClaude, connectCodebuddy, connectCodex, ensureMinNodeVersion as ensureMinNodeVersionForAcp, prepareCleanEnv, spawnGenericBackend } from './acpConnectors';
 import type { SpawnResult } from './acpConnectors';
 import { killChild, readTextFile, writeJsonRpcMessage, writeTextFile } from './utils';
 
@@ -92,6 +92,14 @@ export class AcpConnection {
     this.child = result.child;
     this.isDetached = result.isDetached;
     await this.setupChildProcessHandlers(backend);
+  }
+
+  private prepareNpxEnv(): Record<string, string | undefined> {
+    return prepareCleanEnv();
+  }
+
+  private ensureMinNodeVersion(cleanEnv: Record<string, string | undefined>, minMajor: number, minMinor: number, backendLabel: string): void {
+    ensureMinNodeVersionForAcp(cleanEnv, minMajor, minMinor, backendLabel);
   }
 
   // 通用的后端连接方法
@@ -216,6 +224,199 @@ export class AcpConnection {
     }
   }
 
+  private async connectClaude(workingDir: string = process.cwd()): Promise<void> {
+    // Use NPX to run Claude Code ACP bridge directly from npm registry
+    // This eliminates dependency packaging issues and simplifies deployment
+    console.error('[ACP] Using NPX approach for Claude ACP bridge');
+
+    const envStart = Date.now();
+    const cleanEnv = this.prepareNpxEnv();
+    if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: env prepared ${Date.now() - envStart}ms`);
+
+    this.ensureMinNodeVersion(cleanEnv, 20, 10, 'Claude ACP bridge');
+
+    const isWindows = process.platform === 'win32';
+    const spawnCommand = resolveNpxPath(cleanEnv);
+
+    // Phase 1: Try with --prefer-offline for fast startup (~1-2s)
+    try {
+      await this.spawnAndSetupNpxBackend('claude', CLAUDE_ACP_NPX_PACKAGE, spawnCommand, cleanEnv, workingDir, isWindows, true);
+    } catch (firstError) {
+      // Phase 2: Retry without --prefer-offline to refresh stale cache (~3-5s)
+      // This handles upgrades where cached registry metadata is outdated
+      console.warn('[ACP] --prefer-offline failed, retrying with fresh registry lookup:', firstError instanceof Error ? firstError.message : String(firstError));
+
+      // Terminate the first child (may still be running if initialize() timed out)
+      // to prevent orphaned processes and stale exit handlers interfering with retry
+      await this.terminateChild();
+      this.isSetupComplete = false;
+
+      await this.spawnAndSetupNpxBackend('claude', CLAUDE_ACP_NPX_PACKAGE, spawnCommand, cleanEnv, workingDir, isWindows, false);
+    }
+  }
+
+  private async spawnAndSetupNpxBackend(backend: string, npxPackage: string, spawnCommand: string, cleanEnv: Record<string, string | undefined>, workingDir: string, isWindows: boolean, preferOffline: boolean, { extraArgs = [], detached = false }: { extraArgs?: string[]; detached?: boolean } = {}): Promise<void> {
+    const spawnArgs = ['--yes', ...(preferOffline ? ['--prefer-offline'] : []), npxPackage, ...extraArgs];
+
+    const spawnStart = Date.now();
+    // detached: true creates a new session (setsid) so the child has no controlling terminal.
+    // Required for backends (e.g. CodeBuddy) that write to /dev/tty — without it, SIGTTOU
+    // would suspend the entire Electron process group and freeze the UI.
+    this.isDetached = detached;
+    this.child = spawn(spawnCommand, spawnArgs, {
+      cwd: workingDir,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: cleanEnv,
+      shell: isWindows,
+      detached: this.isDetached,
+    });
+    // Prevent the detached child from keeping the parent alive when the parent wants to exit normally.
+    if (this.isDetached) {
+      this.child.unref();
+    }
+    if (ACP_PERF_LOG) {
+      console.log(`[ACP-PERF] ${backend}: process spawned ${Date.now() - spawnStart}ms (preferOffline=${preferOffline})`);
+    }
+
+    await this.setupChildProcessHandlers(backend);
+  }
+
+  private async connectCodex(workingDir: string = process.cwd()): Promise<void> {
+    // Use NPX to run codex-acp bridge (Zed's ACP adapter for Codex)
+    console.error(`[ACP] Using NPX approach for Codex ACP bridge (${CODEX_ACP_NPX_PACKAGE})`);
+
+    const envStart = Date.now();
+    const cleanEnv = this.prepareNpxEnv();
+    if (ACP_PERF_LOG) console.log(`[ACP-PERF] codex: env prepared ${Date.now() - envStart}ms`);
+
+    this.ensureMinNodeVersion(cleanEnv, 20, 10, 'Codex ACP bridge');
+    await this.logCodexRuntimeDiagnostics(cleanEnv);
+
+    const isWindows = process.platform === 'win32';
+    const spawnCommand = resolveNpxPath(cleanEnv);
+
+    // Phase 1: Try with --prefer-offline for fast startup
+    try {
+      await this.spawnAndSetupNpxBackend('codex', CODEX_ACP_NPX_PACKAGE, spawnCommand, cleanEnv, workingDir, isWindows, true);
+    } catch (firstError) {
+      // Phase 2: Retry without --prefer-offline to fetch from registry
+      // This handles first-time installs or missing cache (common on Windows after upgrade)
+      console.warn('[ACP] Codex --prefer-offline failed, retrying with fresh registry lookup:', firstError instanceof Error ? firstError.message : String(firstError));
+
+      // Terminate the first child to prevent orphaned processes and stale exit handlers
+      await this.terminateChild();
+      this.isSetupComplete = false;
+
+      await this.spawnAndSetupNpxBackend('codex', CODEX_ACP_NPX_PACKAGE, spawnCommand, cleanEnv, workingDir, isWindows, false);
+    }
+  }
+
+  private async logCodexRuntimeDiagnostics(cleanEnv: Record<string, string | undefined>): Promise<void> {
+    const codexCommand = process.platform === 'win32' ? 'codex.cmd' : 'codex';
+    const diagnostics: {
+      bridgeVersion: string;
+      bridgePackage: string;
+      codexCliVersion: string;
+      loginStatus: string;
+      hasCodexApiKey: boolean;
+      hasOpenAiApiKey: boolean;
+      hasChatGptSession: boolean;
+    } = {
+      bridgeVersion: CODEX_ACP_BRIDGE_VERSION,
+      bridgePackage: CODEX_ACP_NPX_PACKAGE,
+      codexCliVersion: 'unknown',
+      loginStatus: 'unknown',
+      hasCodexApiKey: Boolean(cleanEnv.CODEX_API_KEY),
+      hasOpenAiApiKey: Boolean(cleanEnv.OPENAI_API_KEY),
+      hasChatGptSession: false,
+    };
+
+    try {
+      diagnostics.codexCliVersion = (await this.execDiagnosticCommand(codexCommand, ['--version'], cleanEnv)) || diagnostics.codexCliVersion;
+    } catch (error) {
+      mainWarn('[ACP codex]', 'Failed to read codex CLI version', error);
+    }
+
+    try {
+      diagnostics.loginStatus = (await this.execDiagnosticCommand(codexCommand, ['login', 'status'], cleanEnv)) || diagnostics.loginStatus;
+      diagnostics.hasChatGptSession = /chatgpt/i.test(diagnostics.loginStatus);
+    } catch (error) {
+      mainWarn('[ACP codex]', 'Failed to read codex login status', error);
+    }
+
+    mainLog('[ACP codex]', 'Runtime diagnostics', diagnostics);
+  }
+
+  private quoteWindowsCmdArg(arg: string): string {
+    if (arg.length === 0) {
+      return '""';
+    }
+
+    return /[\s"&|<>^()]/.test(arg) ? `"${arg.replace(/"/g, '""')}"` : arg;
+  }
+
+  private async execDiagnosticCommand(command: string, args: string[], env: Record<string, string | undefined>): Promise<string> {
+    if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(command)) {
+      const shellCommand = env.COMSPEC || env.ComSpec || process.env.COMSPEC || process.env.ComSpec || 'cmd.exe';
+      const commandLine = [command, ...args].map((arg) => this.quoteWindowsCmdArg(arg)).join(' ');
+      const { stdout } = await execFile(shellCommand, ['/d', '/s', '/c', commandLine], {
+        env,
+        timeout: 5000,
+        windowsHide: true,
+      });
+      return stdout.trim();
+    }
+
+    const { stdout } = await execFile(command, args, {
+      env,
+      timeout: 5000,
+      windowsHide: true,
+    });
+    return stdout.trim();
+  }
+
+  private async connectCodebuddy(workingDir: string = process.cwd()): Promise<void> {
+    // Use NPX to run CodeBuddy Code CLI directly from npm registry (same pattern as Claude)
+    console.error('[ACP] Using NPX approach for CodeBuddy ACP');
+
+    const envStart = Date.now();
+    const cleanEnv = this.prepareNpxEnv();
+    if (ACP_PERF_LOG) console.log(`[ACP-PERF] codebuddy: env prepared ${Date.now() - envStart}ms`);
+
+    this.ensureMinNodeVersion(cleanEnv, 20, 10, 'CodeBuddy ACP');
+
+    const isWindows = process.platform === 'win32';
+    const spawnCommand = resolveNpxPath(cleanEnv);
+
+    // Load user's MCP config if available (~/.codebuddy/mcp.json)
+    // CodeBuddy CLI in --acp mode does not auto-load mcp.json, so we pass it explicitly
+    const mcpConfigPath = path.join(os.homedir(), '.codebuddy', 'mcp.json');
+    const extraArgs: string[] = [];
+    try {
+      await fs.access(mcpConfigPath);
+      extraArgs.push('--mcp-config', mcpConfigPath);
+      console.error(`[ACP] Loading CodeBuddy MCP config from ${mcpConfigPath}`);
+    } catch {
+      console.error('[ACP] No CodeBuddy MCP config found, starting without MCP servers');
+    }
+
+    const spawnOptions = { extraArgs: ['--acp', ...extraArgs], detached: !isWindows };
+
+    // Phase 1: Try with --prefer-offline for fast startup
+    try {
+      await this.spawnAndSetupNpxBackend('codebuddy', '@tencent-ai/codebuddy-code', spawnCommand, cleanEnv, workingDir, isWindows, true, spawnOptions);
+    } catch (firstError) {
+      // Phase 2: Retry without --prefer-offline to refresh stale cache
+      console.warn('[ACP] CodeBuddy --prefer-offline failed, retrying with fresh registry lookup:', firstError instanceof Error ? firstError.message : String(firstError));
+
+      // Terminate the first child (may still be running if initialize() timed out)
+      // to prevent orphaned processes and stale exit handlers interfering with retry
+      await this.terminateChild();
+      this.isSetupComplete = false;
+
+      await this.spawnAndSetupNpxBackend('codebuddy', '@tencent-ai/codebuddy-code', spawnCommand, cleanEnv, workingDir, isWindows, false, spawnOptions);
+    }
+  }
   private async setupChildProcessHandlers(backend: string): Promise<void> {
     // Capture non-null reference; fail fast if child process is not initialized
     const child = this.child;
@@ -549,15 +750,15 @@ export class AcpConnection {
           // Check for end_turn message and extract usage data
           if (message.result && typeof message.result === 'object') {
             const promptResult = message.result as Record<string, unknown>;
-            if (promptResult.stopReason === 'end_turn') {
-              this.onEndTurn();
-            }
             // Extract PromptResponse.usage (per-turn token data from codex-acp / PR #167)
             if (promptResult.usage && typeof promptResult.usage === 'object') {
               const usage = promptResult.usage as AcpPromptResponseUsage;
               if (typeof usage.totalTokens === 'number') {
                 this.onPromptUsage(usage);
               }
+            }
+            if (promptResult.stopReason === 'end_turn') {
+              this.onEndTurn();
             }
           }
           resolve(message.result);

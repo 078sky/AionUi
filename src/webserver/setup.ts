@@ -84,14 +84,19 @@ export function setupBasicMiddleware(app: Express): void {
   // P1 Security fix: Enable CSRF for login (frontend already uses withCsrfToken)
   // 仅排除 QR 登录（有独立的一次性 token 保护机制）
   // Only exclude QR login (has its own one-time token protection)
-  app.use(
-    csrf(
-      CSRF_SECRET,
-      ['POST', 'PUT', 'DELETE', 'PATCH'], // Protected methods
-      ['/login', '/api/auth/qr-login'], // Excluded: login form and QR login
-      [] // No service worker URLs
-    )
+  const csrfProtection = csrf(
+    CSRF_SECRET,
+    ['POST', 'PUT', 'DELETE', 'PATCH'], // Protected methods
+    ['/login', '/api/auth/qr-login'], // Excluded: login form and QR login
+    [] // No service worker URLs
   );
+  app.use((req, res, next) => {
+    // Token-based external API should not require browser CSRF tokens.
+    if (req.path.startsWith('/api/v1/conversation')) {
+      return next();
+    }
+    return csrfProtection(req, res, next);
+  });
   app.use(attachCsrfToken); // Attach token to response headers
 
   // 安全中间件

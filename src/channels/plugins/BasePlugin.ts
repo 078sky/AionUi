@@ -5,6 +5,7 @@
  */
 
 import type { IChannelPluginConfig, IUnifiedIncomingMessage, IUnifiedOutgoingMessage, PluginType, PluginStatus } from '../types';
+import type { IChannelPluginServiceRegistry } from '../core/ChannelServiceRegistry';
 
 /**
  * Plugin event handler type
@@ -171,6 +172,23 @@ export abstract class BasePlugin {
    */
   onConfirm(handler: PluginConfirmHandler): void {
     this.confirmHandler = handler;
+  }
+
+  /**
+   * Inject public service registry for plugin usage.
+   * Plugin subclasses can override this method when they need access
+   * to channel public services or need to register plugin services.
+   */
+  setServiceRegistry(_serviceRegistry: IChannelPluginServiceRegistry): void {
+    // Optional capability for plugin subclasses.
+  }
+
+  /**
+   * Register plugin-provided services into the public service registry.
+   * Called by PluginManager after plugin initialization.
+   */
+  async registerServices(_serviceRegistry: IChannelPluginServiceRegistry): Promise<void> {
+    // Optional capability for plugin subclasses.
   }
 
   /**

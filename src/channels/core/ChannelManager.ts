@@ -16,6 +16,7 @@ import { LarkPlugin } from '../plugins/lark/LarkPlugin';
 import { TelegramPlugin } from '../plugins/telegram/TelegramPlugin';
 import { isBuiltinChannelPlatform, resolveChannelConvType } from '../types';
 import type { ChannelPlatform, IChannelPluginConfig, PluginType } from '../types';
+import { ChannelServiceRegistry, type IChannelMessageServiceContract } from './ChannelServiceRegistry';
 import { SessionManager } from './SessionManager';
 
 /**
@@ -43,6 +44,7 @@ export class ChannelManager {
   private sessionManager: SessionManager | null = null;
   private pairingService: PairingService | null = null;
   private actionExecutor: ActionExecutor | null = null;
+  private serviceRegistry: ChannelServiceRegistry | null = null;
 
   private constructor() {
     // Private constructor for singleton pattern
@@ -80,10 +82,12 @@ export class ChannelManager {
       // Initialize sub-components
       this.pairingService = new PairingService();
       this.sessionManager = new SessionManager();
-      this.pluginManager = new PluginManager(this.sessionManager);
+      this.serviceRegistry = new ChannelServiceRegistry();
+      this.registerCoreServices();
+      this.pluginManager = new PluginManager(this.sessionManager, this.serviceRegistry);
 
       // Create action executor and wire up message handling
-      this.actionExecutor = new ActionExecutor(this.pluginManager, this.sessionManager, this.pairingService);
+      this.actionExecutor = new ActionExecutor(this.pluginManager, this.sessionManager, this.pairingService, this.serviceRegistry);
       this.pluginManager.setMessageHandler(this.actionExecutor.getMessageHandler());
 
       // Set confirm handler for tool confirmations
@@ -109,7 +113,11 @@ export class ChannelManager {
         // 调用 confirm
         // Call confirm
         try {
-          await getChannelMessageService().confirm(session.conversationId, callId, value);
+          const confirmService = this.serviceRegistry?.resolve<IChannelMessageServiceContract['confirm']>('channel.message.confirm', {
+            requesterOwner: 'channel-core',
+          });
+          const fallbackConfirm = getChannelMessageService().confirm.bind(getChannelMessageService());
+          await (confirmService ?? fallbackConfirm)(session.conversationId, callId, value);
         } catch (error) {
           console.error(`[ChannelManager] Tool confirmation failed:`, error);
         }
@@ -152,6 +160,8 @@ export class ChannelManager {
       this.sessionManager = null;
       this.pairingService = null;
       this.actionExecutor = null;
+      this.serviceRegistry?.clear();
+      this.serviceRegistry = null;
 
       this.initialized = false;
       console.log('[ChannelManager] Shutdown complete');
@@ -165,6 +175,53 @@ export class ChannelManager {
    */
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  /**
+   * Register channel core service contracts.
+   * Channel scope has the highest priority in registry resolution.
+   */
+  private registerCoreServices(): void {
+    if (!this.serviceRegistry) {
+      return;
+    }
+
+    const owner = 'channel-core';
+    this.serviceRegistry.unregisterOwner(owner);
+
+    const messageService = getChannelMessageService();
+
+    this.serviceRegistry.register<IChannelMessageServiceContract>({
+      key: 'channel.message.service',
+      owner,
+      scope: 'channel',
+      priority: 100,
+      implementation: messageService,
+    });
+
+    this.serviceRegistry.register<IChannelMessageServiceContract['sendMessage']>({
+      key: 'channel.message.send',
+      owner,
+      scope: 'channel',
+      priority: 100,
+      implementation: messageService.sendMessage.bind(messageService),
+    });
+
+    this.serviceRegistry.register<IChannelMessageServiceContract['confirm']>({
+      key: 'channel.message.confirm',
+      owner,
+      scope: 'channel',
+      priority: 100,
+      implementation: messageService.confirm.bind(messageService),
+    });
+
+    this.serviceRegistry.register<typeof getChannelDefaultModel>({
+      key: 'channel.model.default',
+      owner,
+      scope: 'channel',
+      priority: 80,
+      implementation: getChannelDefaultModel,
+    });
   }
 
   /**
@@ -570,6 +627,10 @@ export class ChannelManager {
 
   getActionExecutor(): ActionExecutor | null {
     return this.actionExecutor;
+  }
+
+  getServiceRegistry(): ChannelServiceRegistry | null {
+    return this.serviceRegistry;
   }
 }
 

@@ -7,6 +7,7 @@
 // 复用现有的业务类型定义
 import type { ConversationSource, TChatConversation, IConfigStorageRefer } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
+import type { ConversationTokenUsageRecord } from '@/common/tokenUsage';
 
 /**
  * ======================
@@ -102,6 +103,26 @@ export interface IConfigRow {
   value: string; // JSON string
   updated_at: number;
 }
+
+export type IConversationTokenUsageRow = {
+  id: string;
+  conversation_id: string;
+  backend: string;
+  reply_index: number;
+  assistant_message_id?: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cached_read_tokens: number;
+  cached_write_tokens: number;
+  thought_tokens: number;
+  total_tokens: number;
+  context_used?: number | null;
+  context_size?: number | null;
+  session_cost_amount?: number | null;
+  session_cost_currency?: string | null;
+  created_at: number;
+  updated_at: number;
+};
 
 /**
  * ======================
@@ -223,6 +244,28 @@ export function rowToMessage(row: IMessageRow): TMessage {
     status: row.status,
     createdAt: row.created_at,
   } as TMessage;
+}
+
+export function rowToConversationTokenUsage(row: IConversationTokenUsageRow): ConversationTokenUsageRecord {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    backend: row.backend,
+    replyIndex: row.reply_index,
+    assistantMessageId: row.assistant_message_id ?? undefined,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    cachedReadTokens: row.cached_read_tokens,
+    cachedWriteTokens: row.cached_write_tokens,
+    thoughtTokens: row.thought_tokens,
+    totalTokens: row.total_tokens,
+    contextUsed: row.context_used ?? undefined,
+    contextSize: row.context_size ?? undefined,
+    sessionCostAmount: row.session_cost_amount ?? undefined,
+    sessionCostCurrency: row.session_cost_currency ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 /**

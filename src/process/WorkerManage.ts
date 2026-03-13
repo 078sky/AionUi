@@ -14,11 +14,18 @@ import { ProcessChat } from './initStorage';
 import type AgentBaseTask from './task/BaseAgentManager';
 import { GeminiAgentManager } from './task/GeminiAgentManager';
 import { getDatabase } from './database/export';
+import { releaseConversationMessageCache } from './message';
+import { cronBusyGuard } from './services/cron/CronBusyGuard';
+import { ConversationTurnCompletionService } from './services/ConversationTurnCompletionService';
 
 const taskList: {
   id: string;
   task: AgentBaseTask<unknown>;
+  lastUsedAt: number;
 }[] = [];
+
+const FINISHED_TASK_IDLE_EVICT_MS = 2 * 60 * 1000;
+const MAX_CACHED_TASKS = 30;
 
 /**
  * Runtime options for building conversations
@@ -31,8 +38,66 @@ export interface BuildConversationOptions {
   skipCache?: boolean;
 }
 
+const touchTask = (id: string) => {
+  const entry = taskList.find((item) => item.id === id);
+  if (entry) {
+    entry.lastUsedAt = Date.now();
+  }
+  return entry;
+};
+
+const destroyTask = (id: string, task: AgentBaseTask<unknown>) => {
+  try {
+    const cleanupCapableTask = task as AgentBaseTask<unknown> & { cleanup?: () => void };
+    if (typeof cleanupCapableTask.cleanup === 'function') {
+      cleanupCapableTask.cleanup();
+    }
+  } catch (error) {
+    console.warn('[WorkerManage] Failed to cleanup task before removal:', error, { id });
+  }
+
+  try {
+    task.kill();
+  } catch (error) {
+    console.warn('[WorkerManage] Failed to kill task during removal:', error, { id });
+  }
+
+  releaseConversationMessageCache(id);
+  cronBusyGuard.remove(id);
+  ConversationTurnCompletionService.getInstance().forgetSession(id);
+};
+
+const isPrunableConversation = (id: string): boolean => {
+  const db = getDatabase();
+  const result = db.getConversation(id);
+  if (!result.success || !result.data) {
+    return false;
+  }
+
+  const conversation = result.data;
+  const extra = (conversation.extra || {}) as { isHealthCheck?: boolean };
+
+  return conversation.source === 'api' || extra.isHealthCheck === true;
+};
+
+const shouldKeepTask = (entry: { id: string; task: AgentBaseTask<unknown>; lastUsedAt: number }, now: number): boolean => {
+  if (!isPrunableConversation(entry.id)) {
+    return true;
+  }
+
+  if (entry.task.status !== 'finished') {
+    return true;
+  }
+
+  if (typeof entry.task.getConfirmations === 'function' && entry.task.getConfirmations().length > 0) {
+    return true;
+  }
+
+  return now - entry.lastUsedAt < FINISHED_TASK_IDLE_EVICT_MS;
+};
+
 const getTaskById = (id: string) => {
-  return taskList.find((item) => item.id === id)?.task;
+  return touchTask(id)?.task;
 };
 
 const buildConversation = (conversation: TChatConversation, options?: BuildConversationOptions) => {
@@ -66,7 +131,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
       );
       // Only cache if not skipping cache
       if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
+        taskList.push({ id: conversation.id, task, lastUsedAt: Date.now() });
       }
       return task;
     }
@@ -78,7 +143,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         yoloMode: options?.yoloMode,
       });
       if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
+        taskList.push({ id: conversation.id, task, lastUsedAt: Date.now() });
       }
       return task;
     }
@@ -92,7 +157,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         sessionMode: conversation.extra.sessionMode,
       });
       if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
+        taskList.push({ id: conversation.id, task, lastUsedAt: Date.now() });
       }
       return task;
     }
@@ -104,7 +169,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         yoloMode: options?.yoloMode,
       });
       if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
+        taskList.push({ id: conversation.id, task, lastUsedAt: Date.now() });
       }
       return task;
     }
@@ -115,7 +180,7 @@ const buildConversation = (conversation: TChatConversation, options?: BuildConve
         yoloMode: options?.yoloMode,
       });
       if (!options?.skipCache) {
-        taskList.push({ id: conversation.id, task });
+        taskList.push({ id: conversation.id, task, lastUsedAt: Date.now() });
       }
       return task;
     }
@@ -130,7 +195,7 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
 
   // If not skipping cache, check for existing task
   if (!options?.skipCache) {
-    const task = taskList.find((item) => item.id === id)?.task;
+    const task = touchTask(id)?.task;
     if (task) {
       console.log(`[WorkerManage] Found existing task in memory for: ${id}`);
       return Promise.resolve(task);
@@ -159,19 +224,67 @@ const getTaskByIdRollbackBuild = async (id: string, options?: BuildConversationO
   return Promise.reject(new Error('Conversation not found'));
 };
 
+type SendMessageResult =
+  | { success: true }
+  | {
+      success: false;
+      msg: string;
+    };
+
+const sendMessage = async (conversationId: string, message: string, msgId: string, files?: string[]): Promise<SendMessageResult> => {
+  let task: AgentBaseTask<unknown>;
+  try {
+    task = await getTaskByIdRollbackBuild(conversationId);
+  } catch (error) {
+    return {
+      success: false,
+      msg: error instanceof Error ? error.message : 'conversation not found',
+    };
+  }
+
+  try {
+    if (task.type === 'gemini') {
+      await (task as GeminiAgentManager).sendMessage({ input: message, msg_id: msgId, files });
+      return { success: true };
+    }
+    if (task.type === 'acp') {
+      await (task as AcpAgentManager).sendMessage({ content: message, msg_id: msgId, files });
+      return { success: true };
+    }
+    if (task.type === 'codex') {
+      await (task as CodexAgentManager).sendMessage({ content: message, msg_id: msgId, files });
+      return { success: true };
+    }
+    if (task.type === 'openclaw-gateway') {
+      await (task as OpenClawAgentManager).sendMessage({ content: message, msg_id: msgId, files });
+      return { success: true };
+    }
+    if (task.type === 'nanobot') {
+      await (task as NanoBotAgentManager).sendMessage({ content: message, msg_id: msgId, files });
+      return { success: true };
+    }
+    return { success: false, msg: `Unsupported task type: ${task.type}` };
+  } catch (error) {
+    return {
+      success: false,
+      msg: error instanceof Error ? error.message : 'Failed to send message',
+    };
+  }
+};
+
 const kill = (id: string) => {
   const index = taskList.findIndex((item) => item.id === id);
   if (index === -1) return;
   const task = taskList[index];
   if (task) {
-    task.task.kill();
+    destroyTask(id, task.task);
   }
   taskList.splice(index, 1);
 };
 
 const clear = () => {
   taskList.forEach((item) => {
-    item.task.kill();
+    destroyTask(item.id, item.task);
   });
   taskList.length = 0;
 };
@@ -180,9 +293,45 @@ const addTask = (id: string, task: AgentBaseTask<unknown>) => {
   const existing = taskList.find((item) => item.id === id);
   if (existing) {
     existing.task = task;
+    existing.lastUsedAt = Date.now();
   } else {
-    taskList.push({ id, task });
+    taskList.push({ id, task, lastUsedAt: Date.now() });
   }
+};
+
+const pruneIdleTasks = (now: number = Date.now()) => {
+  const removableIndexes = taskList
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => !shouldKeepTask(entry, now))
+    .sort((left, right) => right.index - left.index)
+    .map(({ index }) => index);
+
+  removableIndexes.forEach((index) => {
+    const [removed] = taskList.splice(index, 1);
+    if (removed) {
+      destroyTask(removed.id, removed.task);
+    }
+  });
+
+  if (taskList.length <= MAX_CACHED_TASKS) {
+    return;
+  }
+
+  const overflowCandidates = taskList
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => entry.task.status === 'finished' && isPrunableConversation(entry.id))
+    .sort((left, right) => left.entry.lastUsedAt - right.entry.lastUsedAt);
+
+  const overflowCount = taskList.length - MAX_CACHED_TASKS;
+  overflowCandidates
+    .slice(0, overflowCount)
+    .sort((left, right) => right.index - left.index)
+    .forEach(({ index }) => {
+      const [removed] = taskList.splice(index, 1);
+      if (removed) {
+        destroyTask(removed.id, removed.task);
+      }
+    });
 };
 
 const listTasks = () => {
@@ -193,8 +342,10 @@ const WorkerManage = {
   buildConversation,
   getTaskById,
   getTaskByIdRollbackBuild,
+  sendMessage,
   addTask,
   listTasks,
+  pruneIdleTasks,
   kill,
   clear,
 };

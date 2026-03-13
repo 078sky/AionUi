@@ -12,6 +12,7 @@ import type { IResponseMessage } from '@/common/ipcBridge';
 import { uuid } from '@/common/utils';
 import { addMessage, addOrUpdateMessage } from '@process/message';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { ConversationTurnCompletionService } from '@process/services/ConversationTurnCompletionService';
 import BaseAgentManager from '@process/task/BaseAgentManager';
 
 export interface NanoBotAgentManagerData {
@@ -83,6 +84,10 @@ class NanoBotAgentManager extends BaseAgentManager<NanoBotAgentManagerData> {
 
     // Emit signal events to frontend
     ipcBridge.conversation.responseStream.emit(msg);
+
+    if (msg.type === 'finish') {
+      void ConversationTurnCompletionService.getInstance().notifyPotentialCompletion(this.conversation_id);
+    }
   }
 
   async sendMessage(data: { content: string; files?: string[]; msg_id?: string }) {

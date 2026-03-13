@@ -1,7 +1,7 @@
 import { ipcBridge } from '@/common';
 import { transformMessage } from '@/common/chatLib';
 import type { IResponseMessage } from '@/common/ipcBridge';
-import type { TChatConversation, TokenUsageData } from '@/common/storage';
+import type { TokenUsageData } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import AgentSetupCard from '@/renderer/components/AgentSetupCard';
 import ContextUsageIndicator from '@/renderer/components/ContextUsageIndicator';
@@ -281,15 +281,6 @@ const useGeminiMessage = (conversation_id: string, onError?: (message: IResponse
               setTokenUsage(newTokenUsage);
               // 持久化 token 使用统计到会话的 extra.lastTokenUsage 字段
               // 使用 mergeExtra 选项，后端会自动合并 extra 字段，避免两次 IPC 调用
-              void ipcBridge.conversation.update.invoke({
-                id: conversation_id,
-                updates: {
-                  extra: {
-                    lastTokenUsage: newTokenUsage,
-                  } as TChatConversation['extra'],
-                },
-                mergeExtra: true,
-              });
             }
             // DO NOT reset streamRunning/waitingResponse here!
             // For OpenAI-compatible APIs, 'finished' events are emitted per chunk
