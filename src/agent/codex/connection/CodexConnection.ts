@@ -16,18 +16,15 @@ import { JSONRPC_VERSION } from '@/types/acpTypes';
 
 /**
  * Get Codex config file path based on platform
- * - Windows: %APPDATA%\codex\config.toml or ~/.codex/config.toml
- * - macOS/Linux: ~/.codex/config.toml
+ * - All platforms: $CODEX_HOME/config.toml when set
+ * - Fallback: ~/.codex/config.toml
  */
 function getCodexConfigPath(): string {
-  if (process.platform === 'win32') {
-    // Windows: try APPDATA first, then fallback to home directory
-    const appData = process.env.APPDATA;
-    if (appData) {
-      return join(appData, 'codex', 'config.toml');
-    }
+  const codexHome = process.env.CODEX_HOME?.trim();
+  if (codexHome) {
+    return join(codexHome, 'config.toml');
   }
-  // macOS/Linux or Windows fallback
+
   return join(homedir(), '.codex', 'config.toml');
 }
 

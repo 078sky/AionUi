@@ -1,0 +1,12 @@
+{
+  "$schema": "../../schemas/aion-extension-v1.json",
+  "name": "api-diagnostics-devtools",
+  "displayName": "API Diagnostics",
+  "version": "0.1.0",
+  "description": "Detached runtime diagnostics workbench for the local HTTP API.",
+  "author": "AionUI Contributors",
+  "icon": "assets/diagnostics-icon.svg",
+  "contributes": {
+    "settingsTabs": "$file:contributes/settings-tabs.json"
+  }
+}

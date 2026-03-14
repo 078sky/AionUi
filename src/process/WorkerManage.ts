@@ -338,6 +338,31 @@ const listTasks = () => {
   return taskList.map((t) => ({ id: t.id, type: t.task.type }));
 };
 
+const getDebugInfo = () => {
+  const now = Date.now();
+  const tasks = taskList.map((entry) => {
+    const taskWithDiagnostics = entry.task as AgentBaseTask<unknown> & {
+      getDiagnostics?: () => unknown;
+    };
+
+    return {
+      id: entry.id,
+      type: entry.task.type,
+      status: entry.task.status,
+      lastUsedAt: entry.lastUsedAt,
+      idleForMs: Math.max(now - entry.lastUsedAt, 0),
+      confirmationCount: typeof entry.task.getConfirmations === 'function' ? entry.task.getConfirmations().length : 0,
+      isPrunable: isPrunableConversation(entry.id),
+      diagnostics: typeof taskWithDiagnostics.getDiagnostics === 'function' ? taskWithDiagnostics.getDiagnostics() : undefined,
+    };
+  });
+
+  return {
+    totalTasks: tasks.length,
+    tasks,
+  };
+};
+
 const WorkerManage = {
   buildConversation,
   getTaskById,
@@ -345,6 +370,7 @@ const WorkerManage = {
   sendMessage,
   addTask,
   listTasks,
+  getDebugInfo,
   pruneIdleTasks,
   kill,
   clear,

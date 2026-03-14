@@ -248,6 +248,24 @@ export class ConversationTurnCompletionService {
     this.inFlight.delete(sessionId);
   }
 
+  getDebugState(): {
+    emittedKeyCount: number;
+    inFlightCount: number;
+    emittedKeys: Array<{ sessionId: string; key: string; timestamp: number }>;
+    inFlightSessionIds: string[];
+  } {
+    return {
+      emittedKeyCount: this.emittedKeys.size,
+      inFlightCount: this.inFlight.size,
+      emittedKeys: Array.from(this.emittedKeys.entries()).map(([sessionId, emitted]) => ({
+        sessionId,
+        key: emitted.key,
+        timestamp: emitted.timestamp,
+      })),
+      inFlightSessionIds: Array.from(this.inFlight.keys()),
+    };
+  }
+
   private async settleAndEmit(sessionId: string): Promise<void> {
     await flushConversationMessages(sessionId);
 

@@ -117,6 +117,22 @@ class ConversationManageWithDB {
     Cache.delete(this.conversation_id);
   }
 
+  getDebugState(): {
+    conversationId: string;
+    pendingOperations: number;
+    hasFlushTimer: boolean;
+    hasReleaseTimer: boolean;
+    lastActivityAt: number;
+  } {
+    return {
+      conversationId: this.conversation_id,
+      pendingOperations: this.stack.length,
+      hasFlushTimer: Boolean(this.timer),
+      hasReleaseTimer: Boolean(this.releaseTimer),
+      lastActivityAt: this.lastActivityAt,
+    };
+  }
+
   private scheduleReleaseIfIdle(): void {
     if (this.releaseTimer) {
       clearTimeout(this.releaseTimer);
@@ -200,6 +216,24 @@ export const flushConversationMessages = (conversation_id: string): Promise<void
 
 export const releaseConversationMessageCache = (conversation_id: string): void => {
   Cache.get(conversation_id)?.release();
+};
+
+export const getConversationMessageCacheStats = (): {
+  size: number;
+  conversations: Array<{
+    conversationId: string;
+    pendingOperations: number;
+    hasFlushTimer: boolean;
+    hasReleaseTimer: boolean;
+    lastActivityAt: number;
+  }>;
+} => {
+  const conversations = Array.from(Cache.values()).map((manage) => manage.getDebugState());
+
+  return {
+    size: Cache.size,
+    conversations,
+  };
 };
 
 /**

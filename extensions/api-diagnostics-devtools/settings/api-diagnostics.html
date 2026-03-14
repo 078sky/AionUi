@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Diagnostics</title>
+    <link rel="stylesheet" href="./api-diagnostics.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Runtime inspection</p>
+          <h1>API Diagnostics</h1>
+          <p class="lede">Detached diagnostics workbench for conversation stop cleanup, worker retention, and memory growth in the local HTTP API.</p>
+        </div>
+        <div class="status" id="status-banner">Waiting for host bridge...</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Sampling control</h2>
+            <p>These changes are runtime-only and do not modify the normal API settings saved by users.</p>
+          </div>
+          <label class="toggle-row">
+            <span>Enable diagnostics sampling</span>
+            <input id="enabled" type="checkbox" />
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <label class="field">
+            <span>Sample interval (ms)</span>
+            <input id="sample-interval" type="text" inputmode="numeric" placeholder="60000" />
+          </label>
+          <label class="field">
+            <span>Output directory</span>
+            <input id="output-dir" type="text" placeholder=".aionui/diagnostics/api" />
+          </label>
+        </div>
+
+        <div class="toolbar">
+          <button id="apply-config" class="button button-primary">Apply config</button>
+          <button id="refresh-state" class="button">Refresh state</button>
+          <button id="open-output" class="button">Open output</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head compact">
+          <div>
+            <h2>Manual capture</h2>
+            <p>Target a single session or keep it empty for a global process snapshot.</p>
+          </div>
+          <label class="toggle-row">
+            <span>Persist snapshot to disk</span>
+            <input id="persist-snapshot" type="checkbox" checked />
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <label class="field field-wide">
+            <span>Session ID</span>
+            <input id="session-id" type="text" placeholder="Leave empty for a global snapshot" />
+          </label>
+        </div>
+
+        <div class="toolbar">
+          <button id="capture-snapshot" class="button button-accent">Capture snapshot</button>
+          <button id="copy-snapshot" class="button">Copy JSON</button>
+        </div>
+      </section>
+
+      <section class="stats-grid" id="summary-grid">
+        <article class="stat-card">
+          <span>RSS</span>
+          <strong id="summary-rss">--</strong>
+        </article>
+        <article class="stat-card">
+          <span>Heap used</span>
+          <strong id="summary-heap">--</strong>
+        </article>
+        <article class="stat-card">
+          <span>Worker tasks</span>
+          <strong id="summary-tasks">--</strong>
+        </article>
+        <article class="stat-card">
+          <span>Message cache</span>
+          <strong id="summary-cache">--</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head compact">
+          <div>
+            <h2>Recent sample trends</h2>
+            <p>Latest in-memory captures for this app run, including automatic route sampling and manual snapshots.</p>
+          </div>
+          <div class="window-pill" id="trend-window">Window: 0/20</div>
+        </div>
+
+        <div class="trend-grid" id="trend-grid"></div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head compact">
+          <div>
+            <h2>Snapshot payload</h2>
+            <p id="snapshot-meta">No diagnostics snapshot captured yet.</p>
+          </div>
+        </div>
+        <textarea id="snapshot-json" readonly spellcheck="false"></textarea>
+      </section>
+    </main>
+
+    <script src="./api-diagnostics.js"></script>
+  </body>
+</html>
