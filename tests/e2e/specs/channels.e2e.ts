@@ -32,16 +32,14 @@ test.describe('Channels', () => {
     await workspaceButton.click();
 
     const openFolderOption = page
-      .locator(
-        ".arco-dropdown-menu-item:has-text('Open a new folder'), .arco-dropdown-menu-item:has-text('打开新文件夹')"
-      )
+      .getByRole('option')
+      .filter({ hasText: /Open a new folder|打开新文件夹/ })
       .first();
     await expect(openFolderOption).toBeVisible({ timeout: 8_000 });
 
     const clearWorkspaceOption = page
-      .locator(
-        ".arco-dropdown-menu-item:has-text('Clear workspace'), .arco-dropdown-menu-item:has-text('移除已选文件夹')"
-      )
+      .getByRole('option')
+      .filter({ hasText: /Remove folder|移除已选文件夹/ })
       .first();
     const hasClearOption = (await clearWorkspaceOption.count()) > 0;
 

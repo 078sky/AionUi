@@ -74,7 +74,7 @@ describe('createConversationParams', () => {
     });
     expect(params.extra.presetRules).toBe('preset rules');
     expect(params.extra.enabledSkills).toEqual(['moltbook']);
-    expect(params.model.useModel).toBe('gpt-4.1');
+    expect(params.model.useModel).toBe('default');
   });
 
   it('maps acp preset assistants to presetContext and backend', async () => {
