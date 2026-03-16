@@ -367,6 +367,9 @@
   "channels.guide": "连接 Telegram、飞书、钉钉等消息应用，让你的 AI Agent 随时在线可控。",
   "channels.selectFirst": "选择一个渠道并完成凭据配置。",
   "channels.enableAfterConfig": "启用该渠道后，即可开始与 AI Agent 对话。",
+  "channels.workspace": "工作区",
+  "channels.workspaceDesc": "为该渠道会话设置独立工作目录",
+  "channels.workspaceUpdated": "工作区已更新",
   "channels.extension.requiredField": "请填写必填项：{{field}}",
   "channels.extension.enabled": "渠道已启用",
   "channels.extension.enableFailed": "启用渠道失败",
@@ -660,3 +663,5 @@
   "addAssistant": "添加助手",
   "extensionAssistantReadonly": "扩展助手为只读，你可以复制它并编辑副本。"
 }
+
+

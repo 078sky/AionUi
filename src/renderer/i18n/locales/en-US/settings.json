@@ -367,6 +367,9 @@
   "channels.guide": "Connect Telegram, Lark, DingTalk and more to control your always-on AionUi AI agent from any chat app.",
   "channels.selectFirst": "Select a channel and configure credentials.",
   "channels.enableAfterConfig": "Enable the channel and start chatting with your AI agent.",
+  "channels.workspace": "Workspace",
+  "channels.workspaceDesc": "Set dedicated working directory for this channel conversations",
+  "channels.workspaceUpdated": "Workspace updated",
   "channels.extension.requiredField": "Please fill required field: {{field}}",
   "channels.extension.enabled": "Channel enabled",
   "channels.extension.enableFailed": "Failed to enable channel",
@@ -659,3 +662,5 @@
   },
   "extensionAssistantReadonly": "Extension assistants are read-only. You can duplicate it and edit the copy."
 }
+
+

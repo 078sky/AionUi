@@ -350,10 +350,10 @@ export function initChannelBridge(): void {
   /**
    * Sync channel settings after agent or model change
    */
-  channel.syncChannelSettings.provider(async ({ platform, agent, model }) => {
+  channel.syncChannelSettings.provider(async ({ platform, agent, model, workspace }) => {
     try {
       const manager = getChannelManager();
-      const result = await manager.syncChannelSettings(platform, agent, model);
+      const result = await manager.syncChannelSettings(platform, agent, model, workspace);
       if (!result.success) {
         return { success: false, msg: result.error };
       }

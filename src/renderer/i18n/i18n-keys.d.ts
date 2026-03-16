@@ -859,6 +859,12 @@ export type I18nKey =
   | 'settings.channels.telegramDesc'
   | 'settings.channels.telegramTitle'
   | 'settings.channels.title'
+  | 'settings.channels.workspaceUpdated'
+  | 'settings.channels.telegramTitle'
+  | 'settings.channels.workspaceDesc'
+  | 'settings.channels.telegramTitle'
+  | 'settings.channels.workspace'
+  | 'settings.channels.telegramTitle'
   | 'settings.checkForUpdates'
   | 'settings.claudeYoloMode'
   | 'settings.claudeYoloModeDesc'
@@ -1420,3 +1426,4 @@ export type I18nModule =
   | 'starOffice'
   | 'guid'
   | 'agent';
+
