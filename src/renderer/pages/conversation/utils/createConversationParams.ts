@@ -164,7 +164,17 @@ export async function buildPresetAssistantParams(
     }
   }
 
-  const model = type === 'gemini' ? await getDefaultGeminiModel() : ({} as TProviderWithModel);
+  const model: TProviderWithModel =
+    type === 'gemini'
+      ? {
+          id: 'gemini-placeholder',
+          name: 'Gemini',
+          useModel: 'default',
+          platform: 'gemini-with-google-auth' as TProviderWithModel['platform'],
+          baseUrl: '',
+          apiKey: '',
+        }
+      : ({} as TProviderWithModel);
 
   return { type, model, name: agent.name, extra };
 }

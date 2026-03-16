@@ -10,11 +10,12 @@ import { ConfigStorage } from '@/common/storage';
 import GeminiModelSelector from '@/renderer/pages/conversation/gemini/GeminiModelSelector';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/gemini/useGeminiModelSelection';
 import type { AcpBackendAll } from '@/types/acpTypes';
-import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
+import { Avatar, Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { WorkspaceSelectorPopover } from '@/renderer/pages/guid/components/WorkspaceShortcutSelector';
 import { getWorkspaceDisplayName } from '@/renderer/utils/workspace';
 import { normalizeWorkspacePath } from '@/renderer/utils/recentWorkspaces';
-import { CheckOne, CloseOne, Copy, Delete, Down, FolderOpen, Refresh } from '@icon-park/react';
+import { getAgentLogo } from '@/renderer/utils/agentLogo';
+import { CheckOne, CloseOne, Copy, Delete, Down, FolderOpen, Refresh, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -398,6 +399,18 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
   };
 
   const isGeminiAgent = selectedAgent.backend === 'gemini';
+  const renderAgentIcon = (backend: string, name: string) => {
+    const logo = getAgentLogo(backend);
+    if (logo) {
+      return (
+        <Avatar size={16} shape='square' style={{ background: 'transparent' }}>
+          <img src={logo} alt={name} style={{ width: 16, height: 16, objectFit: 'contain' }} />
+        </Avatar>
+      );
+    }
+    return <Robot theme='outline' size={16} fill='var(--color-text-2)' />;
+  };
+
   const agentOptions: Array<{ backend: AcpBackendAll; name: string; customAgentId?: string; isExtension?: boolean }> =
     availableAgents.length > 0 ? availableAgents : [{ backend: 'gemini', name: 'Gemini CLI' }];
 
@@ -502,7 +515,10 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
                         void persistSelectedAgent(next);
                       }}
                     >
-                      {a.name}
+                      <div className='flex items-center gap-8px'>
+                        {renderAgentIcon(a.backend, a.name)}
+                        <span>{a.name}</span>
+                      </div>
                     </Menu.Item>
                   );
                 })}
@@ -510,16 +526,30 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
             }
           >
             <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-              <span className='truncate'>
-                {selectedAgent.name ||
-                  availableAgents.find(
-                    (a) =>
-                      (a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend) ===
-                      (selectedAgent.customAgentId
-                        ? `${selectedAgent.backend}|${selectedAgent.customAgentId}`
-                        : selectedAgent.backend)
-                  )?.name ||
-                  selectedAgent.backend}
+              <span className='inline-flex items-center gap-8px min-w-0'>
+                {renderAgentIcon(
+                  selectedAgent.backend,
+                  selectedAgent.name ||
+                    availableAgents.find(
+                      (a) =>
+                        (a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend) ===
+                        (selectedAgent.customAgentId
+                          ? `${selectedAgent.backend}|${selectedAgent.customAgentId}`
+                          : selectedAgent.backend)
+                    )?.name ||
+                    selectedAgent.backend
+                )}
+                <span className='truncate'>
+                  {selectedAgent.name ||
+                    availableAgents.find(
+                      (a) =>
+                        (a.customAgentId ? `${a.backend}|${a.customAgentId}` : a.backend) ===
+                        (selectedAgent.customAgentId
+                          ? `${selectedAgent.backend}|${selectedAgent.customAgentId}`
+                          : selectedAgent.backend)
+                    )?.name ||
+                    selectedAgent.backend}
+                </span>
               </span>
               <Down theme='outline' size={14} />
             </Button>
