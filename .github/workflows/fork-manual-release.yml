@@ -25,7 +25,12 @@ on:
           - all
         default: 'all'
       skip_code_quality:
-        description: 'Skip code quality checks for faster debugging builds'
+        description: 'Skip code quality checks for faster debugging or fork-safe builds'
+        required: false
+        type: boolean
+        default: false
+      skip_release_publish:
+        description: 'Build artifacts only and skip GitHub Release publishing'
         required: false
         type: boolean
         default: false
@@ -133,6 +138,7 @@ jobs:
     name: Create Fork Release
     runs-on: ubuntu-latest
     needs: [resolve-context, build-pipeline]
+    if: ${{ !inputs.skip_release_publish }}
 
     steps:
       - name: Checkout code
