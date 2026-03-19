@@ -20,7 +20,10 @@ vi.mock('child_process', () => ({
 }));
 
 describe('CodexConnection stop cleanup', () => {
+  const originalPlatform = process.platform;
+
   afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: originalPlatform });
     vi.restoreAllMocks();
     execFileMock.mockReset();
     spawnMock.mockReset();
@@ -66,6 +69,8 @@ describe('CodexConnection stop cleanup', () => {
   });
 
   it('clears pending runtime state when stop is called', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+
     const processKillSpy = vi.spyOn(process, 'kill').mockImplementation(((
       pid: number,
       signal?: number | NodeJS.Signals

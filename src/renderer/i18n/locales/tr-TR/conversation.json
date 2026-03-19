@@ -103,6 +103,8 @@
     "refresh": "Yenile",
     "temporarySpace": "Geçici Alan",
     "changeWorkspace": "Çalışma Alanını Değiştir",
+    "openInEditor": "Open in editor",
+    "openInEditorFailed": "Failed to open in {{editor}}",
     "migration": {
       "title": "Çalışma Alanını Değiştir",
       "currentWorkspaceLabel": "Mevcut geçici çalışma alanı: ",

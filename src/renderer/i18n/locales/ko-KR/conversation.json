@@ -110,6 +110,8 @@
     "refresh": "새로고침",
     "temporarySpace": "임시 공간",
     "changeWorkspace": "워크스페이스 변경",
+    "openInEditor": "Open in editor",
+    "openInEditorFailed": "Failed to open in {{editor}}",
     "migration": {
       "title": "워크스페이스 변경",
       "currentWorkspaceLabel": "현재 임시 워크스페이스: ",

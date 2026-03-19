@@ -25,9 +25,11 @@ type MinimalConversation = {
   };
 };
 
-const workerManageGetTaskById = vi.fn(() => undefined);
-const workerManageListTasks = vi.fn(() => []);
 const workerManageKillAndDrain = vi.fn(async () => undefined);
+const workerManageGetTaskById = vi.fn(() => undefined);
+const workerManagePeekTaskById = vi.fn(() => undefined);
+const workerManageListTasks = vi.fn(() => []);
+const workerTaskManagerListTasks = vi.fn(() => []);
 const dbGetUserConversations = vi.fn(() => ({ data: [] }));
 const dbGetUserConversationsByStatuses = vi.fn(() => ({ success: true, data: [] }));
 const dbGetConversation = vi.fn(() => ({ success: false, data: undefined }));
@@ -48,8 +50,16 @@ vi.mock('@process/services/conversationService', () => ({
 vi.mock('@process/WorkerManage', () => ({
   default: {
     getTaskById: workerManageGetTaskById,
+    peekTaskById: workerManagePeekTaskById,
     listTasks: workerManageListTasks,
     killAndDrain: workerManageKillAndDrain,
+  },
+}));
+
+vi.mock('@process/task/workerTaskManagerSingleton', () => ({
+  workerTaskManager: {
+    getTask: vi.fn(() => undefined),
+    listTasks: workerTaskManagerListTasks,
   },
 }));
 
@@ -86,6 +96,14 @@ vi.mock('@process/services/ApiDiagnosticsService', () => ({
 vi.mock('@process/services/ConversationTurnCompletionService', () => ({
   getConversationStatusSnapshot: vi.fn(),
   getReadOnlyConversationStatusSnapshot: vi.fn(),
+  getConversationStatusCategory: vi.fn((state: string) => {
+    if (state === 'ai_generating' || state === 'initializing') return 'generating';
+    if (state === 'ai_waiting_input' || state === 'ai_waiting_confirmation') return 'waiting';
+    if (state === 'stopped') return 'stopped';
+    if (state === 'error') return 'error';
+    return 'unknown';
+  }),
+  isConversationStatusWorking: vi.fn((state: string) => state === 'ai_generating' || state === 'initializing'),
   formatStatusLastMessage: vi.fn((message) =>
     message
       ? {
@@ -113,12 +131,16 @@ vi.mock('@/common/utils/conversationTitle', () => ({
 
 describe('conversationApiRoutes helpers', () => {
   beforeEach(() => {
-    workerManageGetTaskById.mockReset();
-    workerManageGetTaskById.mockReturnValue(undefined);
-    workerManageListTasks.mockReset();
-    workerManageListTasks.mockReturnValue([]);
     workerManageKillAndDrain.mockReset();
     workerManageKillAndDrain.mockResolvedValue(undefined);
+    workerManageGetTaskById.mockReset();
+    workerManageGetTaskById.mockReturnValue(undefined);
+    workerManagePeekTaskById.mockReset();
+    workerManagePeekTaskById.mockReturnValue(undefined);
+    workerManageListTasks.mockReset();
+    workerManageListTasks.mockReturnValue([]);
+    workerTaskManagerListTasks.mockReset();
+    workerTaskManagerListTasks.mockReturnValue([]);
     dbGetUserConversations.mockReset();
     dbGetUserConversations.mockReturnValue({ data: [] });
     dbGetUserConversationsByStatuses.mockReset();
@@ -170,6 +192,36 @@ describe('conversationApiRoutes helpers', () => {
         },
       })
     ).toBe(false);
+  });
+
+  it('resolves generating scope explicitly and falls back to all for explicit status or state filters', async () => {
+    const { resolveConversationStatusListScope } = await import('../../src/webserver/routes/conversationApiRoutes');
+
+    expect(
+      resolveConversationStatusListScope({
+        scope: 'generating',
+      })
+    ).toBe('generating');
+
+    expect(
+      resolveConversationStatusListScope({
+        scope: 'waiting',
+      })
+    ).toBe('waiting');
+
+    expect(
+      resolveConversationStatusListScope({
+        status: ['finished'],
+      })
+    ).toBe('all');
+
+    expect(
+      resolveConversationStatusListScope({
+        state: ['error'],
+      })
+    ).toBe('all');
+
+    expect(resolveConversationStatusListScope({})).toBe('generating');
   });
 
   it('builds a sorted generating conversation status list by default', async () => {
@@ -443,6 +495,45 @@ describe('conversationApiRoutes helpers', () => {
     );
 
     expect(cliFiltered.map((item) => item.sessionId)).toEqual(['conv-running']);
+
+    const waitingOnly = buildConversationStatusList(
+      conversations as never,
+      {
+        scope: 'waiting',
+      },
+      getSnapshot
+    );
+
+    expect(waitingOnly.map((item) => item.sessionId)).toEqual(['conv-other-source', 'conv-active']);
+
+    const stoppedOnly = buildConversationStatusList(
+      conversations as never,
+      {
+        scope: 'stopped',
+      },
+      vi.fn((sessionId: string) =>
+        sessionId === 'conv-active'
+          ? {
+              sessionId,
+              conversation: conversations[0],
+              status: 'finished',
+              state: 'stopped',
+              detail: 'Conversation is stopped',
+              canSendMessage: true,
+              runtime: {
+                hasTask: false,
+                isProcessing: false,
+                pendingConfirmations: 0,
+                dbStatus: 'finished',
+                processingStale: false,
+              },
+              lastMessage: null,
+            }
+          : getSnapshot(sessionId)
+      )
+    );
+
+    expect(stoppedOnly.map((item) => item.sessionId)).toEqual(['conv-active']);
   });
 
   it('collects runtime candidate ids without including idle busy-guard entries', async () => {
@@ -513,6 +604,40 @@ describe('conversationApiRoutes helpers', () => {
     expect(db.getUserConversationsByStatuses).toHaveBeenCalledWith(['pending', 'running'], undefined, 1000);
     expect(db.getUserConversations).not.toHaveBeenCalled();
     expect(result.map((conversation) => conversation.id)).toEqual(['conv-runtime', 'conv-running']);
+  });
+
+  it('uses full history for non-runtime scopes that need completed sessions', async () => {
+    const { getConversationStatusListConversations } = await import('../../src/webserver/routes/conversationApiRoutes');
+
+    const db = {
+      getConversation: vi.fn(),
+      getUserConversations: vi.fn(() => ({
+        data: [
+          {
+            id: 'conv-stopped',
+            name: 'Stopped',
+            type: 'codex',
+            source: 'api',
+            status: 'finished',
+            createTime: 1,
+            modifyTime: 2,
+            extra: {},
+          },
+        ],
+      })),
+      getUserConversationsByStatuses: vi.fn(() => ({
+        success: true,
+        data: [],
+      })),
+    };
+
+    const result = getConversationStatusListConversations('waiting', {
+      db: db as never,
+    });
+
+    expect(db.getUserConversations).toHaveBeenCalledWith(undefined, 0, 10000);
+    expect(db.getUserConversationsByStatuses).not.toHaveBeenCalled();
+    expect(result.map((conversation) => conversation.id)).toEqual(['conv-stopped']);
   });
 
   it('builds conversation usage payload with summary and paginated replies', async () => {

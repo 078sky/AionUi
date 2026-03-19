@@ -406,6 +406,10 @@ function parseEnvOutput(output: string): Record<string, string> {
   return result;
 }
 
+export function getWindowsShellExecutionOptions(): { shell?: boolean; windowsHide?: boolean } {
+  return process.platform === 'win32' ? { shell: true, windowsHide: true } : {};
+}
+
 /**
  * Resolve a modern npx binary (npm >= 7) from the same directory as the
  * active node binary.  Old standalone npx packages (npm v5/v6 era) don't
@@ -418,6 +422,7 @@ function parseEnvOutput(output: string): Record<string, string> {
 export function resolveNpxPath(env: Record<string, string | undefined>): string {
   const isWindows = process.platform === 'win32';
   const npxName = isWindows ? 'npx.cmd' : 'npx';
+  const pathApi = isWindows ? path.win32 : path.posix;
   try {
     const whichCmd = isWindows ? 'where' : 'which';
     const nodePath = execFileSync(whichCmd, ['node'], {
@@ -425,19 +430,21 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['pipe', 'pipe', 'pipe'],
+      ...getWindowsShellExecutionOptions(),
     })
       .trim()
       .split(/\r?\n/)[0]; // `where` on Windows may return multiple lines
-    const npxCandidate = path.join(path.dirname(nodePath), npxName);
+    const nodeDir = pathApi.dirname(nodePath);
+    const npxCandidate = pathApi.join(nodeDir, npxName);
 
     let versionOutput = '';
     if (isWindows) {
       // On Windows, execFileSync() cannot execute .cmd shims directly.
       // Validate the Node-adjacent npm installation by invoking the bundled
       // npx entrypoint JS with the same node.exe instead of probing npx.cmd.
-      const npmBinDir = path.join(path.dirname(nodePath), 'node_modules', 'npm', 'bin');
-      const npmPrefixJs = path.join(npmBinDir, 'npm-prefix.js');
-      const npxCliJs = path.join(npmBinDir, 'npx-cli.js');
+      const npmBinDir = pathApi.join(nodeDir, 'node_modules', 'npm', 'bin');
+      const npmPrefixJs = pathApi.join(npmBinDir, 'npm-prefix.js');
+      const npxCliJs = pathApi.join(npmBinDir, 'npx-cli.js');
       if (!existsSync(npxCandidate) || !existsSync(npmPrefixJs) || !existsSync(npxCliJs)) {
         throw new Error('Node-adjacent npx.cmd or bundled npm scripts are missing');
       }
@@ -457,7 +464,6 @@ export function resolveNpxPath(env: Record<string, string | undefined>): string 
         stdio: ['pipe', 'pipe', 'pipe'],
       }).trim();
     }
-
     const majorVersion = parseInt(versionOutput.split('.')[0], 10);
     if (majorVersion >= 7) {
       return npxCandidate;

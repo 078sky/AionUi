@@ -1,5 +1,6 @@
 {
   "enabled": true,
-  "outputDir": "E:\\code\\taichuCode\\AionUi\\.aionui\\diagnostics\\api",
-  "sampleIntervalMs": 1000
+  "outputDir": "E:\\code\\taichuCode\\AionUi\\logs\\diagnostics",
+  "sampleIntervalMs": 60000
+} 1000
 }

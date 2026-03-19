@@ -110,6 +110,8 @@
     "refresh": "Refresh",
     "temporarySpace": "Temporary Space",
     "changeWorkspace": "Change Workspace",
+    "openInEditor": "Open in editor",
+    "openInEditorFailed": "Failed to open in {{editor}}",
     "migration": {
       "title": "Change Workspace",
       "currentWorkspaceLabel": "Current temporary workspace: ",

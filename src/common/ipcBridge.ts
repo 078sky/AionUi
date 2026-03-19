@@ -21,8 +21,12 @@ import type {
   AutoUpdateStatus,
 } from './updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from './utils/protocolDetector';
+import type { WorkspaceEditorTarget } from './workspaceEditor';
 
 export const shell = {
+  openWorkspaceInEditor: bridge.buildProvider<void, { workspace: string; target: WorkspaceEditorTarget }>(
+    'open-workspace-in-editor'
+  ),
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
   showItemInFolder: bridge.buildProvider<void, string>('show-item-in-folder'), // 打开文件夹
   openExternal: bridge.buildProvider<void, string>('open-external'), // 使用系统默认程序打开外部链接
@@ -44,8 +48,8 @@ export const conversation = {
     'update-conversation'
   ), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
-  stop: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
-  sendMessage: bridge.buildProvider<IBridgeResponse<{}>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
+  stop: bridge.buildProvider<IBridgeResponse<Record<string, never>>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
+  sendMessage: bridge.buildProvider<IBridgeResponse<Record<string, never>>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
   getSlashCommands: bridge.buildProvider<
     IBridgeResponse<{ commands: SlashCommandItem[] }>,
     { conversation_id: string }
@@ -340,7 +344,7 @@ export const fileStream = {
 
 export const googleAuth = {
   login: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.login'),
-  logout: bridge.buildProvider<void, {}>('google.auth.logout'),
+  logout: bridge.buildProvider<void, Record<string, never>>('google.auth.logout'),
   status: bridge.buildProvider<IBridgeResponse<{ account: string }>, { proxy?: string }>('google.auth.status'),
 };
 
@@ -906,7 +910,7 @@ export interface IConversationListChangedEvent {
   source?: string;
 }
 
-interface IBridgeResponse<D = {}> {
+interface IBridgeResponse<D = Record<string, never>> {
   success: boolean;
   data?: D;
   msg?: string;

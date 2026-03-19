@@ -1,0 +1,216 @@
+name: Fork Manual Build Release
+
+permissions:
+  contents: write
+  actions: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Git ref to build. Leave empty to use repository variable FORK_BUILD_DEFAULT_REF.'
+        required: false
+        default: ''
+        type: string
+      platform:
+        description: 'Platform to build'
+        required: true
+        type: choice
+        options:
+          - macos-arm64
+          - macos-x64
+          - windows-x64
+          - windows-arm64
+          - linux
+          - all
+        default: 'all'
+      skip_code_quality:
+        description: 'Skip code quality checks for faster debugging or fork-safe builds'
+        required: false
+        type: boolean
+        default: false
+      skip_release_publish:
+        description: 'Build artifacts only and skip GitHub Release publishing'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
+
+jobs:
+  resolve-context:
+    name: Resolve Build Context
+    runs-on: ubuntu-latest
+    outputs:
+      effective_ref: ${{ steps.resolve.outputs.effective_ref }}
+      release_prefix: ${{ steps.resolve.outputs.release_prefix }}
+      ref_slug: ${{ steps.resolve.outputs.ref_slug }}
+
+    steps:
+      - name: Resolve ref and prefix
+        id: resolve
+        shell: bash
+        run: |
+          INPUT_REF="${{ inputs.branch }}"
+          DEFAULT_REF="${{ vars.FORK_BUILD_DEFAULT_REF }}"
+          RELEASE_PREFIX="${{ vars.FORK_RELEASE_PREFIX }}"
+
+          if [ -n "$INPUT_REF" ]; then
+            EFFECTIVE_REF="$INPUT_REF"
+          elif [ -n "$DEFAULT_REF" ]; then
+            EFFECTIVE_REF="$DEFAULT_REF"
+          else
+            EFFECTIVE_REF="${GITHUB_REF_NAME}"
+          fi
+
+          if [ -z "$RELEASE_PREFIX" ]; then
+            RELEASE_PREFIX="fork-dev"
+          elif [[ "$RELEASE_PREFIX" != *"-dev"* ]]; then
+            RELEASE_PREFIX="${RELEASE_PREFIX}-dev"
+          fi
+
+          REF_SLUG=$(echo "$EFFECTIVE_REF" | tr '/:@ ' '-' | tr -cd '[:alnum:]._-')
+          if [ -z "$REF_SLUG" ]; then
+            REF_SLUG="manual"
+          fi
+
+          echo "effective_ref=$EFFECTIVE_REF" >> "$GITHUB_OUTPUT"
+          echo "release_prefix=$RELEASE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "ref_slug=$REF_SLUG" >> "$GITHUB_OUTPUT"
+
+          echo "Effective ref: $EFFECTIVE_REF"
+          echo "Release prefix: $RELEASE_PREFIX"
+          echo "Ref slug: $REF_SLUG"
+
+  prepare-matrix:
+    name: Prepare Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+
+    steps:
+      - name: Generate build matrix
+        id: set-matrix
+        shell: bash
+        run: |
+          PLATFORM="${{ inputs.platform }}"
+
+          MACOS_ARM64='{"platform":"macos-arm64","os":"macos-14","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"macos-build-arm64","arch":"arm64"}'
+          MACOS_X64='{"platform":"macos-x64","os":"macos-14","command":"node scripts/build-with-builder.js x64 --mac --x64","artifact-name":"macos-build-x64","arch":"x64"}'
+          WINDOWS_X64='{"platform":"windows-x64","os":"windows-2022","command":"node scripts/build-with-builder.js x64 --win --x64","artifact-name":"windows-build-x64","arch":"x64"}'
+          WINDOWS_ARM64='{"platform":"windows-arm64","os":"windows-2022","command":"node scripts/build-with-builder.js arm64 --win --arm64","artifact-name":"windows-build-arm64","arch":"arm64"}'
+          LINUX='{"platform":"linux","os":"ubuntu-latest","command":"bun run dist:linux","artifact-name":"linux-build","arch":"x64-arm64"}'
+
+          if [ "$PLATFORM" = "all" ]; then
+            MATRIX="{\"include\":[$MACOS_ARM64,$MACOS_X64,$WINDOWS_X64,$WINDOWS_ARM64,$LINUX]}"
+          elif [ "$PLATFORM" = "macos-arm64" ]; then
+            MATRIX="{\"include\":[$MACOS_ARM64]}"
+          elif [ "$PLATFORM" = "macos-x64" ]; then
+            MATRIX="{\"include\":[$MACOS_X64]}"
+          elif [ "$PLATFORM" = "windows-x64" ]; then
+            MATRIX="{\"include\":[$WINDOWS_X64]}"
+          elif [ "$PLATFORM" = "windows-arm64" ]; then
+            MATRIX="{\"include\":[$WINDOWS_ARM64]}"
+          elif [ "$PLATFORM" = "linux" ]; then
+            MATRIX="{\"include\":[$LINUX]}"
+          else
+            echo "Unsupported platform: $PLATFORM"
+            exit 1
+          fi
+
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "$MATRIX" | python3 -m json.tool
+
+  build-pipeline:
+    name: Build Pipeline
+    needs: [resolve-context, prepare-matrix]
+    uses: ./.github/workflows/_build-reusable.yml
+    with:
+      matrix: ${{ needs.prepare-matrix.outputs.matrix }}
+      ref: ${{ needs.resolve-context.outputs.effective_ref }}
+      skip_code_quality: ${{ inputs.skip_code_quality }}
+      append_commit_hash: true
+      upload_installers_only: true
+    secrets: inherit
+
+  create-release:
+    name: Create Fork Release
+    runs-on: ubuntu-latest
+    needs: [resolve-context, build-pipeline]
+    if: ${{ !inputs.skip_release_publish }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-context.outputs.effective_ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build release metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          FULL_SHA=$(git rev-parse HEAD)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          UTC_STAMP=$(date -u +'%Y%m%d-%H%M%S')
+          PREFIX="${{ needs.resolve-context.outputs.release_prefix }}"
+          REF_SLUG="${{ needs.resolve-context.outputs.ref_slug }}"
+
+          # Keep "-dev-" in the default prefix so legacy tag-triggered workflows stay skipped.
+          TAG_NAME="${PREFIX}-v${VERSION}-${REF_SLUG}-${UTC_STAMP}-${SHORT_SHA}"
+          RELEASE_NAME="${PREFIX} ${VERSION} ${REF_SLUG} ${SHORT_SHA}"
+
+          {
+            echo "commit_sha=$FULL_SHA"
+            echo "tag_name=$TAG_NAME"
+            echo "release_name=$RELEASE_NAME"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: build-artifacts
+
+      - name: Show release files
+        shell: bash
+        run: |
+          echo "Artifacts prepared for release:"
+          find build-artifacts -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.deb" \) | sort
+
+      - name: Validate release files
+        shell: bash
+        run: |
+          FILE_COUNT=$(find build-artifacts -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.deb" \) | wc -l)
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "No installer files were produced, aborting release creation."
+            exit 1
+          fi
+
+      - name: Publish fork release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          target_commitish: ${{ needs.resolve-context.outputs.effective_ref }}
+          name: ${{ steps.meta.outputs.release_name }}
+          body: |
+            Manual fork build release.
+
+            - Ref: `${{ needs.resolve-context.outputs.effective_ref }}`
+            - Platform: `${{ inputs.platform }}`
+            - Triggered by: `${{ github.actor }}`
+            - Commit: `${{ steps.meta.outputs.commit_sha }}`
+          files: |
+            build-artifacts/**/*.exe
+            build-artifacts/**/*.msi
+            build-artifacts/**/*.dmg
+            build-artifacts/**/*.deb
+          prerelease: true
+          draft: false
+          generate_release_notes: true

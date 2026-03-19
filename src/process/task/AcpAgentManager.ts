@@ -35,6 +35,7 @@ import { prepareFirstMessageWithSkillsIndex } from './agentUtils';
 const ACP_PERF_LOG = process.env.ACP_PERF === '1';
 
 import BaseAgentManager from './BaseAgentManager';
+import { IpcAgentEventEmitter } from './IpcAgentEventEmitter';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';
@@ -94,7 +95,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   private readonly bufferedStreamTextMessages = new Map<string, BufferedStreamTextMessage>();
 
   constructor(data: AcpAgentManagerData) {
-    super('acp', data);
+    super('acp', data, new IpcAgentEventEmitter());
     this.conversation_id = data.conversation_id;
     this.workspace = data.workspace;
     this.options = data;
@@ -319,6 +320,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         },
         onStreamEvent: (message) => {
           const pipelineStart = Date.now();
+          cronBusyGuard.touchActivity(this.conversation_id);
 
           // Reduce status noise: show full lifecycle only for the first turn.
           // After first turn, only keep failure statuses to avoid reconnect chatter.
@@ -440,6 +442,9 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         },
         onSignalEvent: async (v) => {
           let shouldNotifyTurnCompleted = v.type === 'finish';
+          if (v.type !== 'finish') {
+            cronBusyGuard.touchActivity(this.conversation_id);
+          }
           // Flush buffered text chunks before handling turn-level signals
           this.flushBufferedStreamTextMessages();
 

@@ -52,6 +52,20 @@ class CronBusyGuard {
   }
 
   /**
+   * Refresh the last activity timestamp without changing the processing flag.
+   * Useful for long-running streams so stale-state detection can stay accurate.
+   */
+  touchActivity(conversationId: string): void {
+    const state = this.states.get(conversationId);
+    if (!state) {
+      return;
+    }
+
+    state.lastActiveAt = Date.now();
+    this.states.set(conversationId, state);
+  }
+
+  /**
    * Register a one-time callback for when a conversation becomes idle.
    * If already idle, fires immediately.
    */

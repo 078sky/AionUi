@@ -10,6 +10,8 @@ const releaseConversationMessageCache = vi.fn(() => Promise.resolve());
 const getConversation = vi.fn();
 const removeBusyState = vi.fn();
 const forgetSession = vi.fn();
+const workerTaskManagerGetTask = vi.fn();
+const workerTaskManagerGetOrBuildTask = vi.fn();
 
 vi.mock('../../src/process/initStorage', () => ({
   ProcessChat: {
@@ -42,6 +44,13 @@ vi.mock('../../src/process/services/ConversationTurnCompletionService', () => ({
   },
 }));
 
+vi.mock('../../src/process/task/workerTaskManagerSingleton', () => ({
+  workerTaskManager: {
+    getTask: workerTaskManagerGetTask,
+    getOrBuildTask: workerTaskManagerGetOrBuildTask,
+  },
+}));
+
 vi.mock('../../src/process/task/AcpAgentManager', () => ({
   default: class AcpAgentManager {},
 }));
@@ -71,6 +80,10 @@ describe('WorkerManage.kill', () => {
     removeBusyState.mockReset();
     forgetSession.mockReset();
     getConversation.mockReset();
+    workerTaskManagerGetTask.mockReset();
+    workerTaskManagerGetTask.mockReturnValue(undefined);
+    workerTaskManagerGetOrBuildTask.mockReset();
+    workerTaskManagerGetOrBuildTask.mockRejectedValue(new Error('task not found'));
     getConversation.mockImplementation((id: string) => {
       if (id === 'finished-1') {
         return {
@@ -136,5 +149,27 @@ describe('WorkerManage.kill', () => {
     });
     expect(removeBusyState).toHaveBeenCalledWith('finished-1');
     expect(forgetSession).toHaveBeenCalledWith('finished-1');
+  });
+
+  it('reuses existing workerTaskManager task when sending messages', async () => {
+    const { default: WorkerManage } = await import('../../src/process/WorkerManage');
+
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    workerTaskManagerGetTask.mockReturnValue({
+      type: 'gemini',
+      status: 'running',
+      sendMessage,
+    });
+
+    const result = await WorkerManage.sendMessage('session-1', 'hello', 'msg-1');
+
+    expect(result).toEqual({ success: true });
+    expect(sendMessage).toHaveBeenCalledWith({
+      input: 'hello',
+      msg_id: 'msg-1',
+      files: undefined,
+    });
+    expect(workerTaskManagerGetOrBuildTask).not.toHaveBeenCalled();
+    expect(getConversation).not.toHaveBeenCalled();
   });
 });

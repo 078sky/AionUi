@@ -110,6 +110,8 @@
     "refresh": "更新",
     "temporarySpace": "一時スペース",
     "changeWorkspace": "ワークスペースを変更",
+    "openInEditor": "Open in editor",
+    "openInEditorFailed": "Failed to open in {{editor}}",
     "migration": {
       "title": "ワークスペースを変更",
       "currentWorkspaceLabel": "現在の一時ワークスペース：",

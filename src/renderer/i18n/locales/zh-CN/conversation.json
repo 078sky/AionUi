@@ -110,6 +110,8 @@
     "refresh": "刷新",
     "temporarySpace": "临时空间",
     "changeWorkspace": "更换工作空间",
+    "openInEditor": "Open in editor",
+    "openInEditorFailed": "Failed to open in {{editor}}",
     "migration": {
       "title": "更换工作空间",
       "currentWorkspaceLabel": "当前临时工作空间：",

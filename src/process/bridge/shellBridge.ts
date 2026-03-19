@@ -6,8 +6,13 @@
 
 import { shell } from 'electron';
 import { ipcBridge } from '../../common';
+import { openWorkspaceInEditor } from '../utils/workspaceEditor';
 
 export function initShellBridge(): void {
+  ipcBridge.shell.openWorkspaceInEditor.provider(async ({ workspace, target }) => {
+    await openWorkspaceInEditor(target, workspace);
+  });
+
   ipcBridge.shell.openFile.provider(async (path) => {
     await shell.openPath(path);
   });

@@ -171,8 +171,19 @@ export function buildOpenApiSpec(): Record<string, any> {
               example: 'ai_generating',
               description: 'Detailed runtime state',
             },
+            category: {
+              type: 'string',
+              enum: ['generating', 'waiting', 'stopped', 'error', 'unknown'],
+              example: 'generating',
+              description: 'Normalized state bucket shared by the single-status and list endpoints.',
+            },
             detail: { type: 'string', example: 'AI is generating response' },
             canSendMessage: { type: 'boolean', example: false },
+            isWorking: {
+              type: 'boolean',
+              example: true,
+              description: 'Whether the model is still actively working, excluding waiting-for-confirmation and idle states.',
+            },
             runtime: {
               type: 'object',
               description: 'Debug/runtime details used for state derivation',
@@ -216,8 +227,17 @@ export function buildOpenApiSpec(): Record<string, any> {
                     enum: ['ai_generating', 'ai_waiting_input', 'ai_waiting_confirmation', 'initializing', 'stopped', 'error', 'unknown'],
                     example: 'ai_generating',
                   },
+                  category: {
+                    type: 'string',
+                    enum: ['generating', 'waiting', 'stopped', 'error', 'unknown'],
+                    example: 'generating',
+                  },
                   detail: { type: 'string', example: 'AI is generating response' },
                   canSendMessage: { type: 'boolean', example: false },
+                  isWorking: {
+                    type: 'boolean',
+                    example: true,
+                  },
                   runtime: {
                     type: 'object',
                     additionalProperties: true,
@@ -230,7 +250,7 @@ export function buildOpenApiSpec(): Record<string, any> {
                   updatedAt: { type: 'integer', example: 1741000001000 },
                   createdAt: { type: 'integer', example: 1741000000000 },
                 },
-                required: ['sessionId', 'conversationId', 'type', 'status', 'state', 'detail', 'canSendMessage', 'runtime'],
+                required: ['sessionId', 'conversationId', 'type', 'status', 'state', 'category', 'detail', 'canSendMessage', 'isWorking', 'runtime'],
               },
             },
           },
@@ -508,8 +528,9 @@ export function buildOpenApiSpec(): Record<string, any> {
               name: 'scope',
               in: 'query',
               required: false,
-              schema: { type: 'string', enum: ['generating', 'active', 'all'], default: 'generating' },
-              description: 'Filter preset. `generating` returns in-progress sessions only; `active` returns runtime-alive sessions; `all` disables preset filtering.',
+              schema: { type: 'string', enum: ['generating', 'waiting', 'stopped', 'error', 'active', 'all'] },
+              description:
+                'Filter preset. `generating` returns sessions actively working; `waiting` returns sessions waiting for input or confirmation; `stopped` returns explicitly stopped sessions; `error` returns sessions whose last response ended in error; `active` returns runtime-alive sessions; `all` disables preset filtering. When `status` or `state` is provided without `scope`, the API uses `all` so explicit status filters are not pre-filtered away.',
             },
             {
               name: 'status',
@@ -556,7 +577,7 @@ export function buildOpenApiSpec(): Record<string, any> {
           ],
           responses: {
             200: {
-              description: 'Active conversation status list',
+              description: 'Conversation status list',
               content: {
                 'application/json': {
                   schema: { $ref: '#/components/schemas/ConversationStatusListResponse' },

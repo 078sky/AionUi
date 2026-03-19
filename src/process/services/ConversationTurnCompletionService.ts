@@ -8,8 +8,8 @@ import { ipcBridge } from '@/common';
 import type { IConversationTurnCompletedEvent } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { getDatabase } from '@process/database';
-import WorkerManage from '@process/WorkerManage';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { getConversationRuntimeTask } from '@process/services/ConversationRuntimeService';
 import { flushConversationMessages } from '@process/message';
 
 export type ConversationStatusValue = 'pending' | 'running' | 'finished';
@@ -21,6 +21,7 @@ export type ConversationRuntimeState =
   | 'stopped'
   | 'error'
   | 'unknown';
+export type ConversationStatusCategory = 'generating' | 'waiting' | 'stopped' | 'error' | 'unknown';
 
 type StatusMessage = {
   id?: string;
@@ -52,6 +53,8 @@ export interface ConversationStatusSnapshot {
     isProcessing: boolean;
     pendingConfirmations: number;
     dbStatus?: ConversationStatusValue;
+    lastActiveAt?: number;
+    processingStale: boolean;
   };
   lastMessage: StatusMessage | null;
 }
@@ -59,6 +62,7 @@ export interface ConversationStatusSnapshot {
 const RETRY_COUNT = 20;
 const RETRY_DELAY_MS = 100;
 const EMITTED_KEY_TTL_MS = 60 * 60 * 1000;
+const STALE_PROCESSING_AFTER_MS = 2 * 60 * 1000;
 
 const isErrorMessage = (message: StatusMessage | null): boolean => {
   if (!message) return false;
@@ -125,17 +129,34 @@ export const formatStatusLastMessage = (
   };
 };
 
-const getConversationTask = (sessionId: string, options: ConversationStatusSnapshotOptions = {}) => {
-  const touchTask = options.touchTask ?? true;
-  const workerManageWithPeek = WorkerManage as typeof WorkerManage & {
-    peekTaskById?: (id: string) => unknown;
-  };
-
-  if (!touchTask && typeof workerManageWithPeek.peekTaskById === 'function') {
-    return workerManageWithPeek.peekTaskById(sessionId);
+export const getConversationStatusCategory = (state: ConversationRuntimeState): ConversationStatusCategory => {
+  if (state === 'ai_generating' || state === 'initializing') {
+    return 'generating';
   }
 
-  return WorkerManage.getTaskById(sessionId);
+  if (state === 'ai_waiting_input' || state === 'ai_waiting_confirmation') {
+    return 'waiting';
+  }
+
+  if (state === 'stopped') {
+    return 'stopped';
+  }
+
+  if (state === 'error') {
+    return 'error';
+  }
+
+  return 'unknown';
+};
+
+export const isConversationStatusWorking = (state: ConversationRuntimeState): boolean =>
+  state === 'ai_generating' || state === 'initializing';
+
+const getConversationTask = (sessionId: string, options: ConversationStatusSnapshotOptions = {}) => {
+  const touchTask = options.touchTask ?? true;
+  return getConversationRuntimeTask(sessionId, {
+    touchLegacyTask: touchTask,
+  }).task;
 };
 
 export const deriveConversationRuntimeStatus = (
@@ -153,9 +174,27 @@ export const deriveConversationRuntimeStatus = (
 
   const hasTask = !!task;
   const taskStatus = task?.status;
-  const isProcessing = cronBusyGuard.isProcessing(sessionId);
+  const rawIsProcessing = cronBusyGuard.isProcessing(sessionId);
+  const lastActiveAt = cronBusyGuard.getLastActiveAt(sessionId);
   const pendingConfirmations = typeof task?.getConfirmations === 'function' ? task.getConfirmations().length : 0;
   const dbStatus = conversation.status;
+  const processingStale =
+    rawIsProcessing &&
+    taskStatus === 'finished' &&
+    pendingConfirmations === 0 &&
+    lastMessage?.position !== 'right' &&
+    typeof lastActiveAt === 'number' &&
+    Date.now() - lastActiveAt > STALE_PROCESSING_AFTER_MS;
+  const isProcessing = processingStale ? false : rawIsProcessing;
+  const runtime = {
+    hasTask,
+    taskStatus,
+    isProcessing,
+    pendingConfirmations,
+    dbStatus,
+    lastActiveAt,
+    processingStale,
+  };
 
   if (isErrorMessage(lastMessage)) {
     return {
@@ -163,7 +202,7 @@ export const deriveConversationRuntimeStatus = (
       state: 'error' as ConversationRuntimeState,
       detail: 'Last response ended with an error',
       canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
+      runtime,
     };
   }
 
@@ -173,7 +212,7 @@ export const deriveConversationRuntimeStatus = (
       state: 'ai_waiting_confirmation' as ConversationRuntimeState,
       detail: 'Waiting for tool confirmation',
       canSendMessage: false,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
+      runtime,
     };
   }
 
@@ -183,7 +222,7 @@ export const deriveConversationRuntimeStatus = (
       state: 'ai_generating' as ConversationRuntimeState,
       detail: 'AI is generating response',
       canSendMessage: false,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
+      runtime,
     };
   }
 
@@ -194,7 +233,7 @@ export const deriveConversationRuntimeStatus = (
         state: 'ai_generating' as ConversationRuntimeState,
         detail: 'AI request accepted and initializing',
         canSendMessage: false,
-        runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
+        runtime,
       };
     }
 
@@ -203,7 +242,7 @@ export const deriveConversationRuntimeStatus = (
       state: 'initializing' as ConversationRuntimeState,
       detail: 'Conversation task is initializing',
       canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
+      runtime,
     };
   }
 
@@ -213,7 +252,7 @@ export const deriveConversationRuntimeStatus = (
       state: 'stopped' as ConversationRuntimeState,
       detail: 'Conversation is stopped',
       canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
+      runtime,
     };
   }
 
@@ -222,7 +261,7 @@ export const deriveConversationRuntimeStatus = (
     state: 'ai_waiting_input' as ConversationRuntimeState,
     detail: 'AI is waiting for input',
     canSendMessage: true,
-    runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
+    runtime,
   };
 };
 

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'path';
 
+type MockHandler = (...args: unknown[]) => unknown;
+
 // Store all mock states at module scope to ensure they remain accessible in vi.doMock
 let mockFsStore: Record<string, any> = {};
 let mockCustomExternalPaths: Array<{ name: string; path: string }> = [];
@@ -66,7 +68,7 @@ describe('fsBridge skills functionality', () => {
             }
             mockFsStore[fp] = { content, isDirectory: false };
           }),
-          readdir: vi.fn(async (dirPath: string, options?: { withFileTypes?: boolean }) => {
+          readdir: vi.fn(async (dirPath: string, _options?: { withFileTypes?: boolean }) => {
             const dp = resolvePath(dirPath);
             if (!(dp in mockFsStore)) throw new Error(`ENOENT: no such file or directory, scandir '${dp}'`);
 
@@ -148,7 +150,7 @@ describe('fsBridge skills functionality', () => {
     }));
 
     // Start with empty IPC handlers map
-    const handlers: Record<string, Function> = {};
+    const handlers: Record<string, MockHandler> = {};
 
     // Mock ipcBridge precisely to capture registered providers
     vi.doMock('@/common', () => {
@@ -224,20 +226,6 @@ describe('fsBridge skills functionality', () => {
     mod.initFsBridge();
     const ipcMod = await import('@/common');
     // Type assertion hack, accessing the internal registered function logic
-    const mockCmd =
-      (ipcMod.ipcBridge.fs as any)[
-        channel
-          .split('-')
-          .map((p, i) => (i === 0 ? p : p.charAt(0).toUpperCase() + p.slice(1)))
-          .join('')
-      ] ||
-      (ipcMod.ipcBridge.fs as any)[channel] ||
-      (
-        Object.values(ipcMod.ipcBridge.fs).find(
-          (v: any) => v.provider?.mock?.calls?.length && v.provider.mock.calls[0][0]
-        ) as any
-      )?.invoke; // Fallback
-
     // Because my mock logic intercepts the provider call, I can extract it directly from the mock calls
     for (const key of Object.keys(ipcMod.ipcBridge.fs)) {
       const item = (ipcMod.ipcBridge.fs as any)[key];
@@ -434,6 +422,44 @@ describe('fsBridge skills functionality', () => {
       const result3 = await handler({ skillPath: badPath });
       expect(result3.success).toBe(false);
       expect(result3.msg).toContain('SKILL.md file not found');
+    });
+
+    it('should reject skill names that escape the managed skills directory', async () => {
+      const srcPath = path.resolve('/mock/source/escape-skill');
+      const escapedTarget = path.resolve('/mock/userData/outside');
+
+      mockFsStore[srcPath] = { isDirectory: true };
+      mockFsStore[path.join(srcPath, 'SKILL.md')] = {
+        content: '---\nname: ../../outside\n---\nData',
+        isDirectory: false,
+      };
+
+      const handler = await getProvider('importSkillWithSymlink');
+      const result = await handler({ skillPath: srcPath });
+
+      expect(result.success).toBe(false);
+      expect(result.msg).toContain('Invalid skill name');
+      expect(mockFsStore[escapedTarget]).toBeUndefined();
+    });
+  });
+
+  describe('importSkill', () => {
+    it('should reject copied imports that try to escape the managed skills directory', async () => {
+      const srcPath = path.resolve('/mock/source/copied-escape-skill');
+      const escapedTarget = path.resolve('/mock/userData/outside');
+
+      mockFsStore[srcPath] = { isDirectory: true };
+      mockFsStore[path.join(srcPath, 'SKILL.md')] = {
+        content: '---\nname: ../../outside\n---\nData',
+        isDirectory: false,
+      };
+
+      const handler = await getProvider('importSkill');
+      const result = await handler({ skillPath: srcPath });
+
+      expect(result.success).toBe(false);
+      expect(result.msg).toContain('Invalid skill name');
+      expect(mockFsStore[escapedTarget]).toBeUndefined();
     });
   });
 

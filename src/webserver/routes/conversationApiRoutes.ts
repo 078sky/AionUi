@@ -12,13 +12,19 @@ import { ConversationService } from '@process/services/conversationService';
 import WorkerManage from '@process/WorkerManage';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import {
+  drainConversationRuntime,
+  listConversationRuntimeTaskIds,
+  stopConversationRuntime,
+} from '@process/services/ConversationRuntimeService';
 import type { getConversationStatusSnapshot } from '@process/services/ConversationTurnCompletionService';
 import {
   formatStatusLastMessage,
+  getConversationStatusCategory,
   getReadOnlyConversationStatusSnapshot,
+  isConversationStatusWorking,
 } from '@process/services/ConversationTurnCompletionService';
 import { apiDiagnosticsService } from '@process/services/ApiDiagnosticsService';
-import { ipcBridge } from '@/common';
 import type { TChatConversation, TProviderWithModel } from '@/common/storage';
 import type {
   ConversationTokenUsageMonitorResult,
@@ -41,6 +47,7 @@ type ConversationRuntimeState =
   | 'stopped'
   | 'error'
   | 'unknown';
+const VALID_CONVERSATION_LIST_SCOPES = ['generating', 'waiting', 'stopped', 'error', 'active', 'all'] as const;
 const VALID_ACP_BACKENDS = [
   'claude',
   'gemini',
@@ -195,14 +202,18 @@ export type ConversationStatusListItem = {
   source?: TChatConversation['source'];
   status: ConversationStatusValue;
   state: ConversationRuntimeState;
+  category: ReturnType<typeof getConversationStatusCategory>;
   detail: string;
   canSendMessage: boolean;
+  isWorking: boolean;
   runtime: {
     hasTask: boolean;
     taskStatus?: ConversationStatusValue;
     isProcessing: boolean;
     pendingConfirmations: number;
     dbStatus?: ConversationStatusValue;
+    lastActiveAt?: number;
+    processingStale: boolean;
   };
   lastMessage?: ReturnType<typeof formatStatusLastMessage>;
   updatedAt?: number;
@@ -210,7 +221,7 @@ export type ConversationStatusListItem = {
 };
 
 type ConversationSnapshotGetter = (sessionId: string) => ReturnType<typeof getConversationStatusSnapshot>;
-type ConversationListScope = 'active' | 'generating' | 'all';
+type ConversationListScope = (typeof VALID_CONVERSATION_LIST_SCOPES)[number];
 
 type ConversationStatusListFilters = {
   scope: ConversationListScope;
@@ -221,6 +232,43 @@ type ConversationStatusListFilters = {
   source?: string[];
   canSendMessage?: boolean;
 };
+
+const parseConversationListScope = (value: unknown): ConversationListScope | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return VALID_CONVERSATION_LIST_SCOPES.includes(normalized as ConversationListScope)
+    ? (normalized as ConversationListScope)
+    : undefined;
+};
+
+export const resolveConversationStatusListScope = (input: {
+  scope?: ConversationListScope;
+  status?: ConversationStatusValue[];
+  state?: ConversationRuntimeState[];
+}): ConversationListScope => {
+  if (input.scope) {
+    return input.scope;
+  }
+
+  // Explicit status/state filters should see the same candidate space as single-session status queries.
+  if (input.status || input.state) {
+    return 'all';
+  }
+
+  return 'generating';
+};
+
+const isConversationStatusWaiting = (snapshot: { state: ConversationRuntimeState }): boolean =>
+  getConversationStatusCategory(snapshot.state) === 'waiting';
+
+const isConversationStatusStopped = (snapshot: { state: ConversationRuntimeState }): boolean =>
+  getConversationStatusCategory(snapshot.state) === 'stopped';
+
+const isConversationStatusError = (snapshot: { state: ConversationRuntimeState }): boolean =>
+  getConversationStatusCategory(snapshot.state) === 'error';
 
 type ConversationUsagePage = {
   data: ConversationTokenUsageRecord[];
@@ -235,117 +283,6 @@ type ConversationUsageSummaryListItem = {
   conversationType: TChatConversation['type'];
   backend?: string;
   summary: ConversationTokenUsageSummary;
-};
-
-type IConversationStatusInput = {
-  status?: ConversationStatusValue | undefined;
-};
-
-type IMessageLike = {
-  type?: string;
-  status?: string;
-  position?: string;
-  content?: unknown;
-};
-
-const isErrorMessage = (message: IMessageLike | null): boolean => {
-  if (!message) return false;
-  if (message.status === 'error') return true;
-
-  if (message.type === 'tips' && message.content && typeof message.content === 'object') {
-    const tipsContent = message.content as { type?: string };
-    return tipsContent.type === 'error';
-  }
-
-  return false;
-};
-
-const _deriveConversationRuntimeStatus = (
-  sessionId: string,
-  conversation: IConversationStatusInput,
-  lastMessage: IMessageLike | null
-) => {
-  const task = WorkerManage.getTaskById(sessionId) as
-    | {
-        status?: ConversationStatusValue;
-        getConfirmations?: () => unknown[];
-      }
-    | undefined;
-
-  const hasTask = !!task;
-  const taskStatus = task?.status;
-  const isProcessing = cronBusyGuard.isProcessing(sessionId);
-  const pendingConfirmations = typeof task?.getConfirmations === 'function' ? task.getConfirmations().length : 0;
-  const dbStatus = conversation.status;
-
-  if (isErrorMessage(lastMessage)) {
-    return {
-      status: 'finished' as ConversationStatusValue,
-      state: 'error' as ConversationRuntimeState,
-      detail: 'Last response ended with an error',
-      canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (pendingConfirmations > 0) {
-    return {
-      status: 'running' as ConversationStatusValue,
-      state: 'ai_waiting_confirmation' as ConversationRuntimeState,
-      detail: 'Waiting for tool confirmation',
-      canSendMessage: false,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (isProcessing || taskStatus === 'running') {
-    return {
-      status: 'running' as ConversationStatusValue,
-      state: 'ai_generating' as ConversationRuntimeState,
-      detail: 'AI is generating response',
-      canSendMessage: false,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (taskStatus === 'pending') {
-    // A pending task with a latest user message usually means request is queued/initializing.
-    if (lastMessage?.position === 'right') {
-      return {
-        status: 'running' as ConversationStatusValue,
-        state: 'ai_generating' as ConversationRuntimeState,
-        detail: 'AI request accepted and initializing',
-        canSendMessage: false,
-        runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-      };
-    }
-
-    return {
-      status: 'pending' as ConversationStatusValue,
-      state: 'initializing' as ConversationRuntimeState,
-      detail: 'Conversation task is initializing',
-      canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (dbStatus === 'finished' && !hasTask) {
-    return {
-      status: 'finished' as ConversationStatusValue,
-      state: 'stopped' as ConversationRuntimeState,
-      detail: 'Conversation is stopped',
-      canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  return {
-    status: 'finished' as ConversationStatusValue,
-    state: 'ai_waiting_input' as ConversationRuntimeState,
-    detail: 'AI is waiting for input',
-    canSendMessage: true,
-    runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-  };
 };
 
 export const isConversationStatusActive = (snapshot: {
@@ -381,15 +318,7 @@ export const isConversationStatusGenerating = (snapshot: {
   status: ConversationStatusValue;
   state: ConversationRuntimeState;
 }): boolean => {
-  if (snapshot.status === 'running' || snapshot.status === 'pending') {
-    return true;
-  }
-
-  return (
-    snapshot.state === 'ai_generating' ||
-    snapshot.state === 'ai_waiting_confirmation' ||
-    snapshot.state === 'initializing'
-  );
+  return isConversationStatusWorking(snapshot.state);
 };
 
 const matchesConversationStatusListFilters = (
@@ -401,6 +330,18 @@ const matchesConversationStatusListFilters = (
   }
 
   if (filters.scope === 'generating' && !isConversationStatusGenerating(item)) {
+    return false;
+  }
+
+  if (filters.scope === 'waiting' && !isConversationStatusWaiting(item)) {
+    return false;
+  }
+
+  if (filters.scope === 'stopped' && !isConversationStatusStopped(item)) {
+    return false;
+  }
+
+  if (filters.scope === 'error' && !isConversationStatusError(item)) {
     return false;
   }
 
@@ -451,8 +392,10 @@ export const buildConversationStatusList = (
       source: conversation.source,
       status: snapshot.status,
       state: snapshot.state,
+      category: getConversationStatusCategory(snapshot.state),
       detail: snapshot.detail,
       canSendMessage: snapshot.canSendMessage,
+      isWorking: isConversationStatusWorking(snapshot.state),
       runtime: snapshot.runtime,
       lastMessage: formatStatusLastMessage(snapshot.lastMessage),
       updatedAt: conversation.modifyTime,
@@ -520,7 +463,8 @@ type ConversationUsageResponseInput = {
   range?: ConversationTokenUsageRange;
 };
 
-const getDefaultConversationStatusCandidateTasks = (): ConversationStatusCandidateTask[] => WorkerManage.listTasks();
+const getDefaultConversationStatusCandidateTasks = (): ConversationStatusCandidateTask[] =>
+  listConversationRuntimeTaskIds().map((id) => ({ id }));
 
 const getDefaultConversationBusyStates = (): ConversationBusyStateMap => cronBusyGuard.getAllStates();
 
@@ -557,7 +501,7 @@ export function getConversationStatusListConversations(
   const db = options.db || getDefaultConversationStatusListDatabase();
   const runtimeCandidateIds = options.runtimeCandidateIds || getDefaultConversationStatusCandidateIds();
 
-  if (scope === 'all') {
+  if (scope === 'all' || scope === 'waiting' || scope === 'stopped' || scope === 'error') {
     return sortConversationsByUpdatedAtDesc(db.getUserConversations(undefined, 0, 10000).data || []);
   }
 
@@ -616,10 +560,7 @@ const invokeStopWithTimeout = async (
   sessionId: string,
   timeoutMs: number
 ): Promise<{ success: boolean; msg?: string }> => {
-  const stopPromise = ipcBridge.conversation.stop.invoke({ conversation_id: sessionId }) as Promise<{
-    success: boolean;
-    msg?: string;
-  }>;
+  const stopPromise = stopConversationRuntime(sessionId);
   const timeoutPromise = new Promise<{ success: false; msg: string }>((resolve) => {
     setTimeout(() => {
       resolve({ success: false, msg: `Stop dispatch timeout after ${timeoutMs}ms` });
@@ -1066,8 +1007,10 @@ router.get('/status', async (req: Request, res: Response) => {
       sessionId,
       status: snapshot.status,
       state: snapshot.state,
+      category: getConversationStatusCategory(snapshot.state),
       detail: snapshot.detail,
       canSendMessage: snapshot.canSendMessage,
+      isWorking: isConversationStatusWorking(snapshot.state),
       runtime: snapshot.runtime,
       lastMessage: formatStatusLastMessage(snapshot.lastMessage),
     });
@@ -1115,18 +1058,22 @@ router.get('/debug/runtime', async (req: Request, res: Response) => {
 
 /**
  * GET /api/v1/conversation/status/list
- * List active conversations with current status
+ * List conversations with current status
  */
 router.get('/status/list', async (_req: Request, res: Response) => {
   try {
-    const scopeQuery = parseOptionalString(_req.query?.scope);
-    const scope: ConversationListScope = scopeQuery === 'active' || scopeQuery === 'all' ? scopeQuery : 'generating';
+    const scopeQuery = parseConversationListScope(_req.query?.scope);
     const status = parseListQueryValues(_req.query?.status) as ConversationStatusValue[] | undefined;
     const state = parseListQueryValues(_req.query?.state) as ConversationRuntimeState[] | undefined;
     const type = parseListQueryValues(_req.query?.type) as TChatConversation['type'][] | undefined;
     const cli = parseListQueryValues(_req.query?.cli);
     const source = parseListQueryValues(_req.query?.source);
     const canSendMessage = parseOptionalBoolean(_req.query?.canSendMessage);
+    const scope = resolveConversationStatusListScope({
+      scope: scopeQuery,
+      status,
+      state,
+    });
 
     const db = getDatabase();
     const conversations = getConversationStatusListConversations(scope, { db });
@@ -1205,16 +1152,14 @@ router.post('/stop', async (req: Request, res: Response) => {
         sessionId,
         force: true,
       });
-      await WorkerManage.killAndDrain(sessionId);
-      cronBusyGuard.setProcessing(sessionId, false);
+      await drainConversationRuntime(sessionId);
     }
 
     try {
       await waitForStopConfirmed(sessionId, STOP_VERIFY_TIMEOUT_MS);
     } catch (verifyError) {
       // Final fallback: force kill once and verify quickly again.
-      await WorkerManage.killAndDrain(sessionId);
-      cronBusyGuard.setProcessing(sessionId, false);
+      await drainConversationRuntime(sessionId);
       try {
         await waitForStopConfirmed(sessionId, 5000);
       } catch {
@@ -1233,8 +1178,7 @@ router.post('/stop', async (req: Request, res: Response) => {
 
     // Update conversation status
     db.updateConversation(sessionId, { status: 'finished' });
-    await WorkerManage.killAndDrain(sessionId);
-    cronBusyGuard.setProcessing(sessionId, false);
+    await drainConversationRuntime(sessionId);
 
     recordConversationApiDiagnostics({
       route: '/api/v1/conversation/stop',

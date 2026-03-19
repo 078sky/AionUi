@@ -8,8 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const emitSpy = vi.fn();
 let flushed = false;
-const getTaskById = vi.fn(() => undefined);
-const peekTaskById = vi.fn(() => undefined);
+const getTask = vi.fn(() => undefined);
+const getConversationRuntimeTask = vi.fn(() => ({ task: undefined }));
+const isProcessing = vi.fn(() => false);
+const getLastActiveAt = vi.fn(() => undefined);
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -27,16 +29,20 @@ vi.mock('@process/message', () => ({
   }),
 }));
 
-vi.mock('@process/WorkerManage', () => ({
-  default: {
-    getTaskById,
-    peekTaskById,
+vi.mock('@process/task/workerTaskManagerSingleton', () => ({
+  workerTaskManager: {
+    getTask,
   },
+}));
+
+vi.mock('@process/services/ConversationRuntimeService', () => ({
+  getConversationRuntimeTask,
 }));
 
 vi.mock('@process/services/cron/CronBusyGuard', () => ({
   cronBusyGuard: {
-    isProcessing: vi.fn(() => false),
+    isProcessing,
+    getLastActiveAt,
   },
 }));
 
@@ -84,10 +90,16 @@ describe('ConversationTurnCompletionService', () => {
   beforeEach(() => {
     flushed = false;
     emitSpy.mockReset();
-    getTaskById.mockReset();
-    getTaskById.mockReturnValue(undefined);
-    peekTaskById.mockReset();
-    peekTaskById.mockReturnValue(undefined);
+    getTask.mockReset();
+    getTask.mockReturnValue(undefined);
+    getConversationRuntimeTask.mockReset();
+    getConversationRuntimeTask.mockImplementation((sessionId: string) => ({
+      task: getTask(sessionId),
+    }));
+    isProcessing.mockReset();
+    isProcessing.mockReturnValue(false);
+    getLastActiveAt.mockReset();
+    getLastActiveAt.mockReturnValue(undefined);
     vi.resetModules();
   });
 
@@ -115,7 +127,7 @@ describe('ConversationTurnCompletionService', () => {
       status: 'finished',
       getConfirmations: () => [],
     };
-    peekTaskById.mockReturnValue(task);
+    getTask.mockReturnValue(task);
 
     const { getConversationStatusSnapshot } =
       await import('../../src/process/services/ConversationTurnCompletionService');
@@ -131,7 +143,35 @@ describe('ConversationTurnCompletionService', () => {
         state: 'ai_waiting_input',
       })
     );
-    expect(getTaskById).not.toHaveBeenCalled();
-    expect(peekTaskById).toHaveBeenCalledWith('session-1');
+    expect(getTask).toHaveBeenCalledWith('session-1');
+  });
+
+  it('ignores stale processing flags after finished output stops updating', async () => {
+    const task = {
+      status: 'finished',
+      getConfirmations: () => [],
+    };
+    flushed = true;
+    getTask.mockReturnValue(task);
+    isProcessing.mockReturnValue(true);
+    getLastActiveAt.mockReturnValue(Date.now() - 3 * 60 * 1000);
+
+    const { getConversationStatusSnapshot } =
+      await import('../../src/process/services/ConversationTurnCompletionService');
+
+    const snapshot = getConversationStatusSnapshot('session-1', {
+      touchTask: false,
+    });
+
+    expect(snapshot).toEqual(
+      expect.objectContaining({
+        status: 'finished',
+        state: 'ai_waiting_input',
+        runtime: expect.objectContaining({
+          isProcessing: false,
+          processingStale: true,
+        }),
+      })
+    );
   });
 });

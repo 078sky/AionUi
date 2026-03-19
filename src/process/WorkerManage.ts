@@ -17,6 +17,7 @@ import { getDatabase } from './database/export';
 import { releaseConversationMessageCache } from './message';
 import { cronBusyGuard } from './services/cron/CronBusyGuard';
 import { ConversationTurnCompletionService } from './services/ConversationTurnCompletionService';
+import { workerTaskManager } from './task/workerTaskManagerSingleton';
 
 const taskList: {
   id: string;
@@ -254,13 +255,33 @@ const sendMessage = async (
   msgId: string,
   files?: string[]
 ): Promise<SendMessageResult> => {
-  let task: AgentBaseTask<unknown>;
+  let task = workerTaskManager.getTask(conversationId) as AgentBaseTask<unknown> | undefined;
+
   try {
-    task = await getTaskByIdRollbackBuild(conversationId);
-  } catch (error) {
+    if (!task) {
+      task = (await workerTaskManager.getOrBuildTask(conversationId)) as AgentBaseTask<unknown>;
+    }
+  } catch (workerTaskError) {
+    try {
+      task = await getTaskByIdRollbackBuild(conversationId);
+    } catch (legacyTaskError) {
+      const error =
+        legacyTaskError instanceof Error
+          ? legacyTaskError
+          : workerTaskError instanceof Error
+            ? workerTaskError
+            : new Error('conversation not found');
+      return {
+        success: false,
+        msg: error.message,
+      };
+    }
+  }
+
+  if (!task) {
     return {
       success: false,
-      msg: error instanceof Error ? error.message : 'conversation not found',
+      msg: 'conversation not found',
     };
   }
 

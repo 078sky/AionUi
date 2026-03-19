@@ -5,15 +5,22 @@
  */
 
 import { ipcBridge } from '@/common';
+import {
+  getWorkspaceEditorLabel,
+  getWorkspaceEditorMenuTargets,
+  shouldShowWorkspaceEditorLauncher,
+  type WorkspaceEditorTarget,
+} from '@/common/workspaceEditor';
 import type { IProvider, TChatConversation, TProviderWithModel } from '@/common/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/add-chat.svg';
 import { CronJobManager } from '@/renderer/pages/cron';
 import { usePresetAssistantInfo } from '@/renderer/hooks/usePresetAssistantInfo';
 import { iconColors } from '@/renderer/theme/colors';
-import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
-import { History } from '@icon-park/react';
-import React, { useCallback, useMemo } from 'react';
+import { isElectronDesktop } from '@/renderer/utils/platform';
+import { Button, Dropdown, Menu, Message, Tooltip, Typography } from '@arco-design/web-react';
+import { Down, FolderOpen, History } from '@icon-park/react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
@@ -120,6 +127,75 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
         }}
       />
     </Tooltip>
+  );
+};
+
+const WorkspaceEditorLauncher: React.FC<{ conversation: TChatConversation }> = ({ conversation }) => {
+  const { t } = useTranslation();
+  const [openingTarget, setOpeningTarget] = useState<WorkspaceEditorTarget | null>(null);
+
+  const workspace = conversation.extra?.workspace;
+  const customWorkspace = conversation.extra?.customWorkspace;
+  const editorTargets = useMemo(() => getWorkspaceEditorMenuTargets(), []);
+  const shouldShow =
+    isElectronDesktop() && shouldShowWorkspaceEditorLauncher(workspace, customWorkspace) && editorTargets.length > 0;
+
+  const handleOpenEditor = useCallback(
+    async (target: string) => {
+      if (!workspace) return;
+
+      const editorTarget = target as WorkspaceEditorTarget;
+      setOpeningTarget(editorTarget);
+
+      try {
+        await ipcBridge.shell.openWorkspaceInEditor.invoke({ workspace, target: editorTarget });
+      } catch (error) {
+        console.error(`Failed to open workspace in ${editorTarget}:`, error);
+        Message.error(
+          t('conversation.workspace.openInEditorFailed', {
+            editor: getWorkspaceEditorLabel(editorTarget),
+          })
+        );
+      } finally {
+        setOpeningTarget(null);
+      }
+    },
+    [t, workspace]
+  );
+
+  const menu = useMemo(() => {
+    if (!shouldShow) return null;
+
+    return (
+      <Menu onClickMenuItem={(key) => void handleOpenEditor(key)}>
+        {editorTargets.map((target) => (
+          <Menu.Item key={target} disabled={openingTarget !== null}>
+            {getWorkspaceEditorLabel(target)}
+          </Menu.Item>
+        ))}
+      </Menu>
+    );
+  }, [editorTargets, handleOpenEditor, openingTarget, shouldShow]);
+
+  if (!shouldShow || !menu) {
+    return null;
+  }
+
+  return (
+    <Dropdown droplist={menu} trigger='click' position='bl'>
+      <Button
+        size='mini'
+        className='!px-8px'
+        disabled={openingTarget !== null}
+        title={t('conversation.workspace.openInEditor')}
+        icon={
+          <span className='flex items-center gap-2px'>
+            <FolderOpen theme='outline' size='14' fill={iconColors.secondary} />
+            <Down theme='outline' size='10' fill={iconColors.secondary} className='opacity-70' />
+          </span>
+        }
+      />
+    </Dropdown>
   );
 };
 
@@ -305,6 +381,11 @@ const ChatConversation: React.FC<{
       {conversation ? (
         <div className='shrink-0'>
           <CronJobManager conversationId={conversation.id} />
+        </div>
+      ) : null}
+      {conversation ? (
+        <div className='shrink-0'>
+          <WorkspaceEditorLauncher conversation={conversation} />
         </div>
       ) : null}
     </div>
