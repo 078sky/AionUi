@@ -12,7 +12,11 @@ import { ConversationService } from '@process/services/conversationService';
 import WorkerManage from '@process/WorkerManage';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
-import { workerTaskManager } from '@process/task/workerTaskManagerSingleton';
+import {
+  drainConversationRuntime,
+  listConversationRuntimeTaskIds,
+  stopConversationRuntime,
+} from '@process/services/ConversationRuntimeService';
 import type { getConversationStatusSnapshot } from '@process/services/ConversationTurnCompletionService';
 import {
   formatStatusLastMessage,
@@ -21,7 +25,6 @@ import {
   isConversationStatusWorking,
 } from '@process/services/ConversationTurnCompletionService';
 import { apiDiagnosticsService } from '@process/services/ApiDiagnosticsService';
-import { ipcBridge } from '@/common';
 import type { TChatConversation, TProviderWithModel } from '@/common/storage';
 import type {
   ConversationTokenUsageMonitorResult,
@@ -282,117 +285,6 @@ type ConversationUsageSummaryListItem = {
   summary: ConversationTokenUsageSummary;
 };
 
-type IConversationStatusInput = {
-  status?: ConversationStatusValue | undefined;
-};
-
-type IMessageLike = {
-  type?: string;
-  status?: string;
-  position?: string;
-  content?: unknown;
-};
-
-const isErrorMessage = (message: IMessageLike | null): boolean => {
-  if (!message) return false;
-  if (message.status === 'error') return true;
-
-  if (message.type === 'tips' && message.content && typeof message.content === 'object') {
-    const tipsContent = message.content as { type?: string };
-    return tipsContent.type === 'error';
-  }
-
-  return false;
-};
-
-const _deriveConversationRuntimeStatus = (
-  sessionId: string,
-  conversation: IConversationStatusInput,
-  lastMessage: IMessageLike | null
-) => {
-  const task = WorkerManage.getTaskById(sessionId) as
-    | {
-        status?: ConversationStatusValue;
-        getConfirmations?: () => unknown[];
-      }
-    | undefined;
-
-  const hasTask = !!task;
-  const taskStatus = task?.status;
-  const isProcessing = cronBusyGuard.isProcessing(sessionId);
-  const pendingConfirmations = typeof task?.getConfirmations === 'function' ? task.getConfirmations().length : 0;
-  const dbStatus = conversation.status;
-
-  if (isErrorMessage(lastMessage)) {
-    return {
-      status: 'finished' as ConversationStatusValue,
-      state: 'error' as ConversationRuntimeState,
-      detail: 'Last response ended with an error',
-      canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (pendingConfirmations > 0) {
-    return {
-      status: 'running' as ConversationStatusValue,
-      state: 'ai_waiting_confirmation' as ConversationRuntimeState,
-      detail: 'Waiting for tool confirmation',
-      canSendMessage: false,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (isProcessing || taskStatus === 'running') {
-    return {
-      status: 'running' as ConversationStatusValue,
-      state: 'ai_generating' as ConversationRuntimeState,
-      detail: 'AI is generating response',
-      canSendMessage: false,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (taskStatus === 'pending') {
-    // A pending task with a latest user message usually means request is queued/initializing.
-    if (lastMessage?.position === 'right') {
-      return {
-        status: 'running' as ConversationStatusValue,
-        state: 'ai_generating' as ConversationRuntimeState,
-        detail: 'AI request accepted and initializing',
-        canSendMessage: false,
-        runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-      };
-    }
-
-    return {
-      status: 'pending' as ConversationStatusValue,
-      state: 'initializing' as ConversationRuntimeState,
-      detail: 'Conversation task is initializing',
-      canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  if (dbStatus === 'finished' && !hasTask) {
-    return {
-      status: 'finished' as ConversationStatusValue,
-      state: 'stopped' as ConversationRuntimeState,
-      detail: 'Conversation is stopped',
-      canSendMessage: true,
-      runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-    };
-  }
-
-  return {
-    status: 'finished' as ConversationStatusValue,
-    state: 'ai_waiting_input' as ConversationRuntimeState,
-    detail: 'AI is waiting for input',
-    canSendMessage: true,
-    runtime: { hasTask, taskStatus, isProcessing, pendingConfirmations, dbStatus },
-  };
-};
-
 export const isConversationStatusActive = (snapshot: {
   status: ConversationStatusValue;
   state: ConversationRuntimeState;
@@ -572,7 +464,7 @@ type ConversationUsageResponseInput = {
 };
 
 const getDefaultConversationStatusCandidateTasks = (): ConversationStatusCandidateTask[] =>
-  workerTaskManager.listTasks();
+  listConversationRuntimeTaskIds().map((id) => ({ id }));
 
 const getDefaultConversationBusyStates = (): ConversationBusyStateMap => cronBusyGuard.getAllStates();
 
@@ -668,10 +560,7 @@ const invokeStopWithTimeout = async (
   sessionId: string,
   timeoutMs: number
 ): Promise<{ success: boolean; msg?: string }> => {
-  const stopPromise = ipcBridge.conversation.stop.invoke({ conversation_id: sessionId }) as Promise<{
-    success: boolean;
-    msg?: string;
-  }>;
+  const stopPromise = stopConversationRuntime(sessionId);
   const timeoutPromise = new Promise<{ success: false; msg: string }>((resolve) => {
     setTimeout(() => {
       resolve({ success: false, msg: `Stop dispatch timeout after ${timeoutMs}ms` });
@@ -1263,16 +1152,14 @@ router.post('/stop', async (req: Request, res: Response) => {
         sessionId,
         force: true,
       });
-      await WorkerManage.killAndDrain(sessionId);
-      cronBusyGuard.setProcessing(sessionId, false);
+      await drainConversationRuntime(sessionId);
     }
 
     try {
       await waitForStopConfirmed(sessionId, STOP_VERIFY_TIMEOUT_MS);
     } catch (verifyError) {
       // Final fallback: force kill once and verify quickly again.
-      await WorkerManage.killAndDrain(sessionId);
-      cronBusyGuard.setProcessing(sessionId, false);
+      await drainConversationRuntime(sessionId);
       try {
         await waitForStopConfirmed(sessionId, 5000);
       } catch {
@@ -1291,8 +1178,7 @@ router.post('/stop', async (req: Request, res: Response) => {
 
     // Update conversation status
     db.updateConversation(sessionId, { status: 'finished' });
-    await WorkerManage.killAndDrain(sessionId);
-    cronBusyGuard.setProcessing(sessionId, false);
+    await drainConversationRuntime(sessionId);
 
     recordConversationApiDiagnostics({
       route: '/api/v1/conversation/stop',

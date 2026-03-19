@@ -68,6 +68,7 @@ export default defineConfig({
         // Decoupling layer (interfaces + implementations)
         'src/process/database/SqliteConversationRepository.ts',
         'src/process/services/ConversationServiceImpl.ts',
+        'src/process/services/ConversationRuntimeService.ts',
         'src/process/task/AgentFactory.ts',
         'src/process/task/WorkerTaskManager.ts',
         'src/process/task/IpcAgentEventEmitter.ts',

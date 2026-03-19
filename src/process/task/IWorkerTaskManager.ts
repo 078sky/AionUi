@@ -13,6 +13,7 @@ export interface IWorkerTaskManager {
   getTask(id: string): IAgentManager | undefined;
   getOrBuildTask(id: string, options?: BuildConversationOptions): Promise<IAgentManager>;
   addTask(id: string, task: IAgentManager): void;
+  removeTask(id: string): IAgentManager | undefined;
   kill(id: string): void;
   clear(): void;
   listTasks(): Array<{ id: string; type: AgentType }>;

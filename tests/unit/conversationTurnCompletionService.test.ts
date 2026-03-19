@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const emitSpy = vi.fn();
 let flushed = false;
 const getTask = vi.fn(() => undefined);
+const getConversationRuntimeTask = vi.fn(() => ({ task: undefined }));
 const isProcessing = vi.fn(() => false);
 const getLastActiveAt = vi.fn(() => undefined);
 
@@ -32,6 +33,10 @@ vi.mock('@process/task/workerTaskManagerSingleton', () => ({
   workerTaskManager: {
     getTask,
   },
+}));
+
+vi.mock('@process/services/ConversationRuntimeService', () => ({
+  getConversationRuntimeTask,
 }));
 
 vi.mock('@process/services/cron/CronBusyGuard', () => ({
@@ -87,6 +92,10 @@ describe('ConversationTurnCompletionService', () => {
     emitSpy.mockReset();
     getTask.mockReset();
     getTask.mockReturnValue(undefined);
+    getConversationRuntimeTask.mockReset();
+    getConversationRuntimeTask.mockImplementation((sessionId: string) => ({
+      task: getTask(sessionId),
+    }));
     isProcessing.mockReset();
     isProcessing.mockReturnValue(false);
     getLastActiveAt.mockReset();

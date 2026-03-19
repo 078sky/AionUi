@@ -9,8 +9,8 @@ import type { IConversationTurnCompletedEvent } from '@/common/ipcBridge';
 import type { TChatConversation } from '@/common/storage';
 import { getDatabase } from '@process/database';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { getConversationRuntimeTask } from '@process/services/ConversationRuntimeService';
 import { flushConversationMessages } from '@process/message';
-import { workerTaskManager } from '@process/task/workerTaskManagerSingleton';
 
 export type ConversationStatusValue = 'pending' | 'running' | 'finished';
 export type ConversationRuntimeState =
@@ -154,11 +154,9 @@ export const isConversationStatusWorking = (state: ConversationRuntimeState): bo
 
 const getConversationTask = (sessionId: string, options: ConversationStatusSnapshotOptions = {}) => {
   const touchTask = options.touchTask ?? true;
-  if (!touchTask) {
-    return workerTaskManager.getTask(sessionId);
-  }
-
-  return workerTaskManager.getTask(sessionId);
+  return getConversationRuntimeTask(sessionId, {
+    touchLegacyTask: touchTask,
+  }).task;
 };
 
 export const deriveConversationRuntimeStatus = (

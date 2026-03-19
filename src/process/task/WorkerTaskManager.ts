@@ -57,6 +57,13 @@ export class WorkerTaskManager implements IWorkerTaskManager {
     }
   }
 
+  removeTask(id: string): IAgentManager | undefined {
+    const index = this.taskList.findIndex((item) => item.id === id);
+    if (index === -1) return undefined;
+    const [removed] = this.taskList.splice(index, 1);
+    return removed?.task;
+  }
+
   kill(id: string): void {
     const index = this.taskList.findIndex((item) => item.id === id);
     if (index === -1) return;
