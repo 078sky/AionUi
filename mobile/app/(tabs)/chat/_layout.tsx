@@ -43,15 +43,15 @@ export default function ChatDrawerLayout() {
         headerShown: true,
         headerStatusBarHeight: 0,
         headerTitle: () => (
-          <View style={{ alignItems: 'center' }}>
+          <View style={{ alignItems: 'center', gap: 0 }}>
             <ThemedText
-              style={{ fontSize: 17, fontWeight: '600', color: text }}
+              style={{ fontSize: 17, fontWeight: '600', color: text, lineHeight: 20 }}
               numberOfLines={1}
             >
               {conversationName}
             </ThemedText>
             {currentWorkspace && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: -2 }}>
                 <Ionicons name='folder-outline' size={11} color={textSecondary} />
                 <ThemedText
                   style={{ fontSize: 12, color: textSecondary }}
