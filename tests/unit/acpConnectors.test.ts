@@ -392,7 +392,7 @@ describe('connectCodex - Linux package selection', () => {
     await connectCodex('/cwd', hooks);
 
     const [, args] = mockSpawn.mock.calls[0];
-    expect(args).toContain('@zed-industries/codex-acp-linux-x64');
+    expect(args).toContain('@zed-industries/codex-acp-linux-x64@0.9.5');
     expect(args).not.toContain('@zed-industries/codex-acp@0.9.5');
     expect(mockChild.unref).not.toHaveBeenCalled();
   });
@@ -401,7 +401,7 @@ describe('connectCodex - Linux package selection', () => {
     const hooks = {
       setup: vi.fn(async () => {
         const [, args] = mockSpawn.mock.calls.at(-1) ?? [];
-        if (Array.isArray(args) && args.includes('@zed-industries/codex-acp-linux-x64')) {
+        if (Array.isArray(args) && args.includes('@zed-industries/codex-acp-linux-x64@0.9.5')) {
           throw new Error('Request initialize timed out after 60 seconds');
         }
       }),
@@ -413,7 +413,7 @@ describe('connectCodex - Linux package selection', () => {
     const firstCallArgs = mockSpawn.mock.calls[0]?.[1];
     const thirdCallArgs = mockSpawn.mock.calls[2]?.[1];
 
-    expect(firstCallArgs).toContain('@zed-industries/codex-acp-linux-x64');
+    expect(firstCallArgs).toContain('@zed-industries/codex-acp-linux-x64@0.9.5');
     expect(thirdCallArgs).toContain('@zed-industries/codex-acp@0.9.5');
   });
 });
@@ -463,6 +463,6 @@ describe('connectCodex - Darwin optional dependency fallback', () => {
     const thirdCallArgs = mockSpawn.mock.calls[2]?.[1];
 
     expect(firstCallArgs).toContain('@zed-industries/codex-acp@0.9.5');
-    expect(thirdCallArgs).toContain('@zed-industries/codex-acp-darwin-x64');
+    expect(thirdCallArgs).toContain('@zed-industries/codex-acp-darwin-x64@0.9.5');
   });
 });
