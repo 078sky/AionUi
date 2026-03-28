@@ -75,11 +75,41 @@ function applyEnvOverrides(agents: Record<string, AgentConfig>): Record<string, 
 
 function loadFileConfig(): Partial<AionCliConfig> {
   if (!existsSync(CONFIG_FILE)) return {};
+  let raw: string;
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')) as Partial<AionCliConfig>;
-  } catch {
+    raw = readFileSync(CONFIG_FILE, 'utf-8');
+  } catch (err) {
+    process.stderr.write(
+      `[aion] 无法读取配置文件 ${CONFIG_FILE}：${String(err)}\n` +
+        `[aion] 请运行 \`aion doctor\` 检查配置状态\n`,
+    );
     return {};
   }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    process.stderr.write(
+      `[aion] 配置文件 JSON 语法错误（${CONFIG_FILE}）：${String(err)}\n` +
+        `[aion] 请修复该文件或删除后重新运行 \`aion doctor\`\n`,
+    );
+    return {};
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    process.stderr.write(
+      `[aion] 配置文件格式无效（${CONFIG_FILE}）：顶层应为 JSON 对象\n`,
+    );
+    return {};
+  }
+  const KNOWN_KEYS = new Set(['defaultAgent', 'agents', 'team']);
+  const invalidKeys = Object.keys(parsed).filter((k) => !KNOWN_KEYS.has(k));
+  if (invalidKeys.length > 0) {
+    process.stderr.write(
+      `[aion] 配置文件包含未知字段：${invalidKeys.join(', ')}\n` +
+        `[aion] 有效字段为：${[...KNOWN_KEYS].join(', ')}\n`,
+    );
+  }
+  return parsed as Partial<AionCliConfig>;
 }
 
 export function loadConfig(): AionCliConfig {

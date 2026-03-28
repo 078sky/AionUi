@@ -16,7 +16,12 @@
  *   - Maintains multi-turn conversation history for follow-up messages (消息续发)
  */
 import { randomUUID } from 'node:crypto';
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic, {
+  AuthenticationError,
+  RateLimitError,
+  APIConnectionError,
+  InternalServerError,
+} from '@anthropic-ai/sdk';
 import type { IAgentManager } from '@process/task/IAgentManager';
 import type { IAgentEventEmitter } from '@process/task/IAgentEventEmitter';
 import type { IConfirmation } from '@/common/chat/chatLib';
@@ -71,6 +76,23 @@ export class CliAgentManager implements IAgentManager {
           });
         }
       }
+    } catch (err) {
+      let message: string;
+      if (err instanceof AuthenticationError) {
+        message = 'API Key 无效，请检查 ANTHROPIC_API_KEY 环境变量';
+      } else if (err instanceof RateLimitError) {
+        message = '请求频率过高，请稍等片刻再试';
+      } else if (err instanceof APIConnectionError) {
+        message = '无法连接到 Anthropic API，请检查网络';
+      } else if (err instanceof InternalServerError) {
+        message = 'Anthropic 服务暂时不可用，请稍后重试';
+      } else {
+        message = String(err);
+      }
+      this.emitter.emitMessage(this.conversation_id, {
+        type: 'text',
+        data: { content: `错误：${message}\n`, msg_id: randomUUID() },
+      });
     } finally {
       if (fullText) {
         this.history.push({ role: 'assistant', content: fullText });

@@ -131,6 +131,35 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'agents': {
+      const { loadConfig } = await import('./config/loader');
+      const config = loadConfig();
+      const keys = Object.keys(config.agents);
+      if (keys.length === 0) {
+        process.stdout.write(fmt.dim('No agents configured. Run aion doctor for setup help.\n'));
+      } else {
+        process.stdout.write('\n');
+        for (const [i, key] of keys.entries()) {
+          const agent = config.agents[key]!;
+          const isDefault = key === config.defaultAgent;
+          const provider =
+            agent.provider === 'claude-cli' || agent.provider === 'codex-cli'
+              ? agent.provider
+              : `${agent.provider}/${agent.model ?? '?'}`;
+          process.stdout.write(
+            `  ${isDefault ? fmt.green('●') : fmt.dim('○')} ${fmt.dim(`${i + 1}.`)} ${fmt.cyan(key)}  ${fmt.dim(provider)}${isDefault ? fmt.dim('  ← default') : ''}\n`,
+          );
+        }
+        process.stdout.write(fmt.dim('\n  使用 /model <名称> 或 /model <序号> 切换（在对话模式中）\n\n'));
+      }
+      break;
+    }
+
+    case 'version': {
+      process.stdout.write(VERSION + '\n');
+      break;
+    }
+
     case undefined: {
       const { runSolo } = await import('./commands/solo');
       await runSolo({

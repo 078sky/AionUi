@@ -132,8 +132,9 @@ export class SpawnCliAgentManager implements IAgentManager {
     }
 
     if (this.config.flavor === 'codex') {
-      // codex exec [--extra...] "<prompt>"
-      return ['exec', ...extra, prompt];
+      // codex exec --skip-git-repo-check [--extra...] "<prompt>"
+      // --skip-git-repo-check is required when running outside a trusted git directory
+      return ['exec', '--skip-git-repo-check', ...extra, prompt];
     }
 
     // Generic fallback: pass prompt as last arg
@@ -141,8 +142,34 @@ export class SpawnCliAgentManager implements IAgentManager {
   }
 
   async stop(): Promise<void> {
-    this.currentProc?.kill('SIGTERM');
-    this.status = 'finished';
+    if (!this.currentProc || this.currentProc.exitCode !== null) {
+      this.status = 'finished';
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        try {
+          this.currentProc?.kill('SIGKILL');
+        } catch {
+          // Process may have already exited
+        }
+        this.status = 'finished';
+        resolve();
+      }, 3000);
+      this.currentProc!.once('close', () => {
+        clearTimeout(timeout);
+        this.status = 'finished';
+        resolve();
+      });
+      try {
+        this.currentProc!.kill('SIGTERM');
+      } catch {
+        // ESRCH: process no longer exists — treat as already exited
+        clearTimeout(timeout);
+        this.status = 'finished';
+        resolve();
+      }
+    });
   }
 
   confirm(_msgId: string, _callId: string, _data: unknown): void {}

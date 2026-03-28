@@ -17,7 +17,8 @@
 import { loadConfig } from '../config/loader';
 import { createCliAgentFactory } from '../agents/factory';
 import { startRepl } from '../ui/repl';
-import { fmt } from '../ui/format';
+import { InlineCommandPicker } from '../ui/InlineCommandPicker';
+import { fmt, Spinner } from '../ui/format';
 import type { AionCliConfig } from '../config/types';
 import type { IAgentManager } from '@process/task/IAgentManager';
 import type { IAgentEventEmitter, AgentMessageEvent } from '@process/task/IAgentEventEmitter';
@@ -39,17 +40,30 @@ const LOGO_LINES = [
 // ── Emitter ───────────────────────────────────────────────────────────────────
 
 function makeStdoutEmitter(): IAgentEventEmitter {
+  const spinner = new Spinner('思考中');
+  let textStarted = false;
+
   return {
     emitConfirmationAdd: () => {},
     emitConfirmationUpdate: () => {},
     emitConfirmationRemove: () => {},
     emitMessage(_cid: string, event: AgentMessageEvent) {
-      if (event.type === 'text') {
-        process.stdout.write((event.data as { content?: string })?.content ?? '');
-      } else if (event.type === 'status') {
-        if ((event.data as { status?: string })?.status === 'done') {
+      if (event.type === 'status') {
+        const status = (event.data as { status?: string })?.status;
+        if (status === 'running') {
+          textStarted = false;
+          spinner.start();
+        } else if (status === 'done') {
+          spinner.stop();
+          textStarted = false;
           process.stdout.write('\n\n');
         }
+      } else if (event.type === 'text') {
+        if (!textStarted) {
+          spinner.stop();
+          textStarted = true;
+        }
+        process.stdout.write((event.data as { content?: string })?.content ?? '');
       }
     },
   };
@@ -86,15 +100,24 @@ function printHeader(config: AionCliConfig, activeKey: string): void {
   );
 }
 
+function printTips(): void {
+  process.stdout.write(
+    fmt.dim('  输入消息开始对话  ·  / 打开命令菜单  ·  Tab 键补全命令\n') +
+      fmt.dim('  /team [目标]  多 Agent 协作  ·  /model 切换模型  ·  /help 查看所有命令\n') +
+      '\n',
+  );
+}
+
 // ── Slash commands ────────────────────────────────────────────────────────────
 
 const SLASH_HELP = `
-${fmt.bold('Commands:')}
-  ${fmt.cyan('/model <name|n>')}  Switch agent  ${fmt.dim('(e.g. /model codex  or  /model 2)')}
-  ${fmt.cyan('/agents')}          List configured agents
-  ${fmt.cyan('/team [goal]')}     Launch a multi-agent team
-  ${fmt.cyan('/help')}            Show this
-  ${fmt.cyan('/exit')}            Exit
+${fmt.bold('斜杠命令：')}
+  ${fmt.cyan('/model <名称|序号>')}  切换 Agent  ${fmt.dim('(例: /model codex  或  /model 2)')}
+  ${fmt.cyan('/agents')}             列出已配置的 Agent
+  ${fmt.cyan('/team [目标]')}        启动多 Agent 协作
+  ${fmt.cyan('/clear')}              清屏（保留会话上下文）
+  ${fmt.cyan('/help')}               显示此帮助
+  ${fmt.cyan('/exit')}               退出
 `.trim();
 
 async function handleSlashCommand(
@@ -102,6 +125,7 @@ async function handleSlashCommand(
   config: AionCliConfig,
   agentKeyRef: { current: string },
   managerRef: { current: IAgentManager },
+  picker: InlineCommandPicker,
 ): Promise<{ handled: boolean; exit?: boolean }> {
   const [cmd, ...rest] = input.slice(1).split(/\s+/);
   const arg = rest.join(' ').trim();
@@ -125,13 +149,44 @@ async function handleSlashCommand(
           `  ${isActive ? fmt.green('●') : fmt.dim('○')} ${fmt.dim(`${i + 1}.`)} ${fmt.cyan(key)}  ${fmt.dim(provider)}${isActive ? fmt.dim('  ← active') : ''}\n`,
         );
       }
-      process.stdout.write(fmt.dim('\n  /model <name> or /model <number> to switch\n\n'));
+      process.stdout.write(fmt.dim('\n  使用 /model <名称> 或 /model <序号> 切换\n\n'));
       return { handled: true };
     }
 
     case 'model': {
       if (!arg) {
-        process.stdout.write(fmt.yellow('Usage: /model <name>  e.g. /model codex\n'));
+        if (process.stdout.isTTY) {
+          // 交互式选择器（TTY 环境）
+          const agents = Object.keys(config.agents).map((k) => ({
+            key: k,
+            provider: config.agents[k]!.provider,
+            isActive: k === agentKeyRef.current,
+          }));
+          await new Promise<void>((resolve) => {
+            picker.showAgentSelector(agents, async (selectedKey) => {
+              if (selectedKey && selectedKey !== agentKeyRef.current) {
+                await managerRef.current.stop();
+                agentKeyRef.current = selectedKey;
+                const factory = createCliAgentFactory(config, undefined, selectedKey);
+                managerRef.current = factory(`solo-${Date.now()}`, '', makeStdoutEmitter());
+                process.stdout.write(`\n→ ${fmt.bold(fmt.cyan(selectedKey))}  ${fmt.dim('(新会话已开始)')}\n\n`);
+              }
+              resolve();
+            });
+          });
+        } else {
+          // 非 TTY 降级：静态列表
+          const keys = Object.keys(config.agents);
+          process.stdout.write('\n');
+          for (const [i, k] of keys.entries()) {
+            const agent = config.agents[k]!;
+            const isActive = k === agentKeyRef.current;
+            process.stdout.write(
+              `  ${isActive ? fmt.green('●') : fmt.dim('○')}  ${fmt.dim(`${i + 1}.`)} ${fmt.cyan(k)}  ${fmt.dim(agent.provider)}${isActive ? fmt.green('  ← 当前') : ''}\n`,
+            );
+          }
+          process.stdout.write(fmt.dim('\n  输入 /model <名称> 或 /model <序号> 切换\n\n'));
+        }
         return { handled: true };
       }
       const keys = Object.keys(config.agents);
@@ -145,7 +200,7 @@ async function handleSlashCommand(
 
       if (!resolvedKey) {
         const available = keys.join(', ');
-        process.stdout.write(fmt.red(`✗ "${arg}" not found — available: ${available}\n\n`));
+        process.stdout.write(fmt.red(`✗ "${arg}" 未找到 — 可用: ${available}\n\n`));
         return { handled: true };
       }
 
@@ -154,9 +209,14 @@ async function handleSlashCommand(
       agentKeyRef.current = resolvedKey;
       const factory = createCliAgentFactory(config, undefined, resolvedKey);
       managerRef.current = factory(`solo-${Date.now()}`, '', makeStdoutEmitter());
-      process.stdout.write(`→ ${fmt.bold(fmt.cyan(resolvedKey))}  ${fmt.dim('(new conversation)')}\n\n`);
+      process.stdout.write(`→ ${fmt.bold(fmt.cyan(resolvedKey))}  ${fmt.dim('(新会话已开始)')}\n\n`);
       return { handled: true };
     }
+
+    case 'clear':
+      process.stdout.write('\x1b[2J\x1b[H'); // erase screen + move cursor home
+      printHeader(config, agentKeyRef.current);
+      return { handled: true };
 
     case 'team': {
       const { runTeam } = await import('./team');
@@ -166,7 +226,7 @@ async function handleSlashCommand(
 
     case 'exit':
     case 'quit':
-      process.stdout.write(fmt.dim('Goodbye.\n'));
+      process.stdout.write(fmt.dim('再见。\n'));
       return { handled: true, exit: true };
 
     default:
@@ -202,11 +262,24 @@ export async function runSolo(options: SoloOptions = {}): Promise<void> {
   }
 
   printHeader(config, activeKey);
+  printTips();
 
   const agentKeyRef = { current: activeKey };
   const managerRef: { current: IAgentManager } = {
     current: createCliAgentFactory(config, undefined, activeKey)(`solo-${Date.now()}`, '', makeStdoutEmitter()),
   };
+
+  const agentKeys = Object.keys(config.agents);
+  const picker = new InlineCommandPicker(agentKeys);
+
+  // Graceful Ctrl+C: stop any in-flight agent before exiting
+  const sigintHandler = (): void => {
+    managerRef.current.stop().finally(() => {
+      process.stdout.write('\n' + fmt.dim('再见。\n'));
+      process.exit(0);
+    });
+  };
+  process.once('SIGINT', sigintHandler);
 
   // Single readline lifecycle — owns stdin from here to EOF
   // Pass agent keys so Tab expands /model <Tab> to agent names
@@ -214,12 +287,17 @@ export async function runSolo(options: SoloOptions = {}): Promise<void> {
     () => `${agentKeyRef.current} >`,
     async (input) => {
       if (input.startsWith('/')) {
-        const result = await handleSlashCommand(input, config, agentKeyRef, managerRef);
+        const result = await handleSlashCommand(input, config, agentKeyRef, managerRef, picker);
         if (result.exit) process.exit(0);
         if (result.handled) return;
       }
       await managerRef.current.sendMessage({ content: input });
     },
-    Object.keys(config.agents),
+    agentKeys,
+    picker,
   );
+
+  // Clean EOF path — remove the SIGINT handler so it doesn't fire after exit
+  process.off('SIGINT', sigintHandler);
+  await managerRef.current.stop();
 }

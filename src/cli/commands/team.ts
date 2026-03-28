@@ -145,13 +145,21 @@ export async function runTeam(options: TeamOptions = {}): Promise<void> {
   let agentKeys: string[];
   if (options.agents) {
     agentKeys = options.agents.split(',').map((s) => s.trim()).filter(Boolean);
+    // Validate all explicitly provided agent keys, report all invalid at once
+    const invalid = agentKeys.filter((k) => !config.agents[k]);
+    if (invalid.length > 0) {
+      const available = Object.keys(config.agents).join(', ');
+      process.stderr.write(fmt.red(`✗ 以下 agent 未配置: ${invalid.join(', ')}\n`));
+      process.stderr.write(fmt.dim(`  可用: ${available}\n`));
+      process.exit(1);
+    }
   } else {
     agentKeys = autoDistributeAgents(config, concurrency);
   }
 
-  // Use agentKeys length OR concurrency — whichever is larger, but cap roles at agentKeys.length
-  // when --with is explicitly provided (don't invent extra roles)
-  const roleCount = options.agents ? Math.max(agentKeys.length, concurrency) : concurrency;
+  // When --with is explicitly provided, use exactly that many roles (don't inflate with concurrency).
+  // When auto-distributed, use the configured concurrency.
+  const roleCount = options.agents ? agentKeys.length : concurrency;
   const roles = inferRoles(goal, roleCount);
   const subTasks: SubTask[] = roles.map((role) => ({
     id: randomUUID().slice(0, 8),
@@ -203,6 +211,7 @@ export async function runTeam(options: TeamOptions = {}): Promise<void> {
       const key = agentPerTask?.[result.subTaskId] ?? config.defaultAgent;
       const label = task?.label ?? result.subTaskId;
 
+      process.stdout.write(fmt.dim(hr()) + '\n');
       process.stdout.write(`${fmt.bold(fmt.cyan(`▸ ${label}`))}  ${fmt.dim(`[${key}]`)}\n`);
       process.stdout.write(result.outputText.trim() + '\n\n');
     }

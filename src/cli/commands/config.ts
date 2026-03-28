@@ -29,15 +29,21 @@ export async function showConfig(): Promise<void> {
   } else {
     process.stdout.write(fmt.bold('Agents:\n'));
     for (const [name, agent] of Object.entries(config.agents)) {
-      const masked = agent.apiKey
-        ? `...${agent.apiKey.slice(-4)}`
-        : fmt.red('not set');
+      const isCliProvider = agent.provider === 'claude-cli' || agent.provider === 'codex-cli';
+      const masked = isCliProvider
+        ? fmt.dim('(CLI 认证)')
+        : agent.apiKey
+          ? `...${agent.apiKey.slice(-4)}`
+          : fmt.red('not set');
+      const modelDisplay = isCliProvider
+        ? fmt.dim('(使用 CLI 自身)')
+        : (agent.model ?? fmt.red('undefined'));
       const isDefault = name === config.defaultAgent ? fmt.green(' ← default') : '';
       process.stdout.write(
         `  ${fmt.cyan(name)}${isDefault}\n` +
-          `    model:    ${agent.model}\n` +
+          `    model:    ${modelDisplay}\n` +
           `    provider: ${agent.provider}\n` +
-          `    key:      ${fmt.dim(masked)}\n\n`,
+          `    key:      ${masked}\n\n`,
       );
     }
   }

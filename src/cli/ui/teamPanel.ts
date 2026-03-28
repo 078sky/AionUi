@@ -12,18 +12,21 @@
  * Uses terminal escape codes to update in place (no external deps).
  */
 import type { OrchestratorEvent } from '@process/task/orchestrator/types';
-import { fmt, STATUS_ICONS, clearLines, hr } from './format';
+import { fmt, clearLines, hr } from './format';
 
 type AgentState = {
   label: string;
   status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
   preview: string;
+  startedAt?: number;
 };
 
 export class TeamPanel {
   private agents = new Map<string, AgentState>();
   private lastLineCount = 0;
   private goal = '';
+  private spinnerFrame = 0;
+  private readonly SPIN = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
   setGoal(goal: string): void {
     this.goal = goal;
@@ -46,14 +49,16 @@ export class TeamPanel {
           label: existing?.label ?? event.subTaskId,
           status: 'running',
           preview: '',
+          startedAt: Date.now(),
         });
         break;
       }
       case 'subtask:progress': {
         const agent = this.agents.get(event.subTaskId);
         if (agent) {
-          // Keep a rolling 80-char preview of streaming output
-          agent.preview = (agent.preview + event.text).replace(/\n/g, ' ').slice(-80);
+          // Keep a rolling 80-char (Unicode-safe) preview of streaming output
+          const combined = (agent.preview + event.text).replace(/\n/g, ' ');
+          agent.preview = Array.from(combined).slice(-80).join('');
         }
         break;
       }
@@ -70,7 +75,17 @@ export class TeamPanel {
         }
         break;
       }
+      case 'orchestrator:failed': {
+        // Mark any still-running or pending agents as cancelled
+        for (const agent of this.agents.values()) {
+          if (agent.status === 'running' || agent.status === 'pending') {
+            agent.status = 'cancelled';
+          }
+        }
+        break;
+      }
     }
+    this.spinnerFrame++;
     this.render();
   }
 
@@ -87,21 +102,38 @@ export class TeamPanel {
     }
 
     for (const [id, state] of this.agents) {
-      const icon = STATUS_ICONS[state.status];
-      const coloredIcon =
-        state.status === 'running'
-          ? fmt.yellow(icon)
-          : state.status === 'done'
-            ? fmt.green(icon)
-            : state.status === 'failed'
-              ? fmt.red(icon)
-              : fmt.dim(icon);
-
       const label = fmt.bold(state.label || id);
-      const preview = state.preview
-        ? fmt.dim(' ' + state.preview.slice(0, 60).trim())
-        : '';
-      lines.push(`  ${coloredIcon} ${label}${preview}`);
+
+      let coloredIcon: string;
+      let statusSuffix = '';
+
+      if (state.status === 'running') {
+        const spin = this.SPIN[this.spinnerFrame % this.SPIN.length]!;
+        coloredIcon = fmt.cyan(spin);
+        if (state.startedAt !== undefined) {
+          const elapsed = Math.floor((Date.now() - state.startedAt) / 1000);
+          statusSuffix = ' ' + fmt.dim(`${elapsed}s`);
+        }
+      } else if (state.status === 'done') {
+        coloredIcon = fmt.green('✓');
+      } else if (state.status === 'failed') {
+        coloredIcon = fmt.red('✗');
+      } else if (state.status === 'cancelled') {
+        coloredIcon = fmt.yellow('⊘');
+        statusSuffix = ' ' + fmt.dim('已取消');
+      } else {
+        coloredIcon = fmt.dim('○');
+        statusSuffix = ' ' + fmt.dim('等待中');
+      }
+
+      let preview = '';
+      if (state.status === 'failed' && state.preview) {
+        preview = fmt.dim(' ' + Array.from(state.preview).slice(0, 50).join('').trim());
+      } else if (state.preview) {
+        preview = fmt.dim(' ' + state.preview.slice(0, 60).trim());
+      }
+
+      lines.push(`  ${coloredIcon} ${label}${statusSuffix}${preview}`);
     }
 
     if (lines.length > 0) {

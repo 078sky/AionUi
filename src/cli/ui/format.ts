@@ -48,3 +48,36 @@ export function hr(char = '─'): string {
   return char.repeat(Math.min(process.stdout.columns ?? 80, 80));
 }
 
+const SPIN_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+export class Spinner {
+  private frame = 0;
+  private timer: NodeJS.Timeout | null = null;
+  private label: string;
+  private active = false;
+
+  constructor(label = '思考中') {
+    this.label = label;
+  }
+
+  start(): void {
+    if (!process.stdout.isTTY || this.active) return;
+    this.active = true;
+    this.frame = 0;
+    this.timer = setInterval(() => {
+      const f = SPIN_FRAMES[this.frame % SPIN_FRAMES.length]!;
+      process.stdout.write(`\r${fmt.cyan(f)} ${fmt.dim(this.label)}   `);
+      this.frame++;
+    }, 80);
+  }
+
+  stop(): void {
+    if (!this.active) return;
+    this.active = false;
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    if (process.stdout.isTTY) process.stdout.write('\r\x1b[2K'); // 清除整行
+  }
+}

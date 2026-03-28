@@ -6,11 +6,12 @@
 
 import { createInterface } from 'node:readline';
 import { fmt } from './format';
+import type { InlineCommandPicker } from './InlineCommandPicker';
 
 export type ReplHandler = (input: string) => Promise<void>;
 
 /** Slash command names — used for tab completion */
-const SLASH_COMMANDS = ['/model', '/agents', '/team', '/help', '/exit'];
+const SLASH_COMMANDS = ['/model', '/agents', '/team', '/clear', '/help', '/exit'];
 
 /**
  * Start an interactive readline REPL loop.
@@ -24,6 +25,7 @@ export function startRepl(
   prompt: string | (() => string),
   handler: ReplHandler,
   agentKeys?: string[],
+  picker?: InlineCommandPicker,
 ): Promise<void> {
   // Resume stdin in case a prior readline left it paused (critical for Warp)
   process.stdin.resume();
@@ -67,8 +69,13 @@ export function startRepl(
     });
   };
 
+  if (picker) {
+    picker.attach(rl);
+  }
+
   return new Promise<void>((resolve) => {
     rl.once('close', () => {
+      if (picker) picker.detach();
       process.stdout.write('\n');
       resolve();
     });
