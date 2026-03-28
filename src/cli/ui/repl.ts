@@ -16,6 +16,9 @@ export type ReplHandler = (input: string) => Promise<void>;
  * @param prompt - static string OR a function called each tick (for dynamic prompts)
  */
 export function startRepl(prompt: string | (() => string), handler: ReplHandler): Promise<void> {
+  // Resume stdin in case a prior readline left it paused (critical for Warp)
+  process.stdin.resume();
+
   const rl = createInterface({
     input: process.stdin,
     output: process.stdout,
