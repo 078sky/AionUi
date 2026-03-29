@@ -9,7 +9,17 @@
     "savedAssistant": "保存済みアシスタント",
     "noChannels": "チャンネルはまだありません",
     "collapseChannels": "チャンネルを折りたたむ",
-    "expandChannels": "チャンネルを展開する"
+    "expandChannels": "チャンネルを展開する",
+    "newDirectMessage": "新規ダイレクトメッセージ",
+    "noDirectMessages": "会話がまだありません",
+    "selectAgent": "エージェントを選択",
+    "searchAgents": "エージェントを検索...",
+    "permanentAgents": "保存済みアシスタント",
+    "temporaryAgents": "CLI エージェント",
+    "noAgentsFound": "エージェントが見つかりません",
+    "agentSourcePreset": "プリセット",
+    "agentSourceCustom": "カスタム",
+    "agentSourceCli": "CLI"
   },
   "create": {
     "title": "グループチャットを作成",

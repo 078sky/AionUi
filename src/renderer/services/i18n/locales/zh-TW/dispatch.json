@@ -9,7 +9,17 @@
     "savedAssistant": "已儲存的助手",
     "noChannels": "還沒有頻道",
     "collapseChannels": "收起頻道",
-    "expandChannels": "展開頻道"
+    "expandChannels": "展開頻道",
+    "newDirectMessage": "新增私訊",
+    "noDirectMessages": "暫無對話",
+    "selectAgent": "選擇助手",
+    "searchAgents": "搜尋助手...",
+    "permanentAgents": "已儲存的助手",
+    "temporaryAgents": "CLI 代理",
+    "noAgentsFound": "找不到助手",
+    "agentSourcePreset": "預設",
+    "agentSourceCustom": "自訂",
+    "agentSourceCli": "CLI"
   },
   "create": {
     "title": "建立群聊",

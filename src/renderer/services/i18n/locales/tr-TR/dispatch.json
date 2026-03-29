@@ -9,7 +9,17 @@
     "savedAssistant": "Kayıtlı asistan",
     "noChannels": "Henüz kanal yok",
     "collapseChannels": "Kanalları daralt",
-    "expandChannels": "Kanalları genişlet"
+    "expandChannels": "Kanalları genişlet",
+    "newDirectMessage": "Yeni direkt mesaj",
+    "noDirectMessages": "Henüz konuşma yok",
+    "selectAgent": "Bir ajan seç",
+    "searchAgents": "Ajan ara...",
+    "permanentAgents": "Kayıtlı Asistanlar",
+    "temporaryAgents": "CLI Ajanları",
+    "noAgentsFound": "Ajan bulunamadı",
+    "agentSourcePreset": "Ön Ayar",
+    "agentSourceCustom": "Özel",
+    "agentSourceCli": "CLI"
   },
   "create": {
     "title": "Grup Sohbeti Oluştur",

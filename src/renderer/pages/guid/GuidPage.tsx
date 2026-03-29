@@ -50,14 +50,17 @@ const GuidPage: React.FC = () => {
   // --- Hooks ---
   const modelSelection = useGuidModelSelection();
 
+  const locationState = location.state as { workspace?: string; prefillAgentId?: string } | null;
+
   const agentSelection = useGuidAgentSelection({
     modelList: modelSelection.modelList,
     isGoogleAuth: modelSelection.isGoogleAuth,
     localeKey,
+    prefillAgentId: locationState?.prefillAgentId,
   });
 
   const guidInput = useGuidInput({
-    locationState: location.state as { workspace?: string } | null,
+    locationState,
   });
 
   const mention = useGuidMention({

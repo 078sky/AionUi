@@ -9,7 +9,17 @@
     "savedAssistant": "已保存的助手",
     "noChannels": "还没有频道",
     "collapseChannels": "收起频道",
-    "expandChannels": "展开频道"
+    "expandChannels": "展开频道",
+    "newDirectMessage": "新建私信",
+    "noDirectMessages": "暂无对话",
+    "selectAgent": "选择一个助手",
+    "searchAgents": "搜索助手...",
+    "permanentAgents": "已保存的助手",
+    "temporaryAgents": "CLI 代理",
+    "noAgentsFound": "未找到助手",
+    "agentSourcePreset": "预设",
+    "agentSourceCustom": "自定义",
+    "agentSourceCli": "CLI"
   },
   "create": {
     "title": "创建群聊",

@@ -9,7 +9,17 @@
     "savedAssistant": "Saved assistant",
     "noChannels": "No channels yet",
     "collapseChannels": "Collapse channels",
-    "expandChannels": "Expand channels"
+    "expandChannels": "Expand channels",
+    "newDirectMessage": "New direct message",
+    "noDirectMessages": "No conversations yet",
+    "selectAgent": "Select an agent",
+    "searchAgents": "Search agents...",
+    "permanentAgents": "Saved Assistants",
+    "temporaryAgents": "CLI Agents",
+    "noAgentsFound": "No agents found",
+    "agentSourcePreset": "Preset",
+    "agentSourceCustom": "Custom",
+    "agentSourceCli": "CLI"
   },
   "create": {
     "title": "Create Group Chat",

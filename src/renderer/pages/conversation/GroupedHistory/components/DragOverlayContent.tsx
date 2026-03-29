@@ -9,7 +9,7 @@ import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { MessageOne } from '@icon-park/react';
 import React from 'react';
 
-import { getBackendKeyFromConversation } from './utils/exportHelpers';
+import { getBackendKeyFromConversation } from '../utils/exportHelpers';
 
 type DragOverlayContentProps = {
   conversation?: TChatConversation;

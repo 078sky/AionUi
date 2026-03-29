@@ -10,20 +10,22 @@ import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { CronJobIndicator, useCronJobsMap } from '@/renderer/pages/cron';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Button, Empty, Input, Modal } from '@arco-design/web-react';
-import { FolderOpen } from '@icon-park/react';
+import { Button, Empty, Input, Modal, Tooltip } from '@arco-design/web-react';
+import { FolderOpen, Plus } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import WorkspaceCollapse from '../components/WorkspaceCollapse';
 import CreateGroupChatModal from '../dispatch/CreateGroupChatModal';
 import AgentDMGroup from './AgentDMGroup';
 import ChannelSection from './ChannelSection';
+import AgentSelectionModal from './components/AgentSelectionModal';
+import DragOverlayContent from './components/DragOverlayContent';
 import ConversationRow from './ConversationRow';
-import DragOverlayContent from './DragOverlayContent';
 import SortableConversationRow from './SortableConversationRow';
+import { useAgentRegistry } from '@/renderer/hooks/useAgentRegistry';
 import { useBatchSelection } from './hooks/useBatchSelection';
 import { useConversationActions } from './hooks/useConversationActions';
 import { useConversations } from './hooks/useConversations';
@@ -40,6 +42,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
 }) => {
   const { id } = useParams();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { getJobStatus, markAsRead, setActiveConversation } = useCronJobsMap();
 
   // Sync active conversation ref when route changes (for URL navigation)
@@ -64,6 +67,18 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   } = useConversations();
 
   const [createGroupChatVisible, setCreateGroupChatVisible] = useState(false);
+  const [agentSelectionVisible, setAgentSelectionVisible] = useState(false);
+
+  const agentRegistry = useAgentRegistry();
+  const registryAgents = useMemo(() => Array.from(agentRegistry.values()), [agentRegistry]);
+
+  const handleAgentSelected = useCallback(
+    (agentId: string) => {
+      setAgentSelectionVisible(false);
+      navigate('/guid', { state: { prefillAgentId: agentId } });
+    },
+    [navigate]
+  );
 
   const {
     selectedConversationIds,
@@ -198,7 +213,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     timelineSections.length === 0 &&
     pinnedConversations.length === 0 &&
     dispatchConversations.length === 0 &&
-    !hasDMGroups
+    !hasDMGroups &&
+    collapsed
   ) {
     return (
       <FlexFullContainer>
@@ -339,6 +355,13 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
         onCreated={handleGroupChatCreated}
       />
 
+      <AgentSelectionModal
+        visible={agentSelectionVisible}
+        agents={registryAgents}
+        onSelect={handleAgentSelected}
+        onClose={() => setAgentSelectionVisible(false)}
+      />
+
       {batchMode && !collapsed && (
         <div className='px-12px pb-8px'>
           <div className='rd-8px bg-fill-1 p-10px flex flex-col gap-8px border border-solid border-[rgba(var(--primary-6),0.08)]'>
@@ -420,14 +443,22 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           />
         </div>
 
-        {/* Direct Messages section (agent-based DM groups) */}
-        {hasDMGroups && (
-          <div className='mb-8px min-w-0'>
-            {!collapsed && (
-              <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>
-                {t('dispatch.sidebar.directMessagesSection')}
-              </div>
-            )}
+        {/* Direct Messages section (agent-based DM groups) — always render header with "+" */}
+        <div className='mb-8px min-w-0'>
+          {!collapsed && (
+            <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center justify-between'>
+              <span>{t('dispatch.sidebar.directMessagesSection')}</span>
+              <Tooltip content={t('dispatch.sidebar.newDirectMessage')} position='top' mini>
+                <span
+                  className='flex-center cursor-pointer hover:bg-fill-2 rd-4px p-2px transition-colors'
+                  onClick={() => setAgentSelectionVisible(true)}
+                >
+                  <Plus theme='outline' size='14' />
+                </span>
+              </Tooltip>
+            </div>
+          )}
+          {hasDMGroups ? (
             <div className='min-w-0'>
               {agentDMGroups.map((group) => (
                 <AgentDMGroup
@@ -439,8 +470,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                 />
               ))}
             </div>
-          </div>
-        )}
+          ) : !collapsed ? (
+            <div className='px-12px py-4px text-12px text-t-secondary'>{t('dispatch.sidebar.noDirectMessages')}</div>
+          ) : null}
+        </div>
 
         {/* Timeline sections (workspace-grouped conversations — fallback view) */}
         {!hasDMGroups &&

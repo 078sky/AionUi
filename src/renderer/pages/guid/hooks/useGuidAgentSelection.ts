@@ -55,7 +55,50 @@ type UseGuidAgentSelectionOptions = {
   modelList: IProvider[];
   isGoogleAuth: boolean;
   localeKey: string;
+  /** Optional agent ID from navigation state — pre-selects the agent on mount */
+  prefillAgentId?: string;
 };
+
+/**
+ * Map a registry agent ID (e.g., "preset:word-creator", "custom:abc", "claude")
+ * to the key format used by the Guid page's agent pill bar.
+ */
+function mapRegistryIdToGuidKey(
+  registryId: string,
+  availableAgents: AvailableAgent[],
+  customAgentsList: AcpBackendConfig[]
+): string | null {
+  // Direct backend match (claude, gemini, codex, etc.)
+  if (availableAgents.some((a) => a.backend === registryId && !a.customAgentId)) {
+    return registryId;
+  }
+
+  // Custom agent: "custom:abc" → "custom:abc" (same format)
+  if (registryId.startsWith('custom:')) {
+    const customId = registryId.slice(7);
+    if (customAgentsList.some((a) => a.id === customId)) {
+      return registryId;
+    }
+    // Also check in availableAgents directly
+    if (availableAgents.some((a) => a.backend === 'custom' && a.customAgentId === customId)) {
+      return registryId;
+    }
+  }
+
+  // Preset agent: "preset:word-creator" → find in availableAgents by isPreset + customAgentId match
+  if (registryId.startsWith('preset:')) {
+    const presetId = registryId.slice(7);
+    const match = availableAgents.find(
+      (a) =>
+        a.isPreset && a.customAgentId && (a.customAgentId === presetId || a.customAgentId === `builtin-${presetId}`)
+    );
+    if (match) {
+      return getAgentKeyUtil(match);
+    }
+  }
+
+  return null;
+}
 
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
@@ -64,6 +107,7 @@ export const useGuidAgentSelection = ({
   modelList,
   isGoogleAuth,
   localeKey,
+  prefillAgentId,
 }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('gemini');
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
@@ -199,7 +243,7 @@ export const useGuidAgentSelection = ({
     setAvailableAgents([...availableAgentsData, ...remoteAsAvailable]);
   }, [availableAgentsData, remoteAgentsData]);
 
-  // Load last selected agent
+  // Load last selected agent (or apply prefillAgentId from navigation state)
   useEffect(() => {
     if (!availableAgents || availableAgents.length === 0) return;
 
@@ -207,6 +251,16 @@ export const useGuidAgentSelection = ({
 
     const loadLastSelectedAgent = async () => {
       try {
+        // If prefillAgentId is provided, map it to the Guid key format and apply it
+        if (prefillAgentId) {
+          const mapped = mapRegistryIdToGuidKey(prefillAgentId, availableAgents, customAgents);
+          if (mapped) {
+            if (!cancelled) _setSelectedAgentKey(mapped);
+            return; // Skip loading from storage
+          }
+          // If mapping failed, fall through to load from storage (graceful degradation)
+        }
+
         const savedAgentKey = await ConfigStorage.get('guid.lastSelectedAgent');
         if (cancelled || !savedAgentKey) return;
 
@@ -227,7 +281,7 @@ export const useGuidAgentSelection = ({
     return () => {
       cancelled = true;
     };
-  }, [availableAgents]);
+  }, [availableAgents, prefillAgentId, customAgents]);
 
   // Load cached ACP model lists
   useEffect(() => {
