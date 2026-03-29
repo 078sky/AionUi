@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ipcBridge } from '@/common';
 import { ASSISTANT_PRESETS } from '@/common/config/presets/assistantPresets';
 import { ConfigStorage } from '@/common/config/storage';
+import { resolveLocaleKey } from '@/common/utils';
 import { useAgentRegistry } from '@renderer/hooks/useAgentRegistry';
 import type { AgentIdentity } from '@renderer/utils/model/agentIdentity';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import useSWR from 'swr';
 
 import type { AgentProfileDrawerData, GroupChatSummary } from '../components/AgentProfileDrawer/types';
@@ -30,10 +33,26 @@ type CustomAgentConfig = {
 export function useAgentProfileDrawer(agentId: string): AgentProfileDrawerData | null {
   const registry = useAgentRegistry();
   const identity = registry.get(agentId);
+  const { i18n } = useTranslation();
+  const localeKey = resolveLocaleKey(i18n.language);
 
-  // Fetch custom agents config for custom agent rule/skills
+  const isPreset = agentId.startsWith('preset:');
   const isCustom = agentId.startsWith('custom:');
   const customId = isCustom ? agentId.slice('custom:'.length) : null;
+
+  // Fetch preset assistant rule via IPC (cached with SWR)
+  const presetAssistantId = isPreset ? `builtin-${agentId.replace('preset:', '')}` : null;
+  const { data: presetRule } = useSWR<string>(
+    presetAssistantId ? `assistant-rule:${presetAssistantId}:${localeKey}` : null,
+    () =>
+      ipcBridge.fs.readAssistantRule.invoke({
+        assistantId: presetAssistantId!,
+        locale: localeKey,
+      }),
+    { revalidateOnFocus: false }
+  );
+
+  // Fetch custom agents config for custom agent rule/skills
   const { data: customAgents } = useSWR<CustomAgentConfig[]>(
     isCustom ? 'acp.customAgents' : null,
     () => ConfigStorage.get('acp.customAgents') as Promise<CustomAgentConfig[]>,
@@ -64,8 +83,7 @@ export function useAgentProfileDrawer(agentId: string): AgentProfileDrawerData |
             }
           }
         }
-        // Rule content would require IPC; show placeholder for now
-        rule = undefined;
+        rule = presetRule || undefined;
       } else if (isCustom && customAgents) {
         // Custom agent: resolve from config
         const customConfig = customAgents.find((a) => a.id === customId);
@@ -90,5 +108,5 @@ export function useAgentProfileDrawer(agentId: string): AgentProfileDrawerData |
       mountedAgents,
       groupChats,
     };
-  }, [identity, agentId, isCustom, customId, customAgents, registry]);
+  }, [identity, agentId, isPreset, isCustom, customId, presetRule, customAgents, registry]);
 }
