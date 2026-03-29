@@ -44,7 +44,8 @@
     "mountedAgentsEmpty": "마운트된 에이전트 없음",
     "groupChatsTitle": "그룹 채팅",
     "groupChatsEmpty": "그룹 채팅에 참여하지 않음",
-    "memberCount": "{{count}}명의 멤버"
+    "memberCount": "{{count}}명의 멤버",
+    "editSettings": "설정 편집"
   },
   "setup": {
     "connectionError": "연결 오류",

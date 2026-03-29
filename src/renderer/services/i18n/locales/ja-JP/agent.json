@@ -44,7 +44,8 @@
     "mountedAgentsEmpty": "マウントされたエージェントはありません",
     "groupChatsTitle": "グループチャット",
     "groupChatsEmpty": "グループチャットに参加していません",
-    "memberCount": "{{count}} メンバー"
+    "memberCount": "{{count}} メンバー",
+    "editSettings": "設定を編集"
   },
   "setup": {
     "connectionError": "接続エラー",

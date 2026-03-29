@@ -44,7 +44,8 @@
     "mountedAgentsEmpty": "No mounted agents",
     "groupChatsTitle": "Group Chats",
     "groupChatsEmpty": "Not a member of any group chat",
-    "memberCount": "{{count}} members"
+    "memberCount": "{{count}} members",
+    "editSettings": "Edit Settings"
   },
   "setup": {
     "connectionError": "Connection Error",

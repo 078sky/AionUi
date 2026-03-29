@@ -21,6 +21,7 @@ export type I18nKey =
   | 'agent.drawer.groupChatsEmpty'
   | 'agent.drawer.groupChatsTitle'
   | 'agent.drawer.memberCount'
+  | 'agent.drawer.editSettings'
   | 'agent.drawer.mountedAgentsEmpty'
   | 'agent.drawer.mountedAgentsTitle'
   | 'agent.drawer.ruleEmpty'

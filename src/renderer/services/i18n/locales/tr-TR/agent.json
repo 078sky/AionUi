@@ -44,7 +44,8 @@
     "mountedAgentsEmpty": "Bağlı ajan yok",
     "groupChatsTitle": "Grup Sohbetleri",
     "groupChatsEmpty": "Herhangi bir grup sohbetine üye değil",
-    "memberCount": "{{count}} üye"
+    "memberCount": "{{count}} üye",
+    "editSettings": "Ayarları Düzenle"
   },
   "setup": {
     "connectionError": "Connection Error",

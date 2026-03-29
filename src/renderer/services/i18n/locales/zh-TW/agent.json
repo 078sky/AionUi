@@ -44,7 +44,8 @@
     "mountedAgentsEmpty": "無掛載的 Agent",
     "groupChatsTitle": "群組對話",
     "groupChatsEmpty": "未參與任何群組對話",
-    "memberCount": "{{count}} 個成員"
+    "memberCount": "{{count}} 個成員",
+    "editSettings": "修改設定"
   },
   "setup": {
     "connectionError": "連接錯誤",

@@ -6,15 +6,17 @@
 
 import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { Button, Tag } from '@arco-design/web-react';
-import { AddOne, People } from '@icon-park/react';
+import { AddOne, People, SettingTwo } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 import type { ProfileHeaderProps } from './types';
 
 /** Avatar + name + employee type badge + "Start Conversation" button */
 const ProfileHeader: React.FC<ProfileHeaderProps> = ({ identity, onStartConversation }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const isPermanent = identity.employeeType === 'permanent';
   const logo = getAgentLogo(identity.id);
@@ -47,10 +49,21 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({ identity, onStartConversa
         )}
       </div>
 
-      {/* Start conversation button */}
-      <Button type='primary' icon={<AddOne theme='outline' size='14' />} onClick={onStartConversation}>
-        {t('agent.profile.startConversation')}
-      </Button>
+      {/* Action buttons */}
+      <div className='flex items-center gap-8px'>
+        <Button type='primary' icon={<AddOne theme='outline' size='14' />} onClick={onStartConversation}>
+          {t('agent.profile.startConversation')}
+        </Button>
+        {isPermanent && (
+          <Button
+            type='secondary'
+            icon={<SettingTwo theme='outline' size='14' />}
+            onClick={() => navigate('/settings/assistants')}
+          >
+            {t('agent.drawer.editSettings')}
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
