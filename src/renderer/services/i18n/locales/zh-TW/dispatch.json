@@ -2,7 +2,11 @@
   "sidebar": {
     "groupChatSection": "群聊",
     "newGroupChat": "新增群聊",
-    "childTaskCount": "{{count}} 個任務"
+    "childTaskCount": "{{count}} 個任務",
+    "channelsSection": "頻道",
+    "directMessagesSection": "私訊",
+    "newConversation": "新增對話",
+    "savedAssistant": "已儲存的助手"
   },
   "create": {
     "title": "建立群聊",

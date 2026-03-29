@@ -24,10 +24,50 @@ export type TimelineSection = {
   items: TimelineItem[];
 };
 
+/** Workspace sub-group within an agent DM group */
+export type WorkspaceSubGroupData = {
+  workspacePath: string;
+  displayName: string;
+  conversations: TChatConversation[];
+  latestActivityTime: number;
+};
+
+/** Agent-based DM group (Slack-like: conversations grouped by agent person) */
+export type AgentDMGroupData = {
+  /** Agent ID (resolved from conversation extra) */
+  agentId: string;
+  /** Agent display name */
+  agentName: string;
+  /** Agent avatar (emoji, SVG path, or undefined) */
+  agentAvatar?: string;
+  /** Agent logo path for CLI agents (from agentLogo.ts) */
+  agentLogo?: string | null;
+  /** Whether agent is a permanent employee (saved assistant/preset) */
+  isPermanent: boolean;
+  /** All conversations with this agent, sorted by activity time desc */
+  conversations: TChatConversation[];
+  /** Most recent conversation's activity time */
+  latestActivityTime: number;
+  /** Whether any conversation is currently generating */
+  hasActiveConversation: boolean;
+  /** Conversations without a custom workspace (temporary / no workspace) */
+  ungroupedConversations: TChatConversation[];
+  /** Conversations grouped by custom workspace */
+  workspaceSubGroups: WorkspaceSubGroupData[];
+  /** Display mode based on workspace distribution */
+  displayMode: 'flat' | 'subtitle' | 'grouped';
+  /** Display name when displayMode is 'subtitle' (single workspace) */
+  singleWorkspaceDisplayName?: string;
+  /** Workspace path when displayMode is 'subtitle' (single workspace) */
+  singleWorkspacePath?: string;
+};
+
 export type GroupedHistoryResult = {
   pinnedConversations: TChatConversation[];
   dispatchConversations: TChatConversation[];
   timelineSections: TimelineSection[];
+  /** Slack-like DM groups: conversations grouped by agent */
+  agentDMGroups: AgentDMGroupData[];
 };
 
 export type ExportZipFile = {

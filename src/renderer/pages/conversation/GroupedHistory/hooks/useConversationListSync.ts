@@ -227,6 +227,7 @@ export const useConversationListSync = () => {
 
   return {
     conversations,
+    generatingConversationIds,
     isConversationGenerating,
     hasCompletionUnread,
     clearCompletionUnread,

@@ -2,7 +2,11 @@
   "sidebar": {
     "groupChatSection": "Group Chats",
     "newGroupChat": "New Group Chat",
-    "childTaskCount": "{{count}} task(s)"
+    "childTaskCount": "{{count}} task(s)",
+    "channelsSection": "Channels",
+    "directMessagesSection": "Direct Messages",
+    "newConversation": "New Conversation",
+    "savedAssistant": "Saved assistant"
   },
   "create": {
     "title": "Create Group Chat",

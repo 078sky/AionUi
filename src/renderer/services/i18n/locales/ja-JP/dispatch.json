@@ -2,7 +2,11 @@
   "sidebar": {
     "groupChatSection": "グループチャット",
     "newGroupChat": "新規グループチャット",
-    "childTaskCount": "{{count}} タスク"
+    "childTaskCount": "{{count}} タスク",
+    "channelsSection": "チャンネル",
+    "directMessagesSection": "ダイレクトメッセージ",
+    "newConversation": "新規会話",
+    "savedAssistant": "保存済みアシスタント"
   },
   "create": {
     "title": "グループチャットを作成",

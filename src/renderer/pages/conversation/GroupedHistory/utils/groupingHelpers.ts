@@ -6,11 +6,21 @@
 
 import type { TChatConversation } from '@/common/config/storage';
 import { getActivityTime, getTimelineLabel } from '@/renderer/utils/chat/timeline';
-import { getWorkspaceDisplayName } from '@/renderer/utils/workspace/workspace';
+import { getWorkspaceDisplayName, isTemporaryWorkspace } from '@/renderer/utils/workspace/workspace';
 import { getWorkspaceUpdateTime } from '@/renderer/utils/workspace/workspaceHistory';
 
-import type { GroupedHistoryResult, TimelineItem, TimelineSection, WorkspaceGroup } from '../types';
+import type {
+  AgentDMGroupData,
+  GroupedHistoryResult,
+  TimelineItem,
+  TimelineSection,
+  WorkspaceGroup,
+  WorkspaceSubGroupData,
+} from '../types';
 import { getConversationSortOrder } from './sortOrderHelpers';
+import type { AgentIdentity } from '@/renderer/utils/model/agentIdentity';
+import { resolveAgentId, resolveAgentDisplayName, resolveAgentAvatar } from '@/renderer/utils/model/agentIdentity';
+import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 
 export const getConversationTimelineLabel = (conversation: TChatConversation, t: (key: string) => string): string => {
   const time = getActivityTime(conversation);
@@ -125,9 +135,117 @@ export const groupConversationsByTimelineAndWorkspace = (
   return sections;
 };
 
+/**
+ * Group non-dispatch conversations by agent identity (Slack-like DM grouping).
+ * Each agent becomes a "person" with all their conversations listed under them.
+ */
+export const groupConversationsByAgent = (
+  conversations: TChatConversation[],
+  agentRegistry: Map<string, AgentIdentity>,
+  generatingIds?: Set<string>
+): AgentDMGroupData[] => {
+  const groups = new Map<string, TChatConversation[]>();
+
+  for (const conv of conversations) {
+    const agentId = resolveAgentId(conv);
+    if (!groups.has(agentId)) {
+      groups.set(agentId, []);
+    }
+    groups.get(agentId)!.push(conv);
+  }
+
+  const result: AgentDMGroupData[] = [];
+
+  for (const [agentId, convs] of groups) {
+    const sorted = [...convs].toSorted((a, b) => getActivityTime(b) - getActivityTime(a));
+    const latest = sorted[0];
+    const identity = agentRegistry.get(agentId);
+
+    // Resolve display info from registry or from conversation itself
+    const agentName = identity?.name || resolveAgentDisplayName(latest);
+    const agentAvatar = identity?.avatar || resolveAgentAvatar(latest);
+    const isPermanent = identity?.employeeType === 'permanent';
+
+    // Get CLI agent logo (SVG path) for agents without emoji avatar
+    const backendKey = identity?.backendType || agentId;
+    const agentLogo = !agentAvatar ? getAgentLogo(backendKey) : null;
+
+    const hasActive = generatingIds ? sorted.some((c) => generatingIds.has(c.id)) : false;
+
+    // Compute workspace sub-groups
+    const ungrouped: TChatConversation[] = [];
+    const workspaceMap = new Map<string, TChatConversation[]>();
+
+    for (const conv of sorted) {
+      const extra = conv.extra as { customWorkspace?: boolean; workspace?: string } | undefined;
+      if (extra?.customWorkspace === true && extra.workspace && !isTemporaryWorkspace(extra.workspace)) {
+        if (!workspaceMap.has(extra.workspace)) {
+          workspaceMap.set(extra.workspace, []);
+        }
+        workspaceMap.get(extra.workspace)!.push(conv);
+      } else {
+        ungrouped.push(conv);
+      }
+    }
+
+    // Build workspace sub-groups sorted by latestActivityTime desc
+    const workspaceSubGroups: WorkspaceSubGroupData[] = [...workspaceMap.entries()]
+      .map(([wsPath, wsConvs]) => {
+        const sortedWsConvs = [...wsConvs].toSorted((a, b) => getActivityTime(b) - getActivityTime(a));
+        return {
+          workspacePath: wsPath,
+          displayName: getWorkspaceDisplayName(wsPath),
+          conversations: sortedWsConvs,
+          latestActivityTime: getActivityTime(sortedWsConvs[0]),
+        };
+      })
+      .toSorted((a, b) => b.latestActivityTime - a.latestActivityTime);
+
+    // Determine display mode
+    const customWsCount = workspaceMap.size;
+    let displayMode: 'flat' | 'subtitle' | 'grouped';
+    if (customWsCount === 0) {
+      displayMode = 'flat';
+    } else if (customWsCount === 1 && ungrouped.length === 0) {
+      displayMode = 'subtitle';
+    } else {
+      displayMode = 'grouped';
+    }
+
+    const ungroupedConversations = ungrouped;
+
+    result.push({
+      agentId,
+      agentName,
+      agentAvatar,
+      agentLogo,
+      isPermanent,
+      conversations: sorted,
+      latestActivityTime: getActivityTime(latest),
+      hasActiveConversation: hasActive,
+      ungroupedConversations,
+      workspaceSubGroups,
+      displayMode,
+      ...(displayMode === 'subtitle'
+        ? {
+            singleWorkspaceDisplayName: workspaceSubGroups[0].displayName,
+            singleWorkspacePath: workspaceSubGroups[0].workspacePath,
+          }
+        : {}),
+    });
+  }
+
+  // Sort groups by latest activity time (most recent first)
+  result.sort((a, b) => b.latestActivityTime - a.latestActivityTime);
+
+  return result;
+};
+
 export const buildGroupedHistory = (
   conversations: TChatConversation[],
-  t: (key: string) => string
+  t: (key: string) => string,
+  agentRegistry?: Map<string, AgentIdentity>,
+  generatingIds?: Set<string>
 ): GroupedHistoryResult => {
   // Filter out dispatch_child conversations from sidebar display.
   // Raw conversation list is preserved upstream for child count computation.
@@ -157,9 +275,16 @@ export const buildGroupedHistory = (
 
   const normalConversations = nonDispatchConversations.filter((conversation) => !isConversationPinned(conversation));
 
+  // Build agent-based DM groups from all non-dispatch, non-pinned conversations
+  const agentDMGroups = agentRegistry
+    ? groupConversationsByAgent(normalConversations, agentRegistry, generatingIds)
+    : [];
+
   return {
     pinnedConversations,
     dispatchConversations,
-    timelineSections: groupConversationsByTimelineAndWorkspace(normalConversations, t),
+    // Skip timeline calculation when agentRegistry is present — DM groups are rendered instead
+    timelineSections: agentRegistry ? [] : groupConversationsByTimelineAndWorkspace(normalConversations, t),
+    agentDMGroups,
   };
 };

@@ -2,7 +2,11 @@
   "sidebar": {
     "groupChatSection": "Grup Sohbetleri",
     "newGroupChat": "Yeni Grup Sohbeti",
-    "childTaskCount": "{{count}} görev"
+    "childTaskCount": "{{count}} görev",
+    "channelsSection": "Kanallar",
+    "directMessagesSection": "Direkt Mesajlar",
+    "newConversation": "Yeni Sohbet",
+    "savedAssistant": "Kayıtlı asistan"
   },
   "create": {
     "title": "Grup Sohbeti Oluştur",

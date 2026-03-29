@@ -2,7 +2,11 @@
   "sidebar": {
     "groupChatSection": "群聊",
     "newGroupChat": "新建群聊",
-    "childTaskCount": "{{count}} 个任务"
+    "childTaskCount": "{{count}} 个任务",
+    "channelsSection": "频道",
+    "directMessagesSection": "私信",
+    "newConversation": "新建对话",
+    "savedAssistant": "已保存的助手"
   },
   "create": {
     "title": "创建群聊",

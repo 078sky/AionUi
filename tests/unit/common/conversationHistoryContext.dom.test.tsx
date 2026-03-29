@@ -32,6 +32,10 @@ vi.mock('../../../src/renderer/pages/conversation/GroupedHistory/utils/groupingH
   buildGroupedHistory: vi.fn(),
 }));
 
+vi.mock('../../../src/renderer/hooks/useAgentRegistry', () => ({
+  useAgentRegistry: vi.fn(() => new Map()),
+}));
+
 const mockedUseConversationListSync = vi.mocked(useConversationListSync);
 const mockedBuildGroupedHistory = vi.mocked(buildGroupedHistory);
 

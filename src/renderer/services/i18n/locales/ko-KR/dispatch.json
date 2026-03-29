@@ -2,7 +2,11 @@
   "sidebar": {
     "groupChatSection": "그룹 채팅",
     "newGroupChat": "새 그룹 채팅",
-    "childTaskCount": "{{count}}개 작업"
+    "childTaskCount": "{{count}}개 작업",
+    "channelsSection": "채널",
+    "directMessagesSection": "다이렉트 메시지",
+    "newConversation": "새 대화",
+    "savedAssistant": "저장된 어시스턴트"
   },
   "create": {
     "title": "그룹 채팅 만들기",

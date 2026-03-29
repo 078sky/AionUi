@@ -67,13 +67,14 @@ describe('Dispatch Known Bugs Regression', () => {
     expect(filterBlock![1]).not.toMatch(/conv\.type\s*===\s*['"]dispatch['"]/);
   });
 
-  // REG-004: Group Chat sidebar section visible even with 0 conversations
+  // REG-004: Channels sidebar section visible even with 0 conversations (S1: renamed to Channels)
   it('REG-004: sidebar always renders Group Chat section header regardless of dispatch count', () => {
     const indexFile = path.join(SRC_ROOT, 'renderer/pages/conversation/GroupedHistory/index.tsx');
     const content = fs.readFileSync(indexFile, 'utf-8');
 
+    // S1 renamed the section key from groupChatSection to channelsSection.
     // The section header is rendered unconditionally (not gated by dispatchConversations.length > 0).
-    const sectionHeaderIndex = content.indexOf('dispatch.sidebar.groupChatSection');
+    const sectionHeaderIndex = content.indexOf('dispatch.sidebar.channelsSection');
     const conditionalRenderIndex = content.indexOf('dispatchConversations.length > 0');
 
     expect(sectionHeaderIndex).toBeGreaterThan(-1);
@@ -92,7 +93,7 @@ describe('Dispatch Known Bugs Regression', () => {
       content.indexOf('\n', conditionalRenderIndex + 50)
     );
     // The section header line should NOT be inside a dispatchConversations.length > 0 guard
-    const headerLine = sectionBlock.indexOf('dispatch.sidebar.groupChatSection');
+    const headerLine = sectionBlock.indexOf('dispatch.sidebar.channelsSection');
     const lengthGuardLine = sectionBlock.indexOf('dispatchConversations.length > 0');
     // Find the opening brace/paren of the length guard — the header must be before it
     expect(headerLine).toBeLessThan(lengthGuardLine);
@@ -100,7 +101,6 @@ describe('Dispatch Known Bugs Regression', () => {
     // Verify the section header and length check are at different JSX nesting levels
     // by checking they are in separate `{...&&` blocks
     const beforeHeader = content.slice(Math.max(0, sectionHeaderIndex - 200), sectionHeaderIndex);
-    const beforeLengthCheck = content.slice(Math.max(0, conditionalRenderIndex - 100), conditionalRenderIndex);
     // Header is inside `!collapsed && (` — NOT inside a `length > 0` guard
     expect(beforeHeader).toContain('!collapsed');
     expect(beforeHeader).not.toContain('dispatchConversations.length');

@@ -72,7 +72,7 @@ export const useConversations = () => {
     dispatchWorkspaceExpansionChange(expandedWorkspaces);
   }, [expandedWorkspaces]);
 
-  const { pinnedConversations, dispatchConversations, timelineSections } = groupedHistory;
+  const { pinnedConversations, dispatchConversations, timelineSections, agentDMGroups } = groupedHistory;
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -130,6 +130,7 @@ export const useConversations = () => {
     dispatchConversations,
     dispatchChildCounts,
     timelineSections,
+    agentDMGroups,
     handleToggleWorkspace,
   };
 };

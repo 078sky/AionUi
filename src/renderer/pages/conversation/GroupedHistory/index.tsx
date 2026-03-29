@@ -19,6 +19,7 @@ import { useParams } from 'react-router-dom';
 
 import WorkspaceCollapse from '../components/WorkspaceCollapse';
 import CreateGroupChatModal from '../dispatch/CreateGroupChatModal';
+import AgentDMGroup from './AgentDMGroup';
 import ConversationRow from './ConversationRow';
 import DragOverlayContent from './DragOverlayContent';
 import SortableConversationRow from './SortableConversationRow';
@@ -57,6 +58,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     dispatchConversations,
     dispatchChildCounts,
     timelineSections,
+    agentDMGroups,
     handleToggleWorkspace,
   } = useConversations();
 
@@ -186,7 +188,14 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     [onSessionClick]
   );
 
-  if (timelineSections.length === 0 && pinnedConversations.length === 0 && dispatchConversations.length === 0) {
+  const hasDMGroups = agentDMGroups.length > 0;
+
+  if (
+    timelineSections.length === 0 &&
+    pinnedConversations.length === 0 &&
+    dispatchConversations.length === 0 &&
+    !hasDMGroups
+  ) {
     return (
       <FlexFullContainer>
         <div className='flex-center'>
@@ -397,10 +406,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           </DragOverlay>
         </DndContext>
 
+        {/* Channels section (dispatch group chats) */}
         <div className='mb-8px min-w-0'>
           {!collapsed && (
             <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold flex items-center justify-between'>
-              <span>{t('dispatch.sidebar.groupChatSection')}</span>
+              <span>{t('dispatch.sidebar.channelsSection')}</span>
               <Tooltip content={t('dispatch.sidebar.newGroupChat')} position='top' mini>
                 <span
                   className='flex-center cursor-pointer hover:bg-fill-2 rd-4px p-2px transition-colors'
@@ -418,47 +428,71 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           )}
         </div>
 
-        {timelineSections.map((section) => (
-          <div key={section.timeline} className='mb-8px min-w-0'>
+        {/* Direct Messages section (agent-based DM groups) */}
+        {hasDMGroups && (
+          <div className='mb-8px min-w-0'>
             {!collapsed && (
               <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>
-                {section.timeline}
+                {t('dispatch.sidebar.directMessagesSection')}
               </div>
             )}
-
-            {section.items.map((item) => {
-              if (item.type === 'workspace' && item.workspaceGroup) {
-                const group = item.workspaceGroup;
-                return (
-                  <div key={group.workspace} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
-                    <WorkspaceCollapse
-                      expanded={expandedWorkspaces.includes(group.workspace)}
-                      onToggle={() => handleToggleWorkspace(group.workspace)}
-                      siderCollapsed={collapsed}
-                      header={
-                        <div className='flex items-center gap-8px text-14px min-w-0'>
-                          <span className='font-medium truncate flex-1 text-t-primary min-w-0'>
-                            {group.displayName}
-                          </span>
-                        </div>
-                      }
-                    >
-                      <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>
-                        {group.conversations.map((conversation) => renderConversation(conversation))}
-                      </div>
-                    </WorkspaceCollapse>
-                  </div>
-                );
-              }
-
-              if (item.type === 'conversation' && item.conversation) {
-                return renderConversation(item.conversation);
-              }
-
-              return null;
-            })}
+            <div className='min-w-0'>
+              {agentDMGroups.map((group) => (
+                <AgentDMGroup
+                  key={group.agentId}
+                  group={group}
+                  collapsed={collapsed}
+                  selectedConversationId={id}
+                  renderConversation={renderConversation}
+                />
+              ))}
+            </div>
           </div>
-        ))}
+        )}
+
+        {/* Timeline sections (workspace-grouped conversations — fallback view) */}
+        {!hasDMGroups &&
+          timelineSections.map((section) => (
+            <div key={section.timeline} className='mb-8px min-w-0'>
+              {!collapsed && (
+                <div className='chat-history__section px-12px py-8px text-13px text-t-secondary font-bold'>
+                  {section.timeline}
+                </div>
+              )}
+
+              {section.items.map((item) => {
+                if (item.type === 'workspace' && item.workspaceGroup) {
+                  const group = item.workspaceGroup;
+                  return (
+                    <div key={group.workspace} className={classNames('min-w-0', { 'px-8px': !collapsed })}>
+                      <WorkspaceCollapse
+                        expanded={expandedWorkspaces.includes(group.workspace)}
+                        onToggle={() => handleToggleWorkspace(group.workspace)}
+                        siderCollapsed={collapsed}
+                        header={
+                          <div className='flex items-center gap-8px text-14px min-w-0'>
+                            <span className='font-medium truncate flex-1 text-t-primary min-w-0'>
+                              {group.displayName}
+                            </span>
+                          </div>
+                        }
+                      >
+                        <div className={classNames('flex flex-col gap-2px min-w-0', { 'mt-4px': !collapsed })}>
+                          {group.conversations.map((conversation) => renderConversation(conversation))}
+                        </div>
+                      </WorkspaceCollapse>
+                    </div>
+                  );
+                }
+
+                if (item.type === 'conversation' && item.conversation) {
+                  return renderConversation(item.conversation);
+                }
+
+                return null;
+              })}
+            </div>
+          ))}
       </div>
     </FlexFullContainer>
   );
