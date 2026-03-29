@@ -455,6 +455,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           />
         </div>
 
+        {/* Section separator (collapsed mode) */}
+        {collapsed && dispatchConversations.length > 0 && generalAgentGroups.length > 0 && (
+          <div className='mx-8px mb-8px border-b border-b-solid border-b-[var(--color-border-2)]' />
+        )}
+
         {/* General Agents section (CLI agents like Gemini, Claude Code) */}
         <div className='mb-8px min-w-0'>
           {!collapsed && (
@@ -486,6 +491,11 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
             <div className='px-12px py-4px text-12px text-t-secondary'>{t('dispatch.sidebar.noDirectMessages')}</div>
           ) : null}
         </div>
+
+        {/* Section separator (collapsed mode) */}
+        {collapsed && generalAgentGroups.length > 0 && assistantGroups.length > 0 && (
+          <div className='mx-8px mb-8px border-b border-b-solid border-b-[var(--color-border-2)]' />
+        )}
 
         {/* Assistants section (preset/custom wrapped agents) */}
         {(assistantGroups.length > 0 || !collapsed) && (

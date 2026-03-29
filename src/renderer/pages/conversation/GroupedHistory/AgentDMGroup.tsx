@@ -6,12 +6,9 @@
 
 import type { TChatConversation } from '@/common/config/storage';
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
-import { Tooltip } from '@arco-design/web-react';
-import { Down, Right } from '@icon-park/react';
+import { Popover, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 
 import type { AgentDMGroupData } from './types';
 import WorkspaceSubGroup from './WorkspaceSubGroup';
@@ -29,11 +26,8 @@ const AgentDMGroup: React.FC<AgentDMGroupProps> = ({
   selectedConversationId,
   renderConversation,
 }) => {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const isActive = group.hasActiveConversation;
-  const latestConversation = group.conversations[0];
   const conversationCount = group.conversations.length;
 
   // Auto-expand if the selected conversation belongs to this group
@@ -46,14 +40,6 @@ const AgentDMGroup: React.FC<AgentDMGroupProps> = ({
   const handleToggle = useCallback(() => {
     setExpanded((prev) => !prev);
   }, []);
-
-  const handleAvatarClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      navigate(`/agent/${encodeURIComponent(group.agentId)}`);
-    },
-    [navigate, group.agentId]
-  );
 
   const renderAvatar = () => {
     if (group.agentAvatar) {
@@ -127,16 +113,31 @@ const AgentDMGroup: React.FC<AgentDMGroupProps> = ({
   };
 
   if (collapsed) {
-    // In collapsed sidebar, show just the avatar
-    return (
-      <div className='flex-center py-4px cursor-pointer' onClick={handleToggle}>
-        <span className='relative'>
-          {renderAvatar()}
-          {isActive && (
-            <span className='absolute -right-1px -bottom-1px w-6px h-6px rounded-full bg-green-500 border border-solid border-[var(--color-bg-1)]' />
-          )}
-        </span>
+    // In collapsed sidebar, show avatar with popover for conversation list
+    const popoverContent = (
+      <div className='min-w-180px max-w-260px'>
+        <div className='px-12px py-8px text-13px font-medium text-t-primary border-b border-b-solid border-b-[var(--color-border-2)]'>
+          {group.agentName}
+        </div>
+        <div className='py-4px max-h-240px overflow-y-auto'>
+          {group.conversations.map((conversation) => renderConversation(conversation))}
+        </div>
       </div>
+    );
+
+    return (
+      <Popover content={popoverContent} trigger='click' position='right' className='!p-0'>
+        <Tooltip content={group.agentName} position='right' mini>
+          <div className='flex-center w-36px h-36px mx-auto cursor-pointer rd-8px transition-colors hover:bg-fill-2'>
+            <span className='relative'>
+              {renderAvatar()}
+              {isActive && (
+                <span className='absolute -right-1px -bottom-1px w-6px h-6px rounded-full bg-green-500 border border-solid border-[var(--color-bg-1)]' />
+              )}
+            </span>
+          </div>
+        </Tooltip>
+      </Popover>
     );
   }
 
