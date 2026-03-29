@@ -96,6 +96,8 @@ export type ConversationRowProps = {
   menuVisible: boolean;
   /** Active child task count for dispatch conversations */
   childTaskCount?: number;
+  /** Force chat bubble icon instead of agent logo (for nested DM conversations) */
+  useBubbleIcon?: boolean;
   onToggleChecked: (conversation: TChatConversation) => void;
   onConversationClick: (conversation: TChatConversation) => void;
   onOpenMenu: (conversation: TChatConversation) => void;

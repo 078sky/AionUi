@@ -196,6 +196,15 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     [getConversationRowProps]
   );
 
+  // DM conversations nested under AgentDMGroup use bubble icon — agent identity is already shown in the parent row
+  const renderDMConversation = useCallback(
+    (conversation: TChatConversation) => {
+      const rowProps = getConversationRowProps(conversation);
+      return <ConversationRow key={conversation.id} {...rowProps} useBubbleIcon />;
+    },
+    [getConversationRowProps]
+  );
+
   // Collect all sortable IDs for the pinned section
   const pinnedIds = useMemo(() => pinnedConversations.map((c) => c.id), [pinnedConversations]);
 
@@ -469,7 +478,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                   group={group}
                   collapsed={collapsed}
                   selectedConversationId={id}
-                  renderConversation={renderConversation}
+                  renderConversation={renderDMConversation}
                 />
               ))}
             </div>
@@ -494,7 +503,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                     group={group}
                     collapsed={collapsed}
                     selectedConversationId={id}
-                    renderConversation={renderConversation}
+                    renderConversation={renderDMConversation}
                   />
                 ))}
               </div>

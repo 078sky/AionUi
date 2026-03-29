@@ -33,6 +33,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     selected,
     menuVisible,
     childTaskCount,
+    useBubbleIcon,
   } = props;
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -64,6 +65,11 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
 
     if (cronStatus !== 'none') {
       return <CronJobIndicator status={cronStatus} size={20} className='flex-shrink-0' />;
+    }
+
+    // When nested under an AgentDMGroup, use chat bubble — agent identity is already shown in the parent row
+    if (useBubbleIcon) {
+      return <MessageOne theme='outline' size='18' className='line-height-0 flex-shrink-0 text-t-secondary' />;
     }
 
     if (assistantInfo) {
