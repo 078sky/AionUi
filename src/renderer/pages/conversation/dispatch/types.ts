@@ -50,6 +50,73 @@ export type ChildTaskInfoVO = {
   modelName?: string;
   /** F-6.1: Working directory for this child */
   workspace?: string;
+  /** S3: Preset rules for hover config summary */
+  presetRules?: string;
+  /** S3: Whether this child uses a saved (permanent) assistant config */
+  isPermanent?: boolean;
+};
+
+/** Member info for the group chat member sidebar (S3) */
+export type GroupChatMemberVO = {
+  /** Child session ID */
+  sessionId: string;
+  /** Display name */
+  name: string;
+  /** Avatar emoji or URL */
+  avatar?: string;
+  /** Agent status */
+  status: 'pending' | 'running' | 'idle' | 'completed' | 'failed' | 'cancelled';
+  /** Whether this member is the leader (dispatcher) */
+  isLeader: boolean;
+  /** Whether this member is a permanent (saved) assistant vs temporary */
+  isPermanent: boolean;
+  /** Model name if non-default */
+  modelName?: string;
+  /** Working directory */
+  workspace?: string;
+  /** Preset rules (first 100 chars shown on hover) */
+  presetRules?: string;
+  /** Last activity timestamp */
+  lastActivityAt: number;
+  /** Creation timestamp */
+  createdAt: number;
+};
+
+/** Props for the GroupMemberSider component (S3) */
+export type GroupMemberSiderProps = {
+  /** List of members derived from GroupChatInfoVO.children */
+  members: GroupChatMemberVO[];
+  /** Dispatcher info (rendered as leader pseudo-member) */
+  dispatcher: {
+    name: string;
+    avatar?: string;
+  };
+  /** Leader agent ID (to match against saved agents) */
+  leaderAgentId?: string;
+  /** Currently selected member session ID (for highlight) */
+  selectedMemberId?: string | null;
+  /** Callback when a member card is clicked */
+  onSelectMember: (sessionId: string) => void;
+  /** Callback to open config edit modal for a member */
+  onEditConfig: (sessionId: string) => void;
+  /** Whether the sider is collapsed */
+  collapsed: boolean;
+  /** Toggle collapse callback */
+  onToggleCollapse: () => void;
+  /** Callback when dispatcher row is clicked (opens settings) */
+  onDispatcherClick: () => void;
+};
+
+/** Props for the MemberCard component (S3) */
+export type MemberCardProps = {
+  /** Member data */
+  member: GroupChatMemberVO;
+  /** Whether this card is currently selected/highlighted */
+  isSelected: boolean;
+  /** Click handler — selects member and opens TaskPanel */
+  onClick: () => void;
+  /** Double-click or edit-icon click — opens config edit modal */
+  onEditConfig: () => void;
 };
 
 /** Group chat info returned by get-group-chat-info */

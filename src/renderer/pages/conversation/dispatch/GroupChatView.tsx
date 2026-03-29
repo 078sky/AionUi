@@ -9,23 +9,24 @@ import { uuid } from '@/common/utils';
 import SendBox from '@/renderer/components/chat/sendbox';
 import { Alert, Button, Message, Tag } from '@arco-design/web-react';
 import { Close, Info, Setting } from '@icon-park/react';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { emitter } from '@/renderer/utils/emitter';
 
 import ChatLayout from '../components/ChatLayout';
 import GroupChatSettingsDrawer from './components/GroupChatSettingsDrawer';
+import GroupMemberSider, { MemberSiderToggleButton } from './components/GroupMemberSider';
 import SaveTeammateModal from './components/SaveTeammateModal';
 import TaskOverview from './components/TaskOverview';
 import GroupChatTimeline from './GroupChatTimeline';
 import TaskPanel from './TaskPanel';
 import { useGroupChatInfo } from './hooks/useGroupChatInfo';
 import { useGroupChatMessages } from './hooks/useGroupChatMessages';
-import type { GroupChatViewProps } from './types';
+import type { GroupChatMemberVO, GroupChatViewProps } from './types';
 
 const GroupChatView: React.FC<GroupChatViewProps> = ({ conversation }) => {
   const { t } = useTranslation();
-  const { messages, isLoading: messagesLoading } = useGroupChatMessages(conversation.id);
+  const { messages, isLoading: messagesLoading, appendUserMessage } = useGroupChatMessages(conversation.id);
   const {
     info,
     error: infoError,
@@ -40,6 +41,8 @@ const GroupChatView: React.FC<GroupChatViewProps> = ({ conversation }) => {
   const [selectedChildTaskId, setSelectedChildTaskId] = useState<string | null>(null);
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  // S3: Member sider state
+  const [memberSiderCollapsed, setMemberSiderCollapsed] = useState(false);
   const [saveModalTarget, setSaveModalTarget] = useState<{
     childSessionId: string;
     name?: string;
@@ -109,6 +112,31 @@ const GroupChatView: React.FC<GroupChatViewProps> = ({ conversation }) => {
     return map;
   }, [info?.children]);
 
+  // S3: Derive GroupChatMemberVO[] from children
+  const members = useMemo<GroupChatMemberVO[]>(() => {
+    if (!info?.children) return [];
+    return info.children.map((child) => ({
+      sessionId: child.sessionId,
+      name: child.teammateName || child.title,
+      avatar: child.teammateAvatar,
+      status: child.status,
+      isLeader: false,
+      isPermanent: child.isPermanent ?? false,
+      modelName: child.modelName,
+      workspace: child.workspace,
+      presetRules: child.presetRules,
+      lastActivityAt: child.lastActivityAt,
+      createdAt: child.createdAt,
+    }));
+  }, [info?.children]);
+
+  // S3: Auto-collapse member sider when TaskPanel opens on narrow viewports
+  useEffect(() => {
+    if (selectedChildTaskId && typeof window !== 'undefined' && window.innerWidth < 900) {
+      setMemberSiderCollapsed(true);
+    }
+  }, [selectedChildTaskId]);
+
   // F-3.1: Handle save teammate from ChildTaskCard
   const handleSaveTeammate = useCallback(
     (childTaskId: string) => {
@@ -138,47 +166,60 @@ const GroupChatView: React.FC<GroupChatViewProps> = ({ conversation }) => {
   const handleSend = useCallback(
     async (message: string) => {
       if (!message.trim()) return;
+      const msgId = uuid();
       setSending(true);
       setBannerDismissed(true);
+
+      // Optimistic update: show user message immediately
+      appendUserMessage(msgId, message);
 
       try {
         await ipcBridge.conversation.sendMessage.invoke({
           input: message,
-          msg_id: uuid(),
+          msg_id: msgId,
           conversation_id: conversation.id,
         });
         emitter.emit('chat.history.refresh');
-        // Refresh info to update pending count after send
         refreshInfo();
       } finally {
         setSending(false);
       }
     },
-    [conversation.id, refreshInfo]
+    [conversation.id, refreshInfo, appendUserMessage]
   );
 
   // F-4.3: Current settings for GroupChatSettingsDrawer
-  const currentSettings = useMemo(() => ({
-    groupChatName: extra.groupChatName,
-    leaderAgentId: info?.leaderAgentId,
-    seedMessages: info?.seedMessages,
-    maxConcurrentChildren: info?.maxConcurrentChildren,
-  }), [extra.groupChatName, info?.leaderAgentId, info?.seedMessages, info?.maxConcurrentChildren]);
+  const currentSettings = useMemo(
+    () => ({
+      groupChatName: extra.groupChatName,
+      leaderAgentId: info?.leaderAgentId,
+      seedMessages: info?.seedMessages,
+      maxConcurrentChildren: info?.maxConcurrentChildren,
+    }),
+    [extra.groupChatName, info?.leaderAgentId, info?.seedMessages, info?.maxConcurrentChildren]
+  );
 
-  const headerExtra = useMemo(() => (
-    <div className='flex items-center gap-8px'>
-      {activeChildCount > 0 && (
-        <Tag color='arcoblue'>{t('dispatch.header.taskCount', { count: activeChildCount })}</Tag>
-      )}
-      <Button
-        type='text'
-        size='small'
-        icon={<Setting theme='outline' size='16' />}
-        onClick={() => setSettingsVisible(true)}
-        aria-label={t('dispatch.settings.title')}
-      />
-    </div>
-  ), [activeChildCount, t]);
+  const headerExtra = useMemo(
+    () => (
+      <div className='flex items-center gap-8px'>
+        {activeChildCount > 0 && (
+          <Tag color='arcoblue'>{t('dispatch.header.taskCount', { count: activeChildCount })}</Tag>
+        )}
+        <MemberSiderToggleButton
+          collapsed={memberSiderCollapsed}
+          onToggle={() => setMemberSiderCollapsed((prev) => !prev)}
+        />
+        <Button
+          type='text'
+          size='small'
+          icon={<Setting theme='outline' size='16' />}
+          onClick={() => setSettingsVisible(true)}
+          aria-label={t('dispatch.settings.title')}
+        />
+      </div>
+    ),
+    [activeChildCount, memberSiderCollapsed, t]
+  );
 
   // CF-3: Error state for group chat info fetch failure
   if (infoError) {
@@ -275,6 +316,21 @@ const GroupChatView: React.FC<GroupChatViewProps> = ({ conversation }) => {
           </div>
         </div>
 
+        {/* Middle: Member Sider (S3) */}
+        <GroupMemberSider
+          members={members}
+          dispatcher={{ name: dispatcherName, avatar: dispatcherAvatar }}
+          leaderAgentId={info?.leaderAgentId}
+          selectedMemberId={selectedChildTaskId}
+          onSelectMember={handleViewDetail}
+          onEditConfig={(sessionId) => {
+            handleSaveTeammate(sessionId);
+          }}
+          collapsed={memberSiderCollapsed}
+          onToggleCollapse={() => setMemberSiderCollapsed((prev) => !prev)}
+          onDispatcherClick={() => setSettingsVisible(true)}
+        />
+
         {/* Right: TaskPanel (conditional) */}
         {selectedChildTaskId && selectedChildInfo && (
           <TaskPanel
@@ -308,7 +364,9 @@ const GroupChatView: React.FC<GroupChatViewProps> = ({ conversation }) => {
         onClose={() => setSettingsVisible(false)}
         conversationId={conversation.id}
         currentSettings={currentSettings}
-        onSaved={() => { refreshInfo(); }}
+        onSaved={() => {
+          refreshInfo();
+        }}
       />
     </ChatLayout>
   );

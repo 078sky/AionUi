@@ -164,6 +164,20 @@ export function initDispatchBridge(
       };
 
       // Get child conversations from the database
+      // S3: Build set of saved agent names for isPermanent check (one read per request)
+      const savedAgentNames = new Set<string>();
+      try {
+        const customAgents =
+          ((await ProcessConfig.get('acp.customAgents')) as Array<
+            Record<string, unknown> & { id: string; name: string }
+          >) || [];
+        for (const agent of customAgents) {
+          if (agent.name) savedAgentNames.add(agent.name);
+        }
+      } catch (_err) {
+        // Non-fatal: isPermanent defaults to false
+      }
+
       const allConversations = await conversationService.listAllConversations();
       // Filter by extra.dispatchSessionType, not conv.type — child conversations use type='gemini' (CR-004/BUG-001)
       const children = allConversations
@@ -179,6 +193,7 @@ export function initDispatchBridge(
             teammateConfig?: { name: string; avatar?: string };
             childModelName?: string;
             workspace?: string;
+            presetRules?: string;
           };
           return {
             sessionId: conv.id,
@@ -190,6 +205,9 @@ export function initDispatchBridge(
             lastActivityAt: conv.modifyTime,
             modelName: childExtra.childModelName,
             workspace: childExtra.workspace,
+            // S3: Enriched fields
+            presetRules: childExtra.presetRules,
+            isPermanent: childExtra.teammateConfig?.name ? savedAgentNames.has(childExtra.teammateConfig.name) : false,
           };
         });
 
@@ -308,7 +326,8 @@ export function initDispatchBridge(
     mainLog('[DispatchBridge:notifyParent]', 'received', params);
     try {
       const msgId = uuid();
-      const truncatedMsg = params.userMessage.length > 200 ? params.userMessage.slice(0, 200) + '...' : params.userMessage;
+      const truncatedMsg =
+        params.userMessage.length > 200 ? params.userMessage.slice(0, 200) + '...' : params.userMessage;
       const notificationContent = `User sent a direct message to "${params.childName}": "${truncatedMsg}"`;
 
       const notification = {

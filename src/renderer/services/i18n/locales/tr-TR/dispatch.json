@@ -133,5 +133,23 @@
     "completed": "{{count}} tamamlandı",
     "failed": "{{count}} başarısız",
     "pending": "{{count}} bekliyor"
+  },
+  "memberSider": {
+    "title": "Üyeler",
+    "collapse": "Üye panelini daralt",
+    "expand": "Üye panelini genişlet",
+    "empty": "Henüz üye yok",
+    "leader": "Lider",
+    "orchestrator": "Orkestratör",
+    "permanent": "Kaydedildi",
+    "temporary": "Geçici",
+    "configSummary": "Yapılandırma Özeti",
+    "model": "Model",
+    "workspace": "Çalışma Alanı",
+    "rules": "Kurallar",
+    "rulesNone": "Önceden ayarlanmış kural yok",
+    "defaultModel": "Varsayılan",
+    "editConfig": "Yapılandırmayı görüntüle",
+    "memberCount": "{{count}} üye"
   }
 }

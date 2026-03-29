@@ -133,5 +133,23 @@
     "completed": "{{count}} 個已完成",
     "failed": "{{count}} 個失敗",
     "pending": "{{count}} 個等待中"
+  },
+  "memberSider": {
+    "title": "成員",
+    "collapse": "收起成員面板",
+    "expand": "展開成員面板",
+    "empty": "暫無成員",
+    "leader": "組長",
+    "orchestrator": "調度器",
+    "permanent": "已儲存",
+    "temporary": "臨時",
+    "configSummary": "設定摘要",
+    "model": "模型",
+    "workspace": "工作區",
+    "rules": "規則",
+    "rulesNone": "無預設規則",
+    "defaultModel": "預設",
+    "editConfig": "檢視設定",
+    "memberCount": "{{count}} 位成員"
   }
 }

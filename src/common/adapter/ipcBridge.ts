@@ -936,6 +936,10 @@ export const dispatch = {
         modelName?: string;
         /** F-6.1: Working directory for this child */
         workspace?: string;
+        /** S3: Preset rules for hover config summary */
+        presetRules?: string;
+        /** S3: Whether this child uses a saved (permanent) assistant config */
+        isPermanent?: boolean;
       }>;
       pendingNotificationCount: number;
       /** F-4.3: Current settings for GroupChatSettingsDrawer */

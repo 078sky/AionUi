@@ -133,5 +133,23 @@
     "completed": "{{count}}개 완료",
     "failed": "{{count}}개 실패",
     "pending": "{{count}}개 대기 중"
+  },
+  "memberSider": {
+    "title": "멤버",
+    "collapse": "멤버 패널 접기",
+    "expand": "멤버 패널 펼치기",
+    "empty": "아직 멤버가 없습니다",
+    "leader": "리더",
+    "orchestrator": "오케스트레이터",
+    "permanent": "저장됨",
+    "temporary": "임시",
+    "configSummary": "설정 요약",
+    "model": "모델",
+    "workspace": "워크스페이스",
+    "rules": "규칙",
+    "rulesNone": "사전 설정 규칙 없음",
+    "defaultModel": "기본",
+    "editConfig": "설정 보기",
+    "memberCount": "{{count}}명의 멤버"
   }
 }

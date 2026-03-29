@@ -133,5 +133,23 @@
     "completed": "{{count}} completed",
     "failed": "{{count}} failed",
     "pending": "{{count}} pending"
+  },
+  "memberSider": {
+    "title": "Members",
+    "collapse": "Collapse member panel",
+    "expand": "Expand member panel",
+    "empty": "No members yet",
+    "leader": "Leader",
+    "orchestrator": "Orchestrator",
+    "permanent": "Saved",
+    "temporary": "Temporary",
+    "configSummary": "Config Summary",
+    "model": "Model",
+    "workspace": "Workspace",
+    "rules": "Rules",
+    "rulesNone": "No preset rules",
+    "defaultModel": "Default",
+    "editConfig": "View config",
+    "memberCount": "{{count}} members"
   }
 }

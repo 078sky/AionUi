@@ -37,8 +37,16 @@ export function useGroupChatInfo(conversationId: string, options?: { autoRefresh
               teammateAvatar: child.teammateAvatar,
               createdAt: child.createdAt,
               lastActivityAt: child.lastActivityAt,
+              modelName: child.modelName,
+              workspace: child.workspace,
+              // S3: Enriched fields
+              presetRules: child.presetRules,
+              isPermanent: child.isPermanent,
             })),
             pendingNotificationCount: response.data.pendingNotificationCount,
+            leaderAgentId: response.data.leaderAgentId,
+            seedMessages: response.data.seedMessages,
+            maxConcurrentChildren: response.data.maxConcurrentChildren,
           });
           setError(null);
         } else {

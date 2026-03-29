@@ -133,5 +133,23 @@
     "completed": "{{count}} 完了",
     "failed": "{{count}} 失敗",
     "pending": "{{count}} 保留中"
+  },
+  "memberSider": {
+    "title": "メンバー",
+    "collapse": "メンバーパネルを折りたたむ",
+    "expand": "メンバーパネルを展開する",
+    "empty": "まだメンバーがいません",
+    "leader": "リーダー",
+    "orchestrator": "オーケストレーター",
+    "permanent": "保存済み",
+    "temporary": "一時的",
+    "configSummary": "設定の概要",
+    "model": "モデル",
+    "workspace": "ワークスペース",
+    "rules": "ルール",
+    "rulesNone": "プリセットルールなし",
+    "defaultModel": "デフォルト",
+    "editConfig": "設定を表示",
+    "memberCount": "{{count}} 人のメンバー"
   }
 }

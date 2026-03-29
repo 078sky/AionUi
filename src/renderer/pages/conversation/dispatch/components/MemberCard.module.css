@@ -1,0 +1,135 @@
+/**
+ * @license
+ * Copyright 2025 AionUi (aionui.com)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+  position: relative;
+  user-select: none;
+}
+
+.card:hover {
+  background-color: rgba(var(--color-fill-2), 1);
+}
+
+.card:active {
+  background-color: rgba(var(--color-fill-3), 1);
+}
+
+.cardSelected {
+  background-color: rgba(var(--primary-1), 1);
+  box-shadow: inset 2px 0 0 0 rgb(var(--primary-6));
+}
+
+.cardSelected:hover {
+  background-color: rgba(var(--primary-2), 1);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  background-color: rgba(var(--color-fill-2), 1);
+  overflow: hidden;
+}
+
+.avatarDispatcher {
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  background-color: rgba(var(--primary-1), 1);
+}
+
+.badgesRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.leaderBadge {
+  display: inline-flex;
+  align-items: center;
+  color: rgb(var(--gold-6, 255, 190, 0));
+  flex-shrink: 0;
+}
+
+.permanentBadge {
+  display: inline-flex;
+  align-items: center;
+  color: rgb(var(--success-6));
+  flex-shrink: 0;
+}
+
+.temporaryBadge {
+  display: inline-flex;
+  align-items: center;
+  color: rgb(var(--color-text-3));
+  flex-shrink: 0;
+}
+
+.activityTime {
+  font-size: 11px;
+  color: rgb(var(--color-text-3));
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.editBtn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.card:hover .editBtn {
+  opacity: 1;
+}
+
+/* Popover content */
+.popoverContent {
+  min-width: 180px;
+  max-width: 260px;
+}
+
+.popoverRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.popoverRow:last-child {
+  margin-bottom: 0;
+}
+
+.popoverLabel {
+  font-size: 11px;
+  color: rgb(var(--color-text-3));
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.popoverValue {
+  font-size: 12px;
+  color: rgb(var(--color-text-1));
+  word-break: break-word;
+}
