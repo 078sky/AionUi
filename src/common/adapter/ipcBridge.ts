@@ -21,6 +21,7 @@ import type {
   AutoUpdateStatus,
 } from '../update/updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '../utils/protocolDetector';
+import type { SpeechToTextRequest, SpeechToTextResult } from '../types/speech';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -51,6 +52,10 @@ export const conversation = {
     IBridgeResponse<{ commands: SlashCommandItem[] }>,
     { conversation_id: string }
   >('conversation.get-slash-commands'),
+  askSideQuestion: bridge.buildProvider<
+    IBridgeResponse<ConversationSideQuestionResult>,
+    { conversation_id: string; question: string }
+  >('conversation.ask-side-question'),
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('conversation.confirm.message'), // 通用确认消息
   responseStream: bridge.buildEmitter<IResponseMessage>('chat.response.stream'), // 接收消息（统一接口）
   turnCompleted: bridge.buildEmitter<IConversationTurnCompletedEvent>('conversation.turn.completed'),
@@ -289,11 +294,22 @@ export const fs = {
   disableSkillsMarket: bridge.buildProvider<IBridgeResponse, void>('disable-skills-market'),
 };
 
+export const speechToText = {
+  transcribe: bridge.buildProvider<SpeechToTextResult, SpeechToTextRequest>('speech-to-text.transcribe'),
+};
+
 export const fileWatch = {
   startWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-start'), // 开始监听文件变化
   stopWatch: bridge.buildProvider<IBridgeResponse, { filePath: string }>('file-watch-stop'), // 停止监听文件变化
   stopAllWatches: bridge.buildProvider<IBridgeResponse, void>('file-watch-stop-all'), // 停止所有文件监听
   fileChanged: bridge.buildEmitter<{ filePath: string; eventType: string }>('file-changed'), // 文件变化事件
+};
+
+// 工作空间 Office 文件监听（检测新增的 .pptx/.docx/.xlsx）/ Workspace office file watcher (detects new .pptx/.docx/.xlsx)
+export const workspaceOfficeWatch = {
+  start: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-office-watch-start'),
+  stop: bridge.buildProvider<IBridgeResponse, { workspace: string }>('workspace-office-watch-stop'),
+  fileAdded: bridge.buildEmitter<{ filePath: string; workspace: string }>('workspace-office-file-added'),
 };
 
 // 文件流式更新（Agent 写入文件时实时推送内容）/ File streaming updates (real-time content push when agent writes)
@@ -305,6 +321,36 @@ export const fileStream = {
     relativePath: string; // 相对路径 / Relative path
     operation: 'write' | 'delete'; // 操作类型 / Operation type
   }>('file-stream-content-update'), // Agent 写入文件时的流式内容更新 / Streaming content update when agent writes file
+};
+
+// File snapshot providers for tracking file changes
+export const fileSnapshot = {
+  init: bridge.buildProvider<import('@/common/types/fileSnapshot').SnapshotInfo, { workspace: string }>(
+    'file-snapshot-init'
+  ),
+  compare: bridge.buildProvider<import('@/common/types/fileSnapshot').CompareResult, { workspace: string }>(
+    'file-snapshot-compare'
+  ),
+  getBaselineContent: bridge.buildProvider<string | null, { workspace: string; filePath: string }>(
+    'file-snapshot-baseline'
+  ),
+  getInfo: bridge.buildProvider<import('@/common/types/fileSnapshot').SnapshotInfo, { workspace: string }>(
+    'file-snapshot-info'
+  ),
+  dispose: bridge.buildProvider<void, { workspace: string }>('file-snapshot-dispose'),
+  stageFile: bridge.buildProvider<void, { workspace: string; filePath: string }>('file-snapshot-stage-file'),
+  stageAll: bridge.buildProvider<void, { workspace: string }>('file-snapshot-stage-all'),
+  unstageFile: bridge.buildProvider<void, { workspace: string; filePath: string }>('file-snapshot-unstage-file'),
+  unstageAll: bridge.buildProvider<void, { workspace: string }>('file-snapshot-unstage-all'),
+  discardFile: bridge.buildProvider<
+    void,
+    { workspace: string; filePath: string; operation: import('@/common/types/fileSnapshot').FileChangeOperation }
+  >('file-snapshot-discard-file'),
+  resetFile: bridge.buildProvider<
+    void,
+    { workspace: string; filePath: string; operation: import('@/common/types/fileSnapshot').FileChangeOperation }
+  >('file-snapshot-reset-file'),
+  getBranches: bridge.buildProvider<string[], { workspace: string }>('file-snapshot-get-branches'),
 };
 
 export const googleAuth = {
@@ -390,6 +436,10 @@ export const acpConversation = {
   >('acp.get-available-agents'),
   checkEnv: bridge.buildProvider<{ env: Record<string, string> }, void>('acp.check.env'),
   refreshCustomAgents: bridge.buildProvider<IBridgeResponse, void>('acp.refresh-custom-agents'),
+  testCustomAgent: bridge.buildProvider<
+    IBridgeResponse<{ step: 'cli_check' | 'acp_initialize'; error?: string }>,
+    { command: string; acpArgs?: string[]; env?: Record<string, string> }
+  >('acp.test-custom-agent'),
   checkAgentHealth: bridge.buildProvider<
     IBridgeResponse<{ available: boolean; latency?: number; error?: string }>,
     { backend: AcpBackend }
@@ -527,7 +577,7 @@ export const remoteAgent = {
   delete: bridge.buildProvider<boolean, { id: string }>('remote-agent.delete'),
   testConnection: bridge.buildProvider<
     { success: boolean; error?: string },
-    { url: string; authType: string; authToken?: string }
+    { url: string; authType: string; authToken?: string; allowInsecure?: boolean }
   >('remote-agent.test-connection'),
   handshake: bridge.buildProvider<{ status: 'ok' | 'pending_approval' | 'error'; error?: string }, { id: string }>(
     'remote-agent.handshake'
@@ -587,6 +637,24 @@ export const pptPreview = {
   stop: bridge.buildProvider<void, { filePath: string }>('ppt-preview.stop'),
   status: bridge.buildEmitter<{ state: 'starting' | 'installing' | 'ready' | 'error'; message?: string }>(
     'ppt-preview.status'
+  ),
+};
+
+// Word preview via officecli watch
+export const wordPreview = {
+  start: bridge.buildProvider<{ url: string }, { filePath: string }>('word-preview.start'),
+  stop: bridge.buildProvider<void, { filePath: string }>('word-preview.stop'),
+  status: bridge.buildEmitter<{ state: 'starting' | 'installing' | 'ready' | 'error'; message?: string }>(
+    'word-preview.status'
+  ),
+};
+
+// Excel preview via officecli watch
+export const excelPreview = {
+  start: bridge.buildProvider<{ url: string }, { filePath: string }>('excel-preview.start'),
+  stop: bridge.buildProvider<void, { filePath: string }>('excel-preview.stop'),
+  status: bridge.buildEmitter<{ state: 'starting' | 'installing' | 'ready' | 'error'; message?: string }>(
+    'excel-preview.status'
   ),
 };
 
@@ -895,6 +963,26 @@ export interface IConversationListChangedEvent {
   action: 'created' | 'updated' | 'deleted';
   source?: string;
 }
+
+export type ConversationSideQuestionResult =
+  | {
+      status: 'ok';
+      answer: string;
+    }
+  | {
+      status: 'noAnswer';
+    }
+  | {
+      status: 'unsupported';
+    }
+  | {
+      status: 'invalid';
+      reason: 'emptyQuestion';
+    }
+  | {
+      status: 'toolsRequired';
+    };
+
 interface IBridgeResponse<D = {}> {
   success: boolean;
   data?: D;

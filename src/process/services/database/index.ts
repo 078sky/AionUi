@@ -642,8 +642,17 @@ export class AionUIDatabase {
         )
         .all(finalUserId, pageSize, page * pageSize) as IConversationRow[];
 
+      const data: TChatConversation[] = [];
+      for (const row of rows) {
+        try {
+          data.push(rowToConversation(row));
+        } catch (e) {
+          console.warn('[Database] Skipping conversation row with unknown type:', row.type, row.id);
+        }
+      }
+
       return {
-        data: rows.map(rowToConversation),
+        data,
         total: countResult.count,
         page,
         pageSize,
@@ -1425,6 +1434,7 @@ export class AionUIDatabase {
       device_public_key: string | null;
       device_private_key: string | null;
       device_token: string | null;
+      allow_insecure: number | null;
       status: string | null;
       last_connected_at: number | null;
       created_at: number;
@@ -1438,6 +1448,7 @@ export class AionUIDatabase {
       url: row.url,
       authType: row.auth_type as RemoteAgentConfig['authType'],
       authToken: row.auth_token ? decryptString(row.auth_token) : undefined,
+      allowInsecure: !!row.allow_insecure,
       avatar: row.avatar ?? undefined,
       description: row.description ?? undefined,
       deviceId: row.device_id ?? undefined,
@@ -1466,6 +1477,7 @@ export class AionUIDatabase {
           device_public_key: string | null;
           device_private_key: string | null;
           device_token: string | null;
+          allow_insecure: number | null;
           status: string | null;
           last_connected_at: number | null;
           created_at: number;
@@ -1482,6 +1494,7 @@ export class AionUIDatabase {
       url: row.url,
       authType: row.auth_type as RemoteAgentConfig['authType'],
       authToken: row.auth_token ? decryptString(row.auth_token) : undefined,
+      allowInsecure: !!row.allow_insecure,
       avatar: row.avatar ?? undefined,
       description: row.description ?? undefined,
       deviceId: row.device_id ?? undefined,
@@ -1499,8 +1512,8 @@ export class AionUIDatabase {
     try {
       this.db
         .prepare(
-          `INSERT INTO remote_agents (id, name, protocol, url, auth_type, auth_token, avatar, description, device_id, device_public_key, device_private_key, device_token, status, last_connected_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO remote_agents (id, name, protocol, url, auth_type, auth_token, allow_insecure, avatar, description, device_id, device_public_key, device_private_key, device_token, status, last_connected_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           config.id,
@@ -1509,6 +1522,7 @@ export class AionUIDatabase {
           config.url,
           config.authType,
           config.authToken ? encryptString(config.authToken) : null,
+          config.allowInsecure ? 1 : 0,
           config.avatar ?? null,
           config.description ?? null,
           config.deviceId ?? null,
@@ -1540,6 +1554,7 @@ export class AionUIDatabase {
       device_public_key: string;
       device_private_key: string;
       device_token: string;
+      allow_insecure: number;
       status: string;
       last_connected_at: number;
     }>

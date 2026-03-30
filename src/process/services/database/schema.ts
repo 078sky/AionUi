@@ -12,6 +12,10 @@ import type { ISqliteDriver } from './drivers/ISqliteDriver';
 export function initSchema(db: ISqliteDriver): void {
   // Enable foreign keys
   db.pragma('foreign_keys = ON');
+  // Wait up to 5 seconds when the database is locked by another connection
+  // instead of failing immediately (prevents "database is locked" errors
+  // when multiple processes or startup tasks access the database concurrently)
+  db.pragma('busy_timeout = 5000');
   // Enable Write-Ahead Logging for better performance
   try {
     db.pragma('journal_mode = WAL');
@@ -99,4 +103,4 @@ export function setDatabaseVersion(db: ISqliteDriver, version: number): void {
  * Current database schema version
  * Update this when adding new migrations in migrations.ts
  */
-export const CURRENT_DB_VERSION = 17;
+export const CURRENT_DB_VERSION = 18;
