@@ -9,6 +9,7 @@ import type { IMessageSearchItem } from '@/common/types/database';
 import AionModal from '@/renderer/components/base/AionModal';
 import { usePresetAssistantInfo } from '@/renderer/hooks/agent/usePresetAssistantInfo';
 import { useOptionalConversationTabs } from '@/renderer/pages/conversation/hooks/ConversationTabsContext';
+import { useCronJobsMap } from '@/renderer/pages/cron';
 import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/ui/focus';
 import { Empty, Spin, Typography } from '@arco-design/web-react';
@@ -147,6 +148,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const conversationTabs = useOptionalConversationTabs();
+  const { markAsRead } = useCronJobsMap();
   const [visible, setVisible] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
@@ -279,6 +281,8 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
       const customWorkspace = item.conversation.extra?.customWorkspace;
       const newWorkspace = item.conversation.extra?.workspace;
 
+      markAsRead(item.conversation.id);
+
       if (conversationTabs) {
         const { closeAllTabs, openTab, activeTab } = conversationTabs;
         if (!customWorkspace) {
@@ -302,7 +306,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
       );
       onSessionClick?.();
     },
-    [conversationTabs, navigate, onConversationSelect, onSessionClick, resetSearchState]
+    [conversationTabs, markAsRead, navigate, onConversationSelect, onSessionClick, resetSearchState]
   );
 
   const handleClose = useCallback(() => {
@@ -444,8 +448,8 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
   const hasSearchResults = items.length > 0;
   const useCompactHeight = !debouncedKeyword || (!loading && !hasSearchResults);
   const triggerClassName = fullWidth
-    ? 'conversation-search-trigger-full h-36px w-full p-0 bg-transparent border-none outline-none flex items-center justify-start gap-8px px-10px rd-0.5rem cursor-pointer shrink-0 transition-all group text-t-primary focus:outline-none focus-visible:outline-none'
-    : 'h-36px w-36px p-0 bg-transparent rd-0.5rem flex items-center justify-center cursor-pointer shrink-0 transition-all border border-solid border-transparent';
+    ? 'conversation-search-trigger-full h-40px w-full p-0 bg-transparent border-none outline-none flex items-center justify-start gap-10px px-12px rd-0.5rem cursor-pointer shrink-0 transition-all group text-t-primary focus:outline-none focus-visible:outline-none'
+    : 'h-40px w-40px p-0 bg-transparent rd-0.5rem flex items-center justify-center cursor-pointer shrink-0 transition-all border border-solid border-transparent';
 
   return (
     <>
@@ -466,27 +470,13 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
         disabled={disabled}
       >
         {fullWidth ? (
-          <span className='w-28px h-28px flex items-center justify-center shrink-0'>
-            <Search
-              theme='outline'
-              size='18'
-              fill='currentColor'
-              className='block leading-none'
-              style={{ lineHeight: 0 }}
-            />
+          <span className='w-34px h-34px flex items-center justify-center shrink-0'>
+            <Search theme='outline' size='20' fill='currentColor' className='block leading-none' style={{ lineHeight: 0 }} />
           </span>
         ) : (
-          <Search
-            theme='outline'
-            size='20'
-            fill='currentColor'
-            className='block leading-none shrink-0'
-            style={{ lineHeight: 0 }}
-          />
+          <Search theme='outline' size='20' className='block leading-none shrink-0' style={{ lineHeight: 0 }} />
         )}
-        {fullWidth && label ? (
-          <span className='collapsed-hidden text-t-primary text-14px font-medium leading-22px'>{label}</span>
-        ) : null}
+        {fullWidth && label ? <span className='collapsed-hidden text-t-primary text-16px font-medium leading-24px'>{label}</span> : null}
       </button>
 
       <AionModal
