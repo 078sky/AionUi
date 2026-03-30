@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
-import type { TMessage, IMessageText } from '@/common/chat/chatLib';
+import type { TMessage, IMessageText, IMessageToolGroup } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
 import type { TProviderWithModel, TChatConversation } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
@@ -59,6 +59,8 @@ type DispatchAgentData = {
   dispatcherName?: string;
   /** Admin worker engine type. Defaults to 'gemini'. */
   adminAgentType?: AgentType;
+  /** Gap-3: When true, dispatcher raw text is internal; only send_user_message reaches UI. */
+  channelIsolation?: boolean;
 };
 
 /**
@@ -92,6 +94,8 @@ export class DispatchAgentManager extends BaseAgentManager<
   private resourceGuard!: DispatchResourceGuard;
   private readonly mcpServer: DispatchMcpServer;
   private readonly temporaryTeammates = new Map<string, TemporaryTeammateConfig>();
+  /** Gap-3: Channel isolation — when true, raw text is suppressed; only send_user_message reaches UI */
+  private readonly channelIsolation: boolean;
 
   /** Unix domain socket for MCP tool call IPC (works with all admin agent types) */
   private ipcSocket: DispatchIpcSocketServer | null = null;
@@ -113,8 +117,11 @@ export class DispatchAgentManager extends BaseAgentManager<
   /** F-5.2: Guard against concurrent resume of the same child */
   private readonly resumingChildren = new Map<string, Promise<void>>();
 
-  /** Track children with active polling to prevent duplicate pollers */
+  /** Track children with active completion listeners to prevent duplicates */
   private readonly activePollers = new Set<string>();
+
+  /** Unsubscribe handle for the shared responseStream listener */
+  private responseStreamUnsubscribe: (() => void) | null = null;
 
   /** Reference to the shared WorkerTaskManager (set after construction) */
   private taskManager: IWorkerTaskManager | undefined;
@@ -136,6 +143,7 @@ export class DispatchAgentManager extends BaseAgentManager<
     this.conversation_id = data.conversation_id;
     this.model = data.model;
     this.dispatcherName = data.dispatcherName ?? 'Dispatcher';
+    this.channelIsolation = data.channelIsolation ?? false;
     this.initData = data;
 
     this.tracker = new DispatchSessionTracker();
@@ -154,6 +162,8 @@ export class DispatchAgentManager extends BaseAgentManager<
       askUser: this.handleAskUser.bind(this),
       // G4.7: Cross-session memory
       saveMemory: this.handleSaveMemory.bind(this),
+      // Gap-3: Channel isolation
+      sendUserMessage: this.handleSendUserMessage.bind(this),
     };
     this.mcpServer = new DispatchMcpServer(toolHandler);
 
@@ -170,6 +180,29 @@ export class DispatchAgentManager extends BaseAgentManager<
     this.conversationRepo = conversationRepo;
     this.notifier = new DispatchNotifier(taskManager, this.tracker, conversationRepo);
     this.resourceGuard = new DispatchResourceGuard(taskManager, this.tracker);
+
+    // Subscribe to response stream for event-driven child completion + permission monitoring
+    this.responseStreamUnsubscribe = ipcBridge.conversation.responseStream.on((msg) => {
+      if (!this.tracker.isDispatchChild(msg.conversation_id)) return;
+
+      // Gap-2: Event-driven child completion detection
+      if (msg.type === 'finish') {
+        this.handleChildFinished(msg.conversation_id, 'completed');
+      }
+
+      // Gap-4: Monitor child tool calls for permission violations
+      if (msg.type === 'tool_group') {
+        const tools = msg.data as Array<{ name?: string; args?: Record<string, unknown> }> | undefined;
+        if (Array.isArray(tools)) {
+          for (const tool of tools) {
+            if (tool.name) {
+              this.handleChildToolCallReport(msg.conversation_id, tool.name, tool.args ?? {});
+            }
+          }
+        }
+      }
+    });
+
     this.bootstrap = this.createBootstrap();
     this.bootstrap.catch((err) => {
       mainError('[DispatchAgentManager]', 'Bootstrap failed', err);
@@ -262,6 +295,7 @@ export class DispatchAgentManager extends BaseAgentManager<
       projectContext: projectContextSummary,
       teamConfig: teamConfigPrompt,
       memory: memoryContent,
+      channelIsolation: this.channelIsolation,
     });
     const combinedRules = systemPrompt;
 
@@ -403,6 +437,11 @@ export class DispatchAgentManager extends BaseAgentManager<
       // NOTE: Do NOT persist messages here — AcpAgentManager already handles
       // its own DB persistence via addOrUpdateMessage() in its response pipeline.
 
+      // Gap-3: When channel isolation is on, suppress raw text output from dispatcher.
+      if (this.channelIsolation && msg.type === 'content') {
+        return;
+      }
+
       // Re-emit on the dispatch stream so GroupChatView picks it up
       ipcBridge.geminiConversation.responseStream.emit(msg);
     });
@@ -521,6 +560,12 @@ export class DispatchAgentManager extends BaseAgentManager<
         if (tMessage) {
           addOrUpdateMessage(this.conversation_id, tMessage);
         }
+      }
+
+      // Gap-3: When channel isolation is on, suppress raw text output from dispatcher.
+      // Only send_user_message tool calls should reach the UI.
+      if (initData.channelIsolation && responseMsg.type === 'content') {
+        return;
       }
 
       // Emit to group chat stream
@@ -731,88 +776,82 @@ export class DispatchAgentManager extends BaseAgentManager<
   }
 
   /**
-   * Listen for a child agent's completion event.
-   * F-5.6: Adaptive polling — 500ms for first 30s, 2s for 30s-5min, 5s beyond 5min.
-   * Uses setTimeout chain instead of setInterval for adaptive timing.
-   * Maximum lifetime: 30 minutes.
+   * Handle child agent completion. Deduplicates via activePollers set.
+   * Updates tracker, notifies parent, emits UI event, and signals WorkerTaskManager.
+   */
+  private handleChildFinished(childId: string, result: 'completed' | 'failed'): void {
+    if (!this.activePollers.has(childId)) return;
+    this.activePollers.delete(childId);
+
+    const status = result === 'completed' ? 'idle' : 'failed';
+    this.tracker.updateChildStatus(childId, status);
+    void this.notifier.handleChildCompletion(childId, result);
+
+    // Signal WorkerTaskManager so waitForTaskIdle() resolves
+    this.taskManager?.notifyTaskCompleted?.(childId, result);
+
+    this.emitGroupChatEvent({
+      sourceSessionId: childId,
+      sourceRole: 'child',
+      displayName: this.tracker.getChildInfo(childId)?.teammateName ?? 'Agent',
+      content: '',
+      messageType: result === 'completed' ? 'task_completed' : 'task_failed',
+      timestamp: Date.now(),
+      childTaskId: childId,
+    });
+  }
+
+  /**
+   * Listen for a child agent's completion.
+   * Primary: event-driven via responseStream 'finish' events (subscribed in setDependencies).
+   * Fallback: safety poll every 30s to catch missed events. Max lifetime: 30 minutes.
    */
   private listenForChildCompletion(childId: string, _childTask: IAgentManager): void {
-    // Prevent duplicate pollers for the same child
     if (this.activePollers.has(childId)) return;
     this.activePollers.add(childId);
 
     const startTime = Date.now();
-    const maxLifetimeMs = 30 * 60 * 1000; // 30 minutes
-
-    const getPollingInterval = (elapsedMs: number): number => {
-      if (elapsedMs < 30_000) return 500;
-      if (elapsedMs < 5 * 60_000) return 2000;
-      return 5000;
-    };
-
-    const stopPolling = (): void => {
-      this.activePollers.delete(childId);
-    };
+    const maxLifetimeMs = 30 * 60 * 1000;
+    const safetyPollIntervalMs = 30_000;
 
     const poll = (): void => {
-      const elapsedMs = Date.now() - startTime;
+      // Already handled by event-driven path
+      if (!this.activePollers.has(childId)) return;
 
-      // Safety: stop after max lifetime, mark child as timed out
+      const elapsedMs = Date.now() - startTime;
       if (elapsedMs >= maxLifetimeMs) {
-        mainWarn('[DispatchAgentManager]', `Polling max lifetime reached for child: ${childId}, marking idle`);
-        this.tracker.updateChildStatus(childId, 'idle');
-        stopPolling();
+        mainWarn('[DispatchAgentManager]', `Max lifetime reached for child: ${childId}, marking idle`);
+        this.handleChildFinished(childId, 'completed');
         return;
       }
 
-      // F-2.5: If child was cancelled, stop polling
+      // Check if child was cancelled externally
       const childInfo = this.tracker.getChildInfo(childId);
       if (childInfo?.status === 'cancelled') {
-        stopPolling();
+        this.activePollers.delete(childId);
         return;
       }
 
       const task = this.taskManager?.getTask(childId);
       if (!task) {
-        stopPolling();
+        this.activePollers.delete(childId);
         return;
       }
+
       if (task.status === 'finished' || task.status === 'idle') {
-        this.tracker.updateChildStatus(childId, 'idle');
-        void this.notifier.handleChildCompletion(childId, 'completed');
-        this.emitGroupChatEvent({
-          sourceSessionId: childId,
-          sourceRole: 'child',
-          displayName: this.tracker.getChildInfo(childId)?.teammateName ?? 'Agent',
-          content: '',
-          messageType: 'task_completed',
-          timestamp: Date.now(),
-          childTaskId: childId,
-        });
-        stopPolling();
+        this.handleChildFinished(childId, 'completed');
         return;
       } else if (task.status === 'failed') {
-        this.tracker.updateChildStatus(childId, 'failed');
-        void this.notifier.handleChildCompletion(childId, 'failed');
-        this.emitGroupChatEvent({
-          sourceSessionId: childId,
-          sourceRole: 'child',
-          displayName: this.tracker.getChildInfo(childId)?.teammateName ?? 'Agent',
-          content: '',
-          messageType: 'task_failed',
-          timestamp: Date.now(),
-          childTaskId: childId,
-        });
-        stopPolling();
+        this.handleChildFinished(childId, 'failed');
         return;
       }
 
-      // Schedule next poll with adaptive interval
-      setTimeout(poll, getPollingInterval(elapsedMs));
+      // Schedule next safety poll
+      setTimeout(poll, safetyPollIntervalMs);
     };
 
-    // Start first poll
-    setTimeout(poll, getPollingInterval(0));
+    // First safety poll after 30s (event-driven should fire much sooner)
+    setTimeout(poll, safetyPollIntervalMs);
   }
 
   /**
@@ -1183,6 +1222,21 @@ export class DispatchAgentManager extends BaseAgentManager<
    * G4.7: Handle save_memory from the admin agent.
    * Persists a memory entry to the workspace memory directory.
    */
+  /**
+   * Gap-3: Handle send_user_message tool — emit message to group chat UI.
+   */
+  private async handleSendUserMessage(message: string): Promise<string> {
+    this.emitGroupChatEvent({
+      sourceSessionId: this.conversation_id,
+      sourceRole: 'dispatcher',
+      displayName: this.dispatcherName,
+      content: message,
+      messageType: 'text',
+      timestamp: Date.now(),
+    });
+    return 'Message sent to user.';
+  }
+
   private async handleSaveMemory(entry: { type: string; title: string; content: string }): Promise<string> {
     const memoryEntry: MemoryEntry = {
       id: uuid(8),
@@ -1215,18 +1269,28 @@ export class DispatchAgentManager extends BaseAgentManager<
     }
 
     if (result.requiresApproval) {
+      const description = `${toolName}(${JSON.stringify(args).slice(0, 200)})`;
       mainWarn(
         '[DispatchAgentManager]',
         `Dangerous tool call: child=${childId} tool=${toolName} -- requires user approval`
       );
+      // Notify UI
       this.emitGroupChatEvent({
         sourceSessionId: childId,
         sourceRole: 'child',
         displayName: childInfo.teammateName ?? 'Agent',
-        content: `Dangerous operation detected: ${toolName}(${JSON.stringify(args).slice(0, 200)})`,
+        content: `Dangerous operation detected: ${description}`,
         messageType: 'system',
         timestamp: Date.now(),
         childTaskId: childId,
+      });
+      // Inject system notification to parent dispatcher so it can inform the user
+      void this.sendMessage({
+        input: `[SYSTEM] Child "${childInfo.title}" (${childId}) is executing a dangerous operation: ${description}. Please inform the user.`,
+        msg_id: uuid(),
+        isSystemNotification: true,
+      }).catch((err: unknown) => {
+        mainWarn('[DispatchAgentManager]', 'Failed to inject permission notification', err);
       });
     }
   }
@@ -1234,13 +1298,23 @@ export class DispatchAgentManager extends BaseAgentManager<
   // ==================== Helper Methods ====================
 
   private formatTranscript(messages: TMessage[]): string {
-    return messages
-      .filter((m): m is IMessageText => m.type === 'text')
-      .map((m) => {
-        const role = m.position === 'right' ? '[user]' : '[assistant]';
-        return `${role} ${m.content?.content ?? ''}`;
-      })
-      .join('\n');
+    const lines: string[] = [];
+    for (const m of messages) {
+      if (m.type === 'text') {
+        const msg = m as IMessageText;
+        const role = msg.position === 'right' ? '[user]' : '[assistant]';
+        lines.push(`${role} ${msg.content?.content ?? ''}`);
+      } else if (m.type === 'tool_group') {
+        const group = m as IMessageToolGroup;
+        if (!Array.isArray(group.content)) continue;
+        const toolSummaries = group.content.map((tool) => {
+          const status = tool.status === 'Success' ? 'success' : tool.status.toLowerCase();
+          return `${tool.name} (${status})`;
+        });
+        lines.push(`[assistant] (called ${toolSummaries.join(', ')})`);
+      }
+    }
+    return lines.join('\n');
   }
 
   private formatTimeAgo(timestamp: number): string {
@@ -1324,6 +1398,7 @@ export class DispatchAgentManager extends BaseAgentManager<
       this.innerAcpManager.kill();
     }
     this.cleanupAcpSubscription();
+    this.cleanupResponseStreamSubscription();
     super.kill();
   }
 
@@ -1344,6 +1419,13 @@ export class DispatchAgentManager extends BaseAgentManager<
     }
   }
 
+  private cleanupResponseStreamSubscription(): void {
+    if (this.responseStreamUnsubscribe) {
+      this.responseStreamUnsubscribe();
+      this.responseStreamUnsubscribe = null;
+    }
+  }
+
   /**
    * Clean up all resources when the dispatcher is disposed.
    */
@@ -1354,6 +1436,7 @@ export class DispatchAgentManager extends BaseAgentManager<
       this.ipcSocket = null;
     }
     this.cleanupAcpSubscription();
+    this.cleanupResponseStreamSubscription();
     if (this.resourceGuard) {
       this.resourceGuard.cascadeKill(this.conversation_id, this.workspace);
     } else {

@@ -32,6 +32,8 @@ export function buildDispatchSystemPrompt(
     teamConfig?: string;
     /** G4.7: Cross-session memory content */
     memory?: string;
+    /** Gap-3: Channel isolation mode */
+    channelIsolation?: boolean;
   }
 ): string {
   const maxChildren = options?.maxConcurrentChildren ?? DEFAULT_CONCURRENT_CHILDREN;
@@ -49,6 +51,7 @@ Think of yourself as a tech lead who coordinates a remote team. The user message
 You have access to tools that let you manage task sessions. Use them:
 
 - **New task** → call \`start_task\` with a clear prompt and short title (3-6 words). Each task runs as an independent agent session.
+- **Code task** → call \`start_code_task\` for tasks that write or modify code. Automatically uses git worktree isolation to prevent conflicts.
 - **Follow-up on existing task** → call \`send_message\` with the session_id. Don't start a new task for what's really a continuation.
 - **Check progress or get results** → call \`read_transcript\` with the session_id. It blocks until the task finishes (up to a timeout), so you get the result in one call.
 - **See all tasks** → call \`list_sessions\`.
@@ -58,8 +61,18 @@ You have access to tools that let you manage task sessions. Use them:
 If the user's message is a simple question you can answer from context (e.g. "how many tasks are running?"), answer directly. For everything else — writing, coding, research, analysis — delegate.
 
 ## Communication
+${
+    options?.channelIsolation
+      ? `
+IMPORTANT: Your plain text replies are INTERNAL reasoning and are NOT shown to the user.
+The ONLY way to communicate with the user is the \`send_user_message\` tool.
+Every user-facing message — status updates, results, questions — must go through \`send_user_message\`.
+If you forget to call \`send_user_message\`, the user sees nothing.`
+      : `
+Your messages are displayed directly in the group chat.`
+  }
 
-Your messages are displayed directly in the group chat. Keep them conversational and concise:
+Keep communication conversational and concise:
 
 - When starting tasks, briefly say what you're doing: "I'll spin up two tasks — one for the API design and one for the test plan."
 - When tasks finish, distill the results into what's actionable. Don't dump raw transcripts.

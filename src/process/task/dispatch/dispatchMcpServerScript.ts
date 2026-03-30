@@ -75,9 +75,31 @@ const TOOL_SCHEMAS = [
       required: ['prompt', 'title'],
     },
   },
+  // Gap-5: start_code_task
+  {
+    name: 'start_code_task',
+    description:
+      'Start a code task with automatic git worktree isolation. ' +
+      'Use instead of start_task when writing or modifying code.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        prompt: { type: 'string', description: 'Instructions for the child agent' },
+        title: { type: 'string', description: 'Short label (3-6 words)' },
+        workspace: { type: 'string', description: 'Working directory (default: parent workspace)' },
+        agent_type: {
+          type: 'string',
+          description: 'Engine type',
+          enum: ['gemini', 'acp', 'codex', 'openclaw-gateway', 'nanobot', 'remote'],
+        },
+        member_id: { type: 'string', description: 'Existing group member ID' },
+      },
+      required: ['prompt', 'title'],
+    },
+  },
   {
     name: 'read_transcript',
-    description: 'Read conversation transcript of a child task. Waits for completion if running.',
+    description: 'Read conversation transcript of a child task. Waits for completion if running. Includes tool call summaries.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -172,6 +194,20 @@ const TOOL_SCHEMAS = [
         constraints: { type: 'string', description: 'Optional constraints (time, cost, quality priorities).' },
       },
       required: ['task'],
+    },
+  },
+  // Gap-3: send_user_message tool (channel isolation)
+  {
+    name: 'send_user_message',
+    description:
+      'Send a message to the user in the group chat. ' +
+      'This is the ONLY way to communicate with the user when channel isolation is enabled.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        message: { type: 'string', description: 'The message to display to the user.' },
+      },
+      required: ['message'],
     },
   },
   // G4.7: save_memory tool

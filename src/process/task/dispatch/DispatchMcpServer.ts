@@ -34,6 +34,8 @@ export type DispatchToolHandler = {
   askUser(params: { question: string; context?: string; options?: string[] }): Promise<string>;
   // G4.7: Cross-session memory
   saveMemory(entry: { type: string; title: string; content: string }): Promise<string>;
+  // Gap-3: Channel isolation — dispatcher sends user-facing messages through this
+  sendUserMessage?(message: string): Promise<string>;
 };
 
 /**
@@ -123,6 +125,52 @@ export class DispatchMcpServer {
         return {
           session_id: sessionId,
           message: `Task started. Session ID: ${sessionId}\n\nExisting tasks:\n${existingList}`,
+        };
+      }
+
+      // Gap-5: start_code_task — start_task with worktree isolation by default
+      case 'start_code_task': {
+        const params: StartChildTaskParams = {
+          prompt: String(args.prompt ?? ''),
+          title: String(args.title ?? 'Code Task'),
+          isolation: 'worktree',
+        };
+
+        // Parse optional workspace
+        if (typeof args.workspace === 'string' && args.workspace.trim()) {
+          params.workspace = args.workspace.trim();
+        }
+
+        // Parse agent_type if provided
+        if (typeof args.agent_type === 'string' && args.agent_type.trim()) {
+          params.agent_type = args.agent_type.trim() as (typeof params)['agent_type'];
+        }
+
+        // Parse member_id if provided
+        if (typeof args.member_id === 'string' && args.member_id.trim()) {
+          params.member_id = args.member_id.trim();
+        }
+
+        // Parse teammate config if provided
+        if (args.teammate && typeof args.teammate === 'object') {
+          const t = args.teammate as Record<string, unknown>;
+          params.teammate = {
+            id: String(t.id ?? `teammate_${Date.now()}`),
+            name: String(t.name ?? 'Coder'),
+            avatar: t.avatar ? String(t.avatar) : undefined,
+            presetRules: t.presetRules ? String(t.presetRules) : undefined,
+            agentType: params.agent_type || 'gemini',
+            createdAt: Date.now(),
+          };
+        }
+
+        const sessionId = await this.handler.startChildSession(params);
+        const children = await this.handler.listChildren();
+        const existingList = children.map((c) => `- ${c.title} (${c.sessionId}): ${c.status}`).join('\n');
+
+        return {
+          session_id: sessionId,
+          message: `Code task started with worktree isolation. Session ID: ${sessionId}\n\nExisting tasks:\n${existingList}`,
         };
       }
 
@@ -299,6 +347,24 @@ export class DispatchMcpServer {
         }
       }
 
+      // Gap-3: send_user_message — channel isolation, user-facing output
+      case 'send_user_message': {
+        const message = String(args.message ?? '');
+        if (!message) {
+          return { content: 'message is required', isError: true };
+        }
+        if (!this.handler.sendUserMessage) {
+          return { content: 'send_user_message not supported', isError: true };
+        }
+        try {
+          const result = await this.handler.sendUserMessage(message);
+          return { message: result };
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          return { content: `Failed to send message: ${errMsg}`, isError: true };
+        }
+      }
+
       default:
         throw new Error(`Unknown tool: ${tool}`);
     }
@@ -413,12 +479,56 @@ export class DispatchMcpServer {
           required: ['prompt', 'title'],
         },
       },
+      // Gap-5: start_code_task — code-specific task with worktree isolation
+      {
+        name: 'start_code_task',
+        description:
+          'Start a child task for code work with automatic git worktree isolation. ' +
+          'The child gets its own branch and working copy, preventing conflicts with other tasks. ' +
+          'Use this instead of start_task when the task involves writing or modifying code.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            prompt: {
+              type: 'string',
+              description: 'Detailed instructions for the child agent. Be specific and self-contained.',
+            },
+            title: {
+              type: 'string',
+              description: 'Short label for the task (3-6 words).',
+            },
+            workspace: {
+              type: 'string',
+              description: 'Working directory for the code task. Defaults to parent workspace.',
+            },
+            agent_type: {
+              type: 'string',
+              description: 'Engine type for the child agent.',
+              enum: ['gemini', 'acp', 'codex', 'openclaw-gateway', 'nanobot', 'remote'],
+            },
+            member_id: {
+              type: 'string',
+              description: 'Reference an existing group member by ID.',
+            },
+            teammate: {
+              type: 'object',
+              description: 'Optional teammate configuration.',
+              properties: {
+                name: { type: 'string', description: 'Display name' },
+                avatar: { type: 'string', description: 'Avatar emoji or URL' },
+                presetRules: { type: 'string', description: 'System instructions' },
+              },
+            },
+          },
+          required: ['prompt', 'title'],
+        },
+      },
       {
         name: 'read_transcript',
         description:
           'Read the conversation transcript of a child task. ' +
           'If the task is still running, waits up to max_wait_seconds for completion. ' +
-          'Returns formatted [user]/[assistant] conversation text.',
+          'Returns formatted [user]/[assistant] conversation text with tool call summaries.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -554,6 +664,24 @@ export class DispatchMcpServer {
             },
           },
           required: ['task'],
+        },
+      },
+      // Gap-3: send_user_message tool (channel isolation)
+      {
+        name: 'send_user_message',
+        description:
+          'Send a message to the user in the group chat. ' +
+          'This is the ONLY way to communicate with the user when channel isolation is enabled. ' +
+          'Your plain text replies are internal reasoning and NOT shown to the user.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+              description: 'The message to display to the user in the group chat.',
+            },
+          },
+          required: ['message'],
         },
       },
       // G4.7: save_memory tool

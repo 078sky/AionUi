@@ -135,6 +135,14 @@ export function checkPermission(
 }
 
 /**
+ * Gap-4: Check if a tool call requires forwarding to the parent dispatcher.
+ * Returns true for dangerous tools that need user awareness.
+ */
+export function requiresForwarding(toolName: string, args: Record<string, unknown>): boolean {
+  return classifyToolCall(toolName, args) === 'dangerous';
+}
+
+/**
  * Get the description of why a bash command is classified as dangerous.
  */
 export function getDangerousDescription(command: string): string | undefined {
