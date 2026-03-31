@@ -30,7 +30,7 @@ import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import type { AcpBackendConfig } from './types';
 import { Button, ConfigProvider } from '@arco-design/web-react';
 import { Left, Robot } from '@icon-park/react';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
@@ -296,6 +296,13 @@ const GuidPage: React.FC = () => {
   }, [t]);
 
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
+  // Reset agent selection and UI state whenever the user navigates to /guid fresh
+  useEffect(() => {
+    agentSelection.setSelectedAgentKey('gemini');
+    guidInput.setInput('');
+    setIsDescriptionExpanded(false);
+  }, [location.key]);
 
   // Agent switcher for preset agents
   const switchablePresetAgentTypes: PresetAgentType[] = ['gemini', 'claude', 'qwen', 'codex', 'opencode'];
