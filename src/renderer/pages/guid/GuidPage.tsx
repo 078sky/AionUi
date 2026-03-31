@@ -24,6 +24,10 @@ import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
+import { ConfigStorage } from '@/common/config/storage';
+import { ACP_BACKENDS_ALL, type PresetAgentType } from '@/common/types/acpTypes';
+import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
+import type { AcpBackendConfig } from './types';
 import { Button, ConfigProvider } from '@arco-design/web-react';
 import { Left, Robot } from '@icon-park/react';
 import React, { useCallback, useMemo, useRef } from 'react';
@@ -292,6 +296,42 @@ const GuidPage: React.FC = () => {
     return fullLabel.replace(/^Assistant\s+/i, '').replace(/^助手/, '');
   }, [t]);
 
+  // Agent switcher for preset agents
+  const switchablePresetAgentTypes: PresetAgentType[] = ['gemini', 'claude', 'qwen', 'codex', 'opencode'];
+  const selectedAssistantForSwitcher = useMemo(() => {
+    if (!agentSelection.isPresetAgent || !agentSelection.selectedAgentInfo?.customAgentId) return undefined;
+    return agentSelection.customAgents.find((a) => a.id === agentSelection.selectedAgentInfo?.customAgentId);
+  }, [agentSelection.customAgents, agentSelection.isPresetAgent, agentSelection.selectedAgentInfo?.customAgentId]);
+  const currentPresetAgentType =
+    (selectedAssistantForSwitcher?.presetAgentType as PresetAgentType | undefined) || 'gemini';
+  const agentSwitcherItems = useMemo(
+    () =>
+      switchablePresetAgentTypes.map((agentType) => ({
+        key: agentType,
+        label: ACP_BACKENDS_ALL[agentType]?.name || agentType,
+        isCurrent: agentType === currentPresetAgentType,
+      })),
+    [currentPresetAgentType]
+  );
+  const effectiveAgentLogo = useMemo(
+    () => getAgentLogo(agentSelection.currentEffectiveAgentInfo.agentType),
+    [agentSelection.currentEffectiveAgentInfo.agentType]
+  );
+  const handlePresetAgentTypeSwitch = useCallback(
+    async (nextType: string) => {
+      const customAgentId = agentSelection.selectedAgentInfo?.customAgentId;
+      if (!customAgentId || nextType === currentPresetAgentType) return;
+      const agents = ((await ConfigStorage.get('acp.customAgents')) || []) as AcpBackendConfig[];
+      const idx = agents.findIndex((a) => a.id === customAgentId);
+      if (idx < 0) return;
+      const updated = [...agents];
+      updated[idx] = { ...updated[idx], presetAgentType: nextType as PresetAgentType };
+      await ConfigStorage.set('acp.customAgents', updated);
+      await agentSelection.refreshCustomAgents();
+    },
+    [agentSelection, currentPresetAgentType]
+  );
+
   // Determine if model selector should be in Gemini mode
   const isGeminiMode =
     (agentSelection.selectedAgent === 'gemini' && !agentSelection.isPresetAgent) ||
@@ -339,6 +379,11 @@ const GuidPage: React.FC = () => {
       customAgents={agentSelection.customAgents}
       localeKey={localeKey}
       onClosePresetTag={() => agentSelection.setSelectedAgentKey('gemini')}
+      agentLogo={effectiveAgentLogo}
+      agentSwitcherItems={agentSwitcherItems}
+      onAgentSwitch={(key) => {
+        handlePresetAgentTypeSwitch(key).catch((err) => console.error('Failed to switch agent type:', err));
+      }}
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
@@ -454,7 +499,6 @@ const GuidPage: React.FC = () => {
             onRegisterOpenDetails={(openDetails) => {
               openAssistantDetailsRef.current = openDetails;
             }}
-            onPresetAgentTypeSwitched={agentSelection.refreshCustomAgents}
           />
         </div>
 
