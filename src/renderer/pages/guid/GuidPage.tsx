@@ -28,7 +28,7 @@ import { ConfigStorage } from '@/common/config/storage';
 import { ACP_BACKENDS_ALL, type PresetAgentType } from '@/common/types/acpTypes';
 import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import type { AcpBackendConfig } from './types';
-import { Button, ConfigProvider } from '@arco-design/web-react';
+import { Button, ConfigProvider, Message } from '@arco-design/web-react';
 import { Left, Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -336,6 +336,8 @@ const GuidPage: React.FC = () => {
       updated[idx] = { ...updated[idx], presetAgentType: nextType as PresetAgentType };
       await ConfigStorage.set('acp.customAgents', updated);
       await agentSelection.refreshCustomAgents();
+      const agentName = ACP_BACKENDS_ALL[nextType as PresetAgentType]?.name || nextType;
+      Message.success(t('guid.switchedToAgent', { agent: agentName }));
     },
     [agentSelection, currentPresetAgentType]
   );

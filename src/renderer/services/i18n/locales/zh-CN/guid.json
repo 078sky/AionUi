@@ -7,6 +7,7 @@
   "autoSwitchedAgent": "{{from}} 不可用，已自动切换到 {{to}}",
   "promptExamplesHint": "试试这些可点击的案例提示词：",
   "agentSwitcherLabel": "Agent",
+  "switchedToAgent": "已切换到 {{agent}}",
   "scanning": {
     "initialMessage": "当前Agent不可用, 正在检测其他可用agent...",
     "scanningMessage": "正在扫描本地可用agent...",
