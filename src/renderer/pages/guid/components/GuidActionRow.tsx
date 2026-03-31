@@ -12,7 +12,7 @@ import { getCleanFileNames, FileService, MAX_UPLOAD_SIZE_MB } from '@/renderer/s
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { AcpBackend, AcpBackendConfig, AvailableAgent } from '../types';
-import PresetAgentTag from './PresetAgentTag';
+import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useCallback, useRef, useState } from 'react';
@@ -40,6 +40,9 @@ type GuidActionRowProps = {
   customAgents: AcpBackendConfig[];
   localeKey: string;
   onClosePresetTag: () => void;
+  agentLogo?: string | null;
+  agentSwitcherItems?: AgentSwitcherItem[];
+  onAgentSwitch?: (key: string) => void;
 
   // Send button
   loading: boolean;
@@ -62,6 +65,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   customAgents,
   localeKey,
   onClosePresetTag,
+  agentLogo,
+  agentSwitcherItems,
+  onAgentSwitch,
   loading,
   isButtonDisabled,
   speechInputNode,
@@ -240,6 +246,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             customAgents={customAgents}
             localeKey={localeKey}
             onClose={onClosePresetTag}
+            agentLogo={agentLogo}
+            agentSwitcherItems={agentSwitcherItems}
+            onAgentSwitch={onAgentSwitch}
           />
         )}
       </div>
