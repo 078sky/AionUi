@@ -72,9 +72,7 @@ function writeTcpMessage(socket: net.Socket, data: unknown): void {
   socket.write(Buffer.concat([header, body]));
 }
 
-function createTcpMessageReader(
-  onMessage: (msg: unknown) => void,
-): (chunk: Buffer) => void {
+function createTcpMessageReader(onMessage: (msg: unknown) => void): (chunk: Buffer) => void {
   let buffer = Buffer.alloc(0);
 
   return (chunk: Buffer) => {

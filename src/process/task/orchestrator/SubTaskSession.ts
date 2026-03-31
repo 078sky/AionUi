@@ -23,7 +23,7 @@ import type { SubTask, DependencyOutput } from './types';
 class CaptureEmitter extends EventEmitter implements IAgentEventEmitter {
   constructor(
     private readonly onMessage: (event: AgentMessageEvent) => void,
-    private readonly onFinish: () => void,
+    private readonly onFinish: () => void
   ) {
     super();
   }
@@ -37,12 +37,7 @@ class CaptureEmitter extends EventEmitter implements IAgentEventEmitter {
     // Detect finish via status event
     if (event.type === 'status') {
       const status = (event.data as Record<string, unknown>)?.status as string | undefined;
-      if (
-        status === 'done' ||
-        status === 'finish' ||
-        status === 'complete' ||
-        status === 'local_finish'
-      ) {
+      if (status === 'done' || status === 'finish' || status === 'complete' || status === 'local_finish') {
         this.onFinish();
       }
     }
@@ -53,7 +48,7 @@ class CaptureEmitter extends EventEmitter implements IAgentEventEmitter {
 export type AgentManagerFactory = (
   conversationId: string,
   presetContext: string,
-  emitter: IAgentEventEmitter,
+  emitter: IAgentEventEmitter
 ) => IAgentManager;
 
 /**
@@ -65,7 +60,7 @@ function buildDependencyPrompt(deps: DependencyOutput[], taskPrompt: string): st
   const sections = deps
     .map(
       (d) =>
-        `## Output from ${d.label}\n_Completed at ${new Date(d.completedAt).toISOString()}_\n\n${d.outputText.trim()}`,
+        `## Output from ${d.label}\n_Completed at ${new Date(d.completedAt).toISOString()}_\n\n${d.outputText.trim()}`
     )
     .join('\n\n---\n\n');
   return `# Context from Prior Phase\n\n${sections}\n\n---\n\n# Your Task\n\n${taskPrompt}`;
@@ -82,7 +77,7 @@ export class SubTaskSession extends EventEmitter {
   constructor(
     private readonly subTask: SubTask,
     conversationId: string,
-    private readonly factory: AgentManagerFactory,
+    private readonly factory: AgentManagerFactory
   ) {
     super();
     this.subTaskId = subTask.id;
@@ -100,7 +95,7 @@ export class SubTaskSession extends EventEmitter {
           this.finished = true;
           this.emit('done');
         }
-      },
+      }
     );
   }
 

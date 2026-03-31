@@ -41,7 +41,7 @@ export class Orchestrator extends EventEmitter {
 
   constructor(
     private readonly agentFactory: AgentManagerFactory,
-    options: OrchestratorOptions = {},
+    options: OrchestratorOptions = {}
   ) {
     super();
     this.concurrency = options.concurrency ?? 3;
@@ -164,10 +164,7 @@ export class Orchestrator extends EventEmitter {
 
       const timeoutMs = this.subTaskTimeoutMs;
       const timeoutPromise = new Promise<void>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`SubTask ${subTask.id} timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        ),
+        setTimeout(() => reject(new Error(`SubTask ${subTask.id} timed out after ${timeoutMs}ms`)), timeoutMs)
       );
 
       try {

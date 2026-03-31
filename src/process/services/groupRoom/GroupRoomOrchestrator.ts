@@ -48,7 +48,7 @@ export class GroupRoomOrchestrator {
     private readonly roomId: string,
     private readonly db: ISqliteDriver,
     private readonly conversationService: IConversationService,
-    private readonly agentFactory: IAgentFactory,
+    private readonly agentFactory: IAgentFactory
   ) {
     this.service = new GroupRoomService(db);
   }
@@ -360,25 +360,19 @@ export class GroupRoomOrchestrator {
   private async handleDispatchCall(
     call: DispatchToolCall,
     workspace: string,
-    hostConfig: { cliPath?: string; currentModelId?: string; sessionMode?: string; hostDisplayName: string },
+    hostConfig: { cliPath?: string; currentModelId?: string; sessionMode?: string; hostDisplayName: string }
   ): Promise<string> {
     let member: IGroupMember | undefined;
 
     // If subagent_type matches an existing member ID, reuse it
     if (call.subagent_type) {
       const roomData = this.service.getRoom(this.roomId);
-      member = roomData?.members.find(
-        (m) => m.id === call.subagent_type || m.displayName === call.subagent_type,
-      );
+      member = roomData?.members.find((m) => m.id === call.subagent_type || m.displayName === call.subagent_type);
     }
 
     // Otherwise, dynamically create a sub-agent
     if (!member) {
-      member = await this.createDynamicSubAgent(
-        call.subagent_type ?? 'claude',
-        call.description,
-        workspace,
-      );
+      member = await this.createDynamicSubAgent(call.subagent_type ?? 'claude', call.description, workspace);
     }
 
     // Mark member as running
@@ -448,7 +442,7 @@ export class GroupRoomOrchestrator {
     member: IGroupMember,
     task: string,
     workspace: string,
-    hostConfig: { cliPath?: string; currentModelId?: string; sessionMode?: string; hostDisplayName: string },
+    hostConfig: { cliPath?: string; currentModelId?: string; sessionMode?: string; hostDisplayName: string }
   ): Promise<SubAgentResult> {
     return new Promise<SubAgentResult>((resolve) => {
       let accumulated = '';
@@ -659,15 +653,13 @@ export class GroupRoomOrchestrator {
 
       this.agentInstances.set(member.id, subAgent);
 
-      subAgent
-        .sendMessage({ content: task, msg_id: uuid() })
-        .catch((err: unknown) => {
-          resolve({
-            agentName: member.displayName,
-            status: 'error',
-            content: err instanceof Error ? err.message : String(err),
-          });
+      subAgent.sendMessage({ content: task, msg_id: uuid() }).catch((err: unknown) => {
+        resolve({
+          agentName: member.displayName,
+          status: 'error',
+          content: err instanceof Error ? err.message : String(err),
         });
+      });
     });
   }
 
@@ -701,9 +693,7 @@ export class GroupRoomOrchestrator {
 function buildCoordinatorPrompt(userInput: string, members: IGroupMember[]): string {
   const subMembers = members.filter((m) => m.role === 'sub');
 
-  const memberList = subMembers
-    .map((m) => `- ${m.displayName} (type: ${m.agentType}, id: ${m.id})`)
-    .join('\n');
+  const memberList = subMembers.map((m) => `- ${m.displayName} (type: ${m.agentType}, id: ${m.id})`).join('\n');
 
   const memberSection = memberList
     ? `\nAvailable team members:\n${memberList}\n`
@@ -711,7 +701,7 @@ function buildCoordinatorPrompt(userInput: string, members: IGroupMember[]): str
 
   return [
     'You are a coordinator agent in a multi-agent group room.',
-    'Your role is to break down the user\'s request and delegate tasks to specialized sub-agents using the GroupDispatch tool.',
+    "Your role is to break down the user's request and delegate tasks to specialized sub-agents using the GroupDispatch tool.",
     '',
     'IMPORTANT RULES:',
     '- You MUST use the GroupDispatch tool to delegate work to sub-agents. Do NOT try to do the work yourself.',
@@ -719,7 +709,7 @@ function buildCoordinatorPrompt(userInput: string, members: IGroupMember[]): str
     '- For each sub-task, call GroupDispatch with a clear description and prompt.',
     '- You can launch multiple agents in parallel by making multiple GroupDispatch calls in a single response.',
     '- After all sub-agents complete, synthesize their results and provide a final summary to the user.',
-    '- If a sub-agent\'s result is insufficient, you may dispatch follow-up tasks.',
+    "- If a sub-agent's result is insufficient, you may dispatch follow-up tasks.",
     memberSection,
     '---',
     '',

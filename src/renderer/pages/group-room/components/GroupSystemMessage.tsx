@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react'
+import React from 'react';
 
 export type GroupSystemMessageProps = {
   /** Plain text content, i18n handled by the caller */
-  content: string
-}
+  content: string;
+};
 
 /**
  * System message rendered as a centered divider line with text.
@@ -22,7 +22,7 @@ const GroupSystemMessage: React.FC<GroupSystemMessageProps> = ({ content }) => {
       <span className='text-12px text-t-secondary shrink-0'>{content}</span>
       <div className='flex-1 border-t border-b-1' />
     </div>
-  )
-}
+  );
+};
 
-export default GroupSystemMessage
+export default GroupSystemMessage;

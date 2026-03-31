@@ -29,8 +29,7 @@ Object.defineProperty(window, 'matchMedia', {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: Record<string, unknown>) =>
-      (opts?.defaultValue as string) || key,
+    t: (key: string, opts?: Record<string, unknown>) => (opts?.defaultValue as string) || key,
     i18n: { language: 'en-US' },
   }),
 }));

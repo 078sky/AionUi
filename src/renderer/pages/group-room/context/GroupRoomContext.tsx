@@ -4,32 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useContext, useMemo, useReducer } from 'react'
-import type { GroupMember, GroupMessage, GroupRoomInfo } from '../types'
+import React, { useCallback, useContext, useMemo, useReducer } from 'react';
+import type { GroupMember, GroupMessage, GroupRoomInfo } from '../types';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
 export type GroupRoomState = {
-  room: GroupRoomInfo | null
-  members: GroupMember[]
-  messages: GroupMessage[]
-  isRunning: boolean
-  inputLocked: boolean
-}
+  room: GroupRoomInfo | null;
+  members: GroupMember[];
+  messages: GroupMessage[];
+  isRunning: boolean;
+  inputLocked: boolean;
+};
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 export type GroupRoomActions = {
-  addMessage: (msg: GroupMessage) => void
-  upsertMessage: (msg: GroupMessage) => void
-  setMessages: (msgs: GroupMessage[]) => void
-  setMembersFn: (updater: (prev: GroupMember[]) => GroupMember[]) => void
-  setMembers: (members: GroupMember[]) => void
-  setRoom: (room: GroupRoomInfo) => void
-  setRoomStatus: (status: GroupRoomInfo['status']) => void
-  setRunning: (v: boolean) => void
-  setInputLocked: (v: boolean) => void
-}
+  addMessage: (msg: GroupMessage) => void;
+  upsertMessage: (msg: GroupMessage) => void;
+  setMessages: (msgs: GroupMessage[]) => void;
+  setMembersFn: (updater: (prev: GroupMember[]) => GroupMember[]) => void;
+  setMembers: (members: GroupMember[]) => void;
+  setRoom: (room: GroupRoomInfo) => void;
+  setRoomStatus: (status: GroupRoomInfo['status']) => void;
+  setRunning: (v: boolean) => void;
+  setInputLocked: (v: boolean) => void;
+};
 
 // ── Reducer ───────────────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ export type Action =
   | { type: 'SET_ROOM'; payload: GroupRoomInfo }
   | { type: 'SET_ROOM_STATUS'; payload: GroupRoomInfo['status'] }
   | { type: 'SET_RUNNING'; payload: boolean }
-  | { type: 'SET_INPUT_LOCKED'; payload: boolean }
+  | { type: 'SET_INPUT_LOCKED'; payload: boolean };
 
 /** @internal Exported for unit testing only */
 export const initialState: GroupRoomState = {
@@ -52,15 +52,15 @@ export const initialState: GroupRoomState = {
   messages: [],
   isRunning: false,
   inputLocked: false,
-}
+};
 
 /** @internal Exported for unit testing only */
 export function reducer(state: GroupRoomState, action: Action): GroupRoomState {
   switch (action.type) {
     case 'ADD_MESSAGE':
-      return { ...state, messages: [...state.messages, action.payload] }
+      return { ...state, messages: [...state.messages, action.payload] };
     case 'UPSERT_MESSAGE': {
-      const existing = state.messages.find((m) => m.id === action.payload.id)
+      const existing = state.messages.find((m) => m.id === action.payload.id);
       if (existing) {
         return {
           ...state,
@@ -75,40 +75,40 @@ export function reducer(state: GroupRoomState, action: Action): GroupRoomState {
                       : m.content,
                   streaming: action.payload.streaming,
                 }
-              : m,
+              : m
           ),
-        }
+        };
       }
-      return { ...state, messages: [...state.messages, action.payload] }
+      return { ...state, messages: [...state.messages, action.payload] };
     }
     case 'SET_MESSAGES':
-      return { ...state, messages: action.payload }
+      return { ...state, messages: action.payload };
     case 'SET_MEMBERS':
-      return { ...state, members: action.payload }
+      return { ...state, members: action.payload };
     case 'SET_MEMBERS_FN':
-      return { ...state, members: action.payload(state.members) }
+      return { ...state, members: action.payload(state.members) };
     case 'SET_ROOM':
-      return { ...state, room: action.payload }
+      return { ...state, room: action.payload };
     case 'SET_ROOM_STATUS':
-      return state.room ? { ...state, room: { ...state.room, status: action.payload } } : state
+      return state.room ? { ...state, room: { ...state.room, status: action.payload } } : state;
     case 'SET_RUNNING':
-      return { ...state, isRunning: action.payload, inputLocked: action.payload }
+      return { ...state, isRunning: action.payload, inputLocked: action.payload };
     case 'SET_INPUT_LOCKED':
-      return { ...state, inputLocked: action.payload }
+      return { ...state, inputLocked: action.payload };
     default:
-      return state
+      return state;
   }
 }
 
 // ── Contexts ──────────────────────────────────────────────────────────────────
 
-const GroupRoomStateContext = React.createContext<GroupRoomState>(initialState)
-const GroupRoomActionsContext = React.createContext<GroupRoomActions | null>(null)
+const GroupRoomStateContext = React.createContext<GroupRoomState>(initialState);
+const GroupRoomActionsContext = React.createContext<GroupRoomActions | null>(null);
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 export const GroupRoomProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(reducer, initialState)
+  const [state, dispatch] = useReducer(reducer, initialState);
 
   const actions = useMemo<GroupRoomActions>(
     () => ({
@@ -122,50 +122,51 @@ export const GroupRoomProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setRunning: (v) => dispatch({ type: 'SET_RUNNING', payload: v }),
       setInputLocked: (v) => dispatch({ type: 'SET_INPUT_LOCKED', payload: v }),
     }),
-    [],
-  )
+    []
+  );
 
   return (
     <GroupRoomStateContext.Provider value={state}>
       <GroupRoomActionsContext.Provider value={actions}>{children}</GroupRoomActionsContext.Provider>
     </GroupRoomStateContext.Provider>
-  )
-}
+  );
+};
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 /** Read group room state */
-export const useGroupRoom = (): GroupRoomState => useContext(GroupRoomStateContext)
+export const useGroupRoom = (): GroupRoomState => useContext(GroupRoomStateContext);
 
 /** Get group room action dispatchers */
 export const useGroupRoomActions = (): GroupRoomActions => {
-  const ctx = useContext(GroupRoomActionsContext)
-  if (!ctx) throw new Error('useGroupRoomActions must be used inside GroupRoomProvider')
-  return ctx
-}
+  const ctx = useContext(GroupRoomActionsContext);
+  if (!ctx) throw new Error('useGroupRoomActions must be used inside GroupRoomProvider');
+  return ctx;
+};
 
 /**
  * @deprecated Use useGroupRoom() instead.
  * Kept for backwards-compat while pages are migrated.
  */
-export const useGroupRoomContext = useGroupRoom
+export const useGroupRoomContext = useGroupRoom;
 
 /**
  * @deprecated Use useGroupRoomActions() instead.
  */
 export const useUpdateGroupRoom = (): GroupRoomActions => {
-  const ctx = useContext(GroupRoomActionsContext)
-  if (!ctx) throw new Error('useUpdateGroupRoom must be used inside GroupRoomProvider')
-  return ctx
-}
+  const ctx = useContext(GroupRoomActionsContext);
+  if (!ctx) throw new Error('useUpdateGroupRoom must be used inside GroupRoomProvider');
+  return ctx;
+};
 
 // Convenience re-export so callers can do: const { addMessage } = useGroupRoomActions()
-export const useGroupRoomCallback = <K extends keyof GroupRoomActions>(
-  key: K,
-): GroupRoomActions[K] => {
-  const actions = useGroupRoomActions()
-  return useCallback((...args: Parameters<GroupRoomActions[K]>) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (actions[key] as (...a: any[]) => any)(...args)
-  }, [actions, key]) as GroupRoomActions[K]
-}
+export const useGroupRoomCallback = <K extends keyof GroupRoomActions>(key: K): GroupRoomActions[K] => {
+  const actions = useGroupRoomActions();
+  return useCallback(
+    (...args: Parameters<GroupRoomActions[K]>) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (actions[key] as (...a: any[]) => any)(...args);
+    },
+    [actions, key]
+  ) as GroupRoomActions[K];
+};

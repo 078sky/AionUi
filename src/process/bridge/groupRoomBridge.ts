@@ -25,7 +25,11 @@ const activeOrchestrators = new Map<string, GroupRoomRunHandle>();
  * The 3 emitter channels (responseStream / memberChanged / turnCompleted) are push-only
  * and do NOT need handler registration here — callers emit them directly when needed.
  */
-export function initGroupRoomBridge(db: ISqliteDriver, conversationService: IConversationService, agentFactory: IAgentFactory): void {
+export function initGroupRoomBridge(
+  db: ISqliteDriver,
+  conversationService: IConversationService,
+  agentFactory: IAgentFactory
+): void {
   const service = new GroupRoomService(db);
 
   // ==================== group-room.create ====================
@@ -100,7 +104,7 @@ export function initGroupRoomBridge(db: ISqliteDriver, conversationService: ICon
             workspace: os.homedir(),
           },
         } as never,
-        true, // mergeExtra
+        true // mergeExtra
       );
 
       return {

@@ -994,7 +994,9 @@ const migration_v20: IMigration = {
         created_at INTEGER NOT NULL,
         FOREIGN KEY (room_id) REFERENCES group_rooms(id) ON DELETE CASCADE
       )`);
-    db.exec("INSERT INTO group_messages_old SELECT * FROM group_messages WHERE msg_kind NOT IN ('result_injection','host_thought')");
+    db.exec(
+      "INSERT INTO group_messages_old SELECT * FROM group_messages WHERE msg_kind NOT IN ('result_injection','host_thought')"
+    );
     db.exec('DROP TABLE group_messages');
     db.exec('ALTER TABLE group_messages_old RENAME TO group_messages');
     db.exec('CREATE INDEX IF NOT EXISTS idx_group_messages_room_seq ON group_messages(room_id, seq)');

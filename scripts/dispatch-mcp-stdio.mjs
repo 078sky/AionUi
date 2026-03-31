@@ -85,13 +85,9 @@ function buildToolDescription(membersJson) {
     // ignore parse errors
   }
 
-  const memberList = members
-    .map((m) => `- ${m.displayName}: type=${m.agentType}, id=${m.id}`)
-    .join('\n');
+  const memberList = members.map((m) => `- ${m.displayName}: type=${m.agentType}, id=${m.id}`).join('\n');
 
-  const agentSection = memberList
-    ? `\nAvailable agent types and the tools they have access to:\n${memberList}\n`
-    : '';
+  const agentSection = memberList ? `\nAvailable agent types and the tools they have access to:\n${memberList}\n` : '';
 
   return [
     'Launch a new agent to handle complex, multi-step tasks autonomously.',
@@ -125,10 +121,7 @@ function buildToolDescription(membersJson) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-const server = new McpServer(
-  { name: 'aion-group-dispatch', version: '1.0.0' },
-  { capabilities: { tools: {} } },
-);
+const server = new McpServer({ name: 'aion-group-dispatch', version: '1.0.0' }, { capabilities: { tools: {} } });
 
 const toolDescription = buildToolDescription(DISPATCH_MEMBERS);
 
@@ -166,7 +159,7 @@ server.tool(
         isError: true,
       };
     }
-  },
+  }
 );
 
 const transport = new StdioServerTransport();

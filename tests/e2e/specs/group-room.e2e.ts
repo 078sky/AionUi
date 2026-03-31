@@ -24,7 +24,7 @@ async function invokeWithRetry<T>(
   key: string,
   data?: unknown,
   maxAttempts = 6,
-  delayMs = 2000,
+  delayMs = 2000
 ): Promise<BridgeResponse<T>> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -47,7 +47,7 @@ async function createRoom(page: Page, name: string) {
   const res = await invokeWithRetry<{ id: string; name: string; hostConversationId: string }>(
     page,
     'group-room.create',
-    { name, hostBackend: 'claude' },
+    { name, hostBackend: 'claude' }
   );
   if (!res.success || !res.data) {
     throw new Error(`createRoom failed: ${res.msg}`);
@@ -59,7 +59,11 @@ async function createRoom(page: Page, name: string) {
 async function goToRoom(page: Page, roomId: string) {
   await navigateTo(page, `#/group-room/${roomId}`);
   // Wait for the group room page to render (has Arco Tabs)
-  await page.locator('.arco-tabs').first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+  await page
+    .locator('.arco-tabs')
+    .first()
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .catch(() => {});
   await waitForSettle(page, 3000);
 }
 
@@ -111,7 +115,7 @@ test.describe('Case 12: Sidebar group list', () => {
     const res = await invokeWithRetry<{ id: string; name: string; status: string; members: unknown[] }>(
       page,
       'group-room.get',
-      { roomId: room.id },
+      { roomId: room.id }
     );
 
     expect(res.success).toBe(true);
@@ -224,7 +228,7 @@ test.describe('Case 15: Dynamic sub-agent tabs', () => {
     const res = await invokeWithRetry<{ members: Array<{ role: string; displayName: string }> }>(
       page,
       'group-room.get',
-      { roomId },
+      { roomId }
     );
 
     expect(res.success).toBe(true);
@@ -276,11 +280,11 @@ test.describe('Case 17: User input triggers orchestrator', () => {
     const room = await createRoom(page, 'E2E Send Bridge');
 
     const msgId = `e2e-${Date.now()}`;
-    const res = await invokeWithRetry<{ msg_id: string }>(
-      page,
-      'group-room.send-message',
-      { roomId: room.id, input: 'Analyze the codebase', msg_id: msgId },
-    );
+    const res = await invokeWithRetry<{ msg_id: string }>(page, 'group-room.send-message', {
+      roomId: room.id,
+      input: 'Analyze the codebase',
+      msg_id: msgId,
+    });
 
     expect(res.success).toBe(true);
     expect(res.data?.msg_id).toBeTruthy();
@@ -357,11 +361,7 @@ test.describe('Case 19: Coordination and status display', () => {
   test('new room starts with status=idle', async ({ page }) => {
     const room = await createRoom(page, 'E2E Status Idle');
 
-    const res = await invokeWithRetry<{ status: string }>(
-      page,
-      'group-room.get',
-      { roomId: room.id },
-    );
+    const res = await invokeWithRetry<{ status: string }>(page, 'group-room.get', { roomId: room.id });
 
     expect(res.success).toBe(true);
     expect(res.data?.status).toBe('idle');

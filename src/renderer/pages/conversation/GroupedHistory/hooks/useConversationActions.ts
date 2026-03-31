@@ -63,8 +63,7 @@ export const useConversationActions = ({
       blurActiveElement();
 
       const extraRecord = conversation.extra as Record<string, unknown> | undefined;
-      const groupRoomId =
-        typeof extraRecord?.['groupRoomId'] === 'string' ? extraRecord['groupRoomId'] : undefined;
+      const groupRoomId = typeof extraRecord?.['groupRoomId'] === 'string' ? extraRecord['groupRoomId'] : undefined;
       const customWorkspace = conversation.extra?.customWorkspace;
       const newWorkspace = conversation.extra?.workspace;
 

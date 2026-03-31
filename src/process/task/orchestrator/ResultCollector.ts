@@ -103,28 +103,19 @@ export class ResultCollector extends EventEmitter {
       // When all tasks settled but all failed — report failure instead of returning []
       if (failures.size > 0 && results.length === 0) {
         return Promise.reject(
-          new Error(
-            `All sub-tasks failed: ${[...failures.values()].map((e) => e.message).join('; ')}`,
-          ),
+          new Error(`All sub-tasks failed: ${[...failures.values()].map((e) => e.message).join('; ')}`)
         );
       }
       return Promise.resolve(results);
     }
     return new Promise((resolve, reject) => {
-      this.once(
-        'allSettled',
-        ({ results, failures }: { results: SubTaskResult[]; failures: Map<string, Error> }) => {
-          if (failures.size > 0 && results.length === 0) {
-            reject(
-              new Error(
-                `All sub-tasks failed: ${[...failures.values()].map((e) => e.message).join('; ')}`,
-              ),
-            );
-          } else {
-            resolve(results);
-          }
-        },
-      );
+      this.once('allSettled', ({ results, failures }: { results: SubTaskResult[]; failures: Map<string, Error> }) => {
+        if (failures.size > 0 && results.length === 0) {
+          reject(new Error(`All sub-tasks failed: ${[...failures.values()].map((e) => e.message).join('; ')}`));
+        } else {
+          resolve(results);
+        }
+      });
     });
   }
 

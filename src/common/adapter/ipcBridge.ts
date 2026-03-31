@@ -1179,9 +1179,10 @@ export const groupRoom = {
   >('group-room.get'),
 
   // Send a user message to the group room
-  sendMessage: bridge.buildProvider<IBridgeResponse<{ msg_id: string }>, { roomId: string; input: string; msg_id: string }>(
-    'group-room.send-message'
-  ),
+  sendMessage: bridge.buildProvider<
+    IBridgeResponse<{ msg_id: string }>,
+    { roomId: string; input: string; msg_id: string }
+  >('group-room.send-message'),
 
   // Delete a group room and all associated data (agents, messages)
   delete: bridge.buildProvider<IBridgeResponse, { roomId: string }>('group-room.delete'),

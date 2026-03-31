@@ -4,26 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import MarkdownView from '@renderer/components/Markdown'
-import React from 'react'
+import MarkdownView from '@renderer/components/Markdown';
+import React from 'react';
 
 export type GroupMessageDispatchProps = {
-  senderName: string
-  targetName: string
-  content: string
-  streaming?: boolean
-}
+  senderName: string;
+  targetName: string;
+  content: string;
+  streaming?: boolean;
+};
 
 /**
  * Host agent dispatch task message bubble.
  * Visual: blue left-border card.
  */
-const GroupMessageDispatch: React.FC<GroupMessageDispatchProps> = ({
-  senderName,
-  targetName,
-  content,
-}) => {
-  const showRoute = !!senderName || !!targetName
+const GroupMessageDispatch: React.FC<GroupMessageDispatchProps> = ({ senderName, targetName, content }) => {
+  const showRoute = !!senderName || !!targetName;
 
   return (
     <div
@@ -43,7 +39,7 @@ const GroupMessageDispatch: React.FC<GroupMessageDispatchProps> = ({
       )}
       <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{content}</MarkdownView>
     </div>
-  )
-}
+  );
+};
 
-export default GroupMessageDispatch
+export default GroupMessageDispatch;

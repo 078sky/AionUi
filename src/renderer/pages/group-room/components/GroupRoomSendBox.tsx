@@ -9,39 +9,39 @@
  * Full-featured version should be wired up by 老锤 after review.
  */
 
-import { Button, Input } from '@arco-design/web-react'
-import { ArrowUp } from '@icon-park/react'
-import React, { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Button, Input } from '@arco-design/web-react';
+import { ArrowUp } from '@icon-park/react';
+import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type GroupRoomSendBoxProps = {
-  onSend: (message: string) => void
-  disabled?: boolean
-  loading?: boolean
-}
+  onSend: (message: string) => void;
+  disabled?: boolean;
+  loading?: boolean;
+};
 
 const GroupRoomSendBox: React.FC<GroupRoomSendBoxProps> = ({ onSend, disabled, loading }) => {
-  const { t } = useTranslation('conversation')
-  const [value, setValue] = useState('')
+  const { t } = useTranslation('conversation');
+  const [value, setValue] = useState('');
 
   const handleSend = useCallback(() => {
-    const trimmed = value.trim()
-    if (!trimmed || disabled || loading) return
-    onSend(trimmed)
-    setValue('')
-  }, [value, disabled, loading, onSend])
+    const trimmed = value.trim();
+    if (!trimmed || disabled || loading) return;
+    onSend(trimmed);
+    setValue('');
+  }, [value, disabled, loading, onSend]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-        e.preventDefault()
-        handleSend()
+        e.preventDefault();
+        handleSend();
       }
     },
-    [handleSend],
-  )
+    [handleSend]
+  );
 
-  const isEmpty = !value.trim()
+  const isEmpty = !value.trim();
 
   return (
     <div className='px-16px pb-16px pt-8px' data-group-room-sendbox='true'>
@@ -72,7 +72,7 @@ const GroupRoomSendBox: React.FC<GroupRoomSendBoxProps> = ({ onSend, disabled, l
         />
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default GroupRoomSendBox
+export default GroupRoomSendBox;

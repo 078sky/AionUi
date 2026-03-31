@@ -1504,7 +1504,7 @@ export class AcpAgent {
         Array.isArray(mcpConfig) && mcpConfig.length > 0
           ? buildBuiltinAcpSessionMcpServers(
               mcpConfig as IMcpServer[],
-              parseAcpMcpCapabilities(this.connection.getInitializeResponse()),
+              parseAcpMcpCapabilities(this.connection.getInitializeResponse())
             )
           : [];
 
@@ -1523,7 +1523,7 @@ export class AcpAgent {
         mainLog(
           `[ACP ${this.extra.backend}]`,
           `Injecting ${sessionMcpServers.length} MCP server(s) into session/new`,
-          sessionMcpServers.map((server) => `${server.name}:${'type' in server ? server.type : 'stdio'}`),
+          sessionMcpServers.map((server) => `${server.name}:${'type' in server ? server.type : 'stdio'}`)
         );
       }
 
@@ -1531,7 +1531,7 @@ export class AcpAgent {
     } catch (error) {
       console.warn(
         `[ACP ${this.extra.backend}] Failed to load built-in MCP config for session/new:`,
-        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.message : String(error)
       );
       return [];
     }

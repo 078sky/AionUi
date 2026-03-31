@@ -6,11 +6,7 @@
 
 import { uuid } from '@/common/utils';
 import type { ISqliteDriver } from '@process/services/database/drivers/ISqliteDriver';
-import type {
-  IGroupAgentRow,
-  IGroupMessageRow,
-  IGroupRoomRow,
-} from '@process/services/database/types';
+import type { IGroupAgentRow, IGroupMessageRow, IGroupRoomRow } from '@process/services/database/types';
 import type {
   GroupAgentRole,
   GroupAgentStatus,
@@ -39,12 +35,7 @@ export class GroupRoomService {
   /**
    * Create a new group room and insert the host agent record in a single transaction.
    */
-  createRoom(params: {
-    userId: string;
-    name: string;
-    description?: string;
-    hostConversationId: string;
-  }): IGroupRoom {
+  createRoom(params: { userId: string; name: string; description?: string; hostConversationId: string }): IGroupRoom {
     const now = Date.now();
     const roomId = uuid(36);
     const agentId = uuid(36);
@@ -105,9 +96,7 @@ export class GroupRoomService {
    * Get room + member list. Returns null if room not found.
    */
   getRoom(roomId: string): { room: IGroupRoom; members: IGroupMember[] } | null {
-    const roomRow = this.db.prepare('SELECT * FROM group_rooms WHERE id = ?').get(roomId) as
-      | IGroupRoomRow
-      | undefined;
+    const roomRow = this.db.prepare('SELECT * FROM group_rooms WHERE id = ?').get(roomId) as IGroupRoomRow | undefined;
 
     if (!roomRow) return null;
 
@@ -137,9 +126,7 @@ export class GroupRoomService {
    */
   updateRoomStatus(roomId: string, status: GroupRoomStatus): void {
     const now = Date.now();
-    this.db
-      .prepare('UPDATE group_rooms SET status = ?, updated_at = ? WHERE id = ?')
-      .run(status, now, roomId);
+    this.db.prepare('UPDATE group_rooms SET status = ?, updated_at = ? WHERE id = ?').run(status, now, roomId);
   }
 
   /**
@@ -166,9 +153,9 @@ export class GroupRoomService {
    * Returns null if no group room uses this conversation as host.
    */
   findRoomByHostConversation(hostConversationId: string): string | null {
-    const row = this.db
-      .prepare('SELECT id FROM group_rooms WHERE host_conversation_id = ?')
-      .get(hostConversationId) as { id: string } | undefined;
+    const row = this.db.prepare('SELECT id FROM group_rooms WHERE host_conversation_id = ?').get(hostConversationId) as
+      | { id: string }
+      | undefined;
     return row?.id ?? null;
   }
 
@@ -193,9 +180,7 @@ export class GroupRoomService {
     const msgId = uuid(36);
     const now = Date.now();
 
-    const getMaxSeq = this.db.prepare(
-      'SELECT MAX(seq) as max_seq FROM group_messages WHERE room_id = ?'
-    );
+    const getMaxSeq = this.db.prepare('SELECT MAX(seq) as max_seq FROM group_messages WHERE room_id = ?');
 
     const insertMsg = this.db.prepare(`
       INSERT INTO group_messages (id, room_id, sender_type, sender_id, msg_kind, content, ref_message_id, status, seq, created_at)
@@ -340,4 +325,3 @@ function rowToMember(row: IGroupAgentRow): IGroupMember {
     createdAt: row.created_at,
   };
 }
-

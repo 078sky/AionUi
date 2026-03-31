@@ -28,9 +28,7 @@ describe('SubTaskSession', () => {
     await session.start('Initial prompt');
 
     expect(factory).toHaveBeenCalledWith('conv-1', '', expect.anything());
-    expect(mockManager.sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ content: 'Initial prompt' })
-    );
+    expect(mockManager.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ content: 'Initial prompt' }));
   });
 
   it('sends follow-up message on continue (消息续发)', async () => {

@@ -19,9 +19,7 @@ async function openCreateGroupRoomModal(page: Page) {
 }
 
 function getNameInput(page: Page) {
-  return page.locator(
-    '[data-group-room-name-input="true"] input, input[data-group-room-name-input="true"]'
-  ).first();
+  return page.locator('[data-group-room-name-input="true"] input, input[data-group-room-name-input="true"]').first();
 }
 
 async function createGroupRoomViaUi(page: Page, roomName: string): Promise<void> {
@@ -30,7 +28,9 @@ async function createGroupRoomViaUi(page: Page, roomName: string): Promise<void>
 
   const firstAgent = page.locator('[data-group-room-agent-pill="true"][data-agent-backend="claude"]').first();
   await expect
-    .poll(async () => await page.locator('[data-group-room-agent-pill="true"][data-agent-backend="claude"]').count(), { timeout: 30_000 })
+    .poll(async () => await page.locator('[data-group-room-agent-pill="true"][data-agent-backend="claude"]').count(), {
+      timeout: 30_000,
+    })
     .toBeGreaterThan(0);
   await expect(firstAgent).toBeVisible({ timeout: 30_000 });
   await firstAgent.click();
@@ -48,7 +48,9 @@ async function sendMainMessage(page: Page, content: string): Promise<void> {
 
 async function waitForScenarioFinished(page: Page): Promise<void> {
   await expect
-    .poll(async () => await page.locator('[data-group-room-status]').getAttribute('data-group-room-status'), { timeout: 120_000 })
+    .poll(async () => await page.locator('[data-group-room-status]').getAttribute('data-group-room-status'), {
+      timeout: 120_000,
+    })
     .toBe('idle');
   await expect(page.getByText(/最终结论/)).toBeVisible({
     timeout: 120_000,
@@ -64,7 +66,7 @@ test.describe('Group room real UI flow', () => {
   });
 
   test('Case 11-19: 主Agent协调子Agent的真实群组交互流程', async ({ page }) => {
-    test.setTimeout(180_000)
+    test.setTimeout(180_000);
 
     const roomName = `E2E Orchestrated Group ${Date.now()}`;
     await createGroupRoomViaUi(page, roomName);
@@ -113,10 +115,14 @@ test.describe('Group room real UI flow', () => {
 
     // Case 16: click sub-agent tab and inspect sub-host dialogue
     await page.locator('[data-group-room-tab="sub"]').filter({ hasText: 'Planner' }).click();
-    await expect(page.locator('.arco-tabs-content-item-active [data-group-room-message-kind="thinking"]').first()).toBeVisible({
+    await expect(
+      page.locator('.arco-tabs-content-item-active [data-group-room-message-kind="thinking"]').first()
+    ).toBeVisible({
       timeout: 60_000,
     });
-    await expect(page.locator('.arco-tabs-content-item-active [data-group-room-message-kind="report"]').first()).toBeVisible({
+    await expect(
+      page.locator('.arco-tabs-content-item-active [data-group-room-message-kind="report"]').first()
+    ).toBeVisible({
       timeout: 60_000,
     });
 

@@ -964,7 +964,8 @@ describe('Case 7-10: Server WS communication layer', () => {
     });
 
     setAgentBehavior('conv-host-7', (_i, idx) => {
-      if (idx === 0) return `<dispatch><agent id="${sub.id}" description="filter task" prompt="filter task"/></dispatch>`;
+      if (idx === 0)
+        return `<dispatch><agent id="${sub.id}" description="filter task" prompt="filter task"/></dispatch>`;
       return 'filter done.';
     });
     setAgentBehavior('conv-filter-sub', () => 'sub output for filter');
@@ -1362,7 +1363,8 @@ describe('Case 11-19: Bridge-level integration tests (frontend rendering layer)'
     });
 
     setAgentBehavior('conv-host-11', (_i, idx) => {
-      if (idx === 0) return `<dispatch><agent id="${sub.id}" description="do the work" prompt="do the work"/></dispatch>`;
+      if (idx === 0)
+        return `<dispatch><agent id="${sub.id}" description="do the work" prompt="do the work"/></dispatch>`;
       return 'orchestration complete.';
     });
     setAgentBehavior('conv-case17-sub', () => 'work done');
@@ -1542,7 +1544,8 @@ describe('Case 11-19: Bridge-level integration tests (frontend rendering layer)'
     });
 
     setAgentBehavior('conv-host-11', (_i, idx) => {
-      if (idx === 0) return `<dispatch><agent id="${sub.id}" description="progress task" prompt="progress task"/></dispatch>`;
+      if (idx === 0)
+        return `<dispatch><agent id="${sub.id}" description="progress task" prompt="progress task"/></dispatch>`;
       return 'All complete.';
     });
     setAgentBehavior('conv-progress-sub', () => 'progress result');

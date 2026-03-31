@@ -37,11 +37,11 @@ Host AcpAgent (Claude CLI)
 
 ## 相关文件
 
-| 文件 | 职责 |
-|---|---|
-| `src/process/services/groupRoom/dispatchMcpServer.ts` | HTTP MCP Server，暴露 GroupDispatch tool |
-| `src/process/services/groupRoom/GroupRoomOrchestrator.ts` | 启动 MCP Server，处理 tool call，管理子 Agent |
-| `src/process/agent/acp/index.ts` | `extra.groupDispatchMcpServer` 注入到 session/new |
+| 文件                                                      | 职责                                              |
+| --------------------------------------------------------- | ------------------------------------------------- |
+| `src/process/services/groupRoom/dispatchMcpServer.ts`     | HTTP MCP Server，暴露 GroupDispatch tool          |
+| `src/process/services/groupRoom/GroupRoomOrchestrator.ts` | 启动 MCP Server，处理 tool call，管理子 Agent     |
+| `src/process/agent/acp/index.ts`                          | `extra.groupDispatchMcpServer` 注入到 session/new |
 
 ## 原始参考
 

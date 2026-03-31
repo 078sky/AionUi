@@ -3,14 +3,8 @@
  * Covers Case 1 parsing foundations.
  */
 import { describe, it, expect } from 'vitest';
-import {
-  parseDispatchInstructions,
-  formatResultReport,
-} from '@process/services/groupRoom/dispatchParser';
-import type {
-  DispatchInstruction,
-  SubAgentResult,
-} from '@process/services/groupRoom/dispatchParser';
+import { parseDispatchInstructions, formatResultReport } from '@process/services/groupRoom/dispatchParser';
+import type { DispatchInstruction, SubAgentResult } from '@process/services/groupRoom/dispatchParser';
 
 // ==========================================
 // parseDispatchInstructions
@@ -80,8 +74,9 @@ This is an explanation.
   });
 
   it('truncates to max 5 agents', () => {
-    const agents = Array.from({ length: 8 }, (_, i) =>
-      `<agent type="claude" description="agent-${i}" prompt="task ${i}"/>`,
+    const agents = Array.from(
+      { length: 8 },
+      (_, i) => `<agent type="claude" description="agent-${i}" prompt="task ${i}"/>`
     ).join('\n');
     const raw = `<dispatch>\n${agents}\n</dispatch>`;
     const result = parseDispatchInstructions(raw);

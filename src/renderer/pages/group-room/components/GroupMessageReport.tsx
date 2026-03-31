@@ -4,26 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import MarkdownView from '@renderer/components/Markdown'
-import React from 'react'
+import MarkdownView from '@renderer/components/Markdown';
+import React from 'react';
 
 export type GroupMessageReportProps = {
-  senderName: string
-  targetName: string
-  content: string
-  streaming?: boolean
-}
+  senderName: string;
+  targetName: string;
+  content: string;
+  streaming?: boolean;
+};
 
 /**
  * Sub-agent report result message bubble.
  * Visual: green left-border card.
  */
-const GroupMessageReport: React.FC<GroupMessageReportProps> = ({
-  senderName,
-  targetName,
-  content,
-}) => {
-  const showRoute = !!senderName || !!targetName
+const GroupMessageReport: React.FC<GroupMessageReportProps> = ({ senderName, targetName, content }) => {
+  const showRoute = !!senderName || !!targetName;
 
   return (
     <div
@@ -43,7 +39,7 @@ const GroupMessageReport: React.FC<GroupMessageReportProps> = ({
       )}
       <MarkdownView codeStyle={{ marginTop: 4, marginBlock: 4 }}>{content}</MarkdownView>
     </div>
-  )
-}
+  );
+};
 
-export default GroupMessageReport
+export default GroupMessageReport;

@@ -30,7 +30,7 @@ describe('getNpxCacheDir', () => {
 
   const restoreEnv = (
     key: 'HOME' | 'LOCALAPPDATA' | 'npm_config_cache' | 'NPM_CONFIG_CACHE',
-    value: string | undefined,
+    value: string | undefined
   ) => {
     if (value === undefined) {
       delete process.env[key];

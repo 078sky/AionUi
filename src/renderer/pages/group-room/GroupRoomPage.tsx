@@ -88,12 +88,7 @@ const collapseThoughts = (msgs: GroupMessage[]): GroupMessage[] => {
 
   for (const msg of msgs) {
     const prev = result[result.length - 1];
-    if (
-      prev &&
-      thoughtKinds.has(msg.msgKind) &&
-      prev.msgKind === msg.msgKind &&
-      prev.senderId === msg.senderId
-    ) {
+    if (prev && thoughtKinds.has(msg.msgKind) && prev.msgKind === msg.msgKind && prev.senderId === msg.senderId) {
       // Merge into previous
       result[result.length - 1] = {
         ...prev,
@@ -159,9 +154,7 @@ const GroupRoomInnerPage: React.FC = () => {
       return messages.filter((m) => m.senderRole === 'host');
     }
     // Include messages sent BY this agent AND dispatches/injections targeting this agent
-    return collapseThoughts(
-      messages.filter((m) => m.senderId === member.id || m.targetId === member.id),
-    );
+    return collapseThoughts(messages.filter((m) => m.senderId === member.id || m.targetId === member.id));
   };
 
   // ── IPC event subscriptions ─────────────────────────────────────────────────
@@ -391,12 +384,7 @@ const GroupRoomInnerPage: React.FC = () => {
         {/* Main chat area with tabs */}
         <div className='flex flex-col flex-1 min-w-0 overflow-hidden'>
           {/* Tab header only — rendered via Tabs but content is managed below */}
-          <Tabs
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            className={styles.groupTabs}
-            data-group-room-tabs='true'
-          >
+          <Tabs activeTab={activeTab} onChange={setActiveTab} className={styles.groupTabs} data-group-room-tabs='true'>
             <Tabs.TabPane
               key={MAIN_TAB_KEY}
               title={<span data-group-room-tab='main'>{t('groupRoom.tabMain', { defaultValue: '主对话' })}</span>}

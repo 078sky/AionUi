@@ -159,11 +159,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   />
                 </div>
               </Tooltip>
-              <Tooltip
-                {...siderTooltipProps}
-                content={t('conversation.groupRoom.createTitle')}
-                position='right'
-              >
+              <Tooltip {...siderTooltipProps} content={t('conversation.groupRoom.createTitle')} position='right'>
                 <div
                   data-group-room-trigger='true'
                   className={classNames(
@@ -172,12 +168,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   )}
                   onClick={() => setIsCreateGroupRoomVisible(true)}
                 >
-                  <Group
-                    theme='outline'
-                    size='20'
-                    className='block leading-none shrink-0'
-                    style={{ lineHeight: 0 }}
-                  />
+                  <Group theme='outline' size='20' className='block leading-none shrink-0' style={{ lineHeight: 0 }} />
                 </div>
               </Tooltip>
             </div>
@@ -243,10 +234,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           </Tooltip>
         </div>
       </div>
-      <CreateGroupRoomModal
-        visible={isCreateGroupRoomVisible}
-        onClose={() => setIsCreateGroupRoomVisible(false)}
-      />
+      <CreateGroupRoomModal visible={isCreateGroupRoomVisible} onClose={() => setIsCreateGroupRoomVisible(false)} />
     </div>
   );
 };

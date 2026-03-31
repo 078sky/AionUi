@@ -49,10 +49,13 @@ describe('ResultCollector', () => {
     collector.register(s2);
 
     let resolved = false;
-    const p = collector.waitForAll().then((r) => { resolved = true; return r; });
+    const p = collector.waitForAll().then((r) => {
+      resolved = true;
+      return r;
+    });
 
     s1.emit('done');
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
     expect(resolved).toBe(false); // s2 not yet done
 
     s2.emit('text', 'result');
@@ -77,7 +80,7 @@ describe('ResultCollector', () => {
     collector.register(session);
     expect(collector.isAllSettled()).toBe(false);
     session.emit('done');
-    await new Promise(r => setTimeout(r, 5));
+    await new Promise((r) => setTimeout(r, 5));
     expect(collector.isAllSettled()).toBe(true);
   });
 });

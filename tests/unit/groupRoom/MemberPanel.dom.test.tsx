@@ -24,8 +24,7 @@ Object.defineProperty(window, 'matchMedia', {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: Record<string, unknown>) =>
-      (opts?.defaultValue as string) || key,
+    t: (key: string, opts?: Record<string, unknown>) => (opts?.defaultValue as string) || key,
     i18n: { language: 'en-US' },
   }),
 }));
@@ -44,7 +43,7 @@ vi.mock('@renderer/pages/group-room/context/GroupRoomContext', () => ({
 }));
 
 vi.mock('react-virtuoso', () => ({
-  Virtuoso: () => <div data-testid="virtuoso-list" />,
+  Virtuoso: () => <div data-testid='virtuoso-list' />,
 }));
 
 vi.mock('@renderer/components/Markdown', () => ({
@@ -224,9 +223,7 @@ describe('MemberPanel', () => {
     });
 
     const { container } = render(<MemberPanel />);
-    expect(
-      container.querySelector('.arco-badge-status-processing'),
-    ).toBeInTheDocument();
+    expect(container.querySelector('.arco-badge-status-processing')).toBeInTheDocument();
   });
 
   it('renders success badge for finished status', () => {
@@ -239,9 +236,7 @@ describe('MemberPanel', () => {
     });
 
     const { container } = render(<MemberPanel />);
-    expect(
-      container.querySelector('.arco-badge-status-success'),
-    ).toBeInTheDocument();
+    expect(container.querySelector('.arco-badge-status-success')).toBeInTheDocument();
   });
 
   it('renders error badge for error status', () => {
@@ -254,9 +249,7 @@ describe('MemberPanel', () => {
     });
 
     const { container } = render(<MemberPanel />);
-    expect(
-      container.querySelector('.arco-badge-status-error'),
-    ).toBeInTheDocument();
+    expect(container.querySelector('.arco-badge-status-error')).toBeInTheDocument();
   });
 
   // Avatar initial letter
@@ -287,20 +280,13 @@ describe('AgentTabContent', () => {
 
   // Case 16-2: has messages -- no empty placeholder
   it('does not show "暂无消息" when messages exist', () => {
-    render(
-      <AgentTabContent
-        messages={[makeMessage()]}
-        members={[makeMember()]}
-      />,
-    );
+    render(<AgentTabContent messages={[makeMessage()]} members={[makeMember()]} />);
     expect(screen.queryByText('暂无消息')).not.toBeInTheDocument();
   });
 
   // Case 18 (partial): read-only -- no textarea
   it('does not render a textarea (read-only)', () => {
-    const { container } = render(
-      <AgentTabContent messages={[]} members={[]} />,
-    );
+    const { container } = render(<AgentTabContent messages={[]} members={[]} />);
     expect(container.querySelector('textarea')).toBeNull();
   });
 });
