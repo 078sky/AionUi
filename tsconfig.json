@@ -19,11 +19,14 @@
       "@/*": ["./src/*"],
       "@process/*": ["./src/process/*"],
       "@renderer/*": ["./src/renderer/*"],
-      "@worker/*": ["./src/process/worker/*"]
+      "@worker/*": ["./src/process/worker/*"],
+      "@aionui/protocol": ["./packages/protocol/src"],
+      "@aionui/protocol/*": ["./packages/protocol/src/*"]
     }
   },
   "include": [
     "src/**/*",
+    "packages/*/src/**/*",
     "uno.config.ts",
     "electron.vite.config.ts",
     "playwright.config.ts",
