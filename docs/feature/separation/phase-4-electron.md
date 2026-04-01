@@ -317,6 +317,114 @@ packages/
 └── protocol/              # Shared types + wire protocol (Phase 1)
 ```
 
+## Deployment Modes
+
+After separation, the frontend can be either Electron or a web browser. The backend is always the standalone server.
+
+```
+Mode 1: Electron Desktop
+┌─ Electron ─────────────────────────┐
+│ main.ts → spawn server process     │
+│ BrowserWindow → ws://localhost:PORT │
+└────────────────────────────────────┘
+
+Mode 2: Web (Self-Hosted)
+┌─ Browser ──────────────┐   ┌─ Server ─────────────┐
+│ React SPA              │──▶│ bun dist-server/...   │
+│ ws://server-host:PORT  │   │ HTTP + WebSocket      │
+└────────────────────────┘   └───────────────────────┘
+
+Mode 3: Development
+┌─ Browser ──────────────┐   ┌─ Dev Server ──────────┐
+│ Vite HMR               │──▶│ bun dev:server        │
+│ ws://localhost:PORT     │   │                       │
+└────────────────────────┘   └───────────────────────┘
+```
+
+The frontend is always the same React SPA code. The backend is always `src/server/`. The only difference is how they connect.
+
+## Scripts Cleanup
+
+### Scripts to remove
+
+| Script | Reason |
+|--------|--------|
+| `cli` | Duplicate of `start` |
+| `webui` | Replaced by standalone `server:start` |
+| `webui:remote` | Replaced by `server:start:remote` |
+| `webui:prod` | Replaced by `server:start` with `NODE_ENV=production` |
+| `webui:prod:remote` | Same as above with `ALLOW_REMOTE=true` |
+| `resetpass` | Replaced by `server:resetpass` (no Electron needed) |
+| `server:start:prod` | Merge into `server:start` (env var controls mode) |
+| `server:start:prod:remote` | Merge into `server:start:remote` |
+| `server:resetpass:prod` | Merge into `server:resetpass` |
+| `package` | Duplicate of `dist` |
+| `make` | Duplicate of `dist` |
+| `build-mac`, `build-mac:arm64`, `build-mac:x64` | Use `dist:mac` instead |
+| `build-win`, `build-win:arm64`, `build-win:x64` | Use `dist:win` instead |
+| `build-deb` | Use `dist:linux` instead |
+
+### Target scripts
+
+```jsonc
+{
+  "scripts": {
+    // === Development ===
+    "dev": "electron-vite dev",
+    "dev:server": "bun src/server/index.ts",
+    "dev:renderer": "vite dev --config vite.renderer.config.ts",
+
+    // === Build ===
+    "build": "bun run build:server && electron-vite build",
+    "build:server": "node scripts/build-server.mjs",
+    "build:renderer": "vite build --config vite.renderer.config.ts",
+
+    // === Distribution (Electron) ===
+    "dist": "node scripts/build-with-builder.js",
+    "dist:mac": "node scripts/build-with-builder.js auto --mac",
+    "dist:win": "node scripts/build-with-builder.js auto --win",
+    "dist:linux": "node scripts/build-with-builder.js auto --linux",
+
+    // === Standalone Server ===
+    "server:start": "bun dist-server/server.mjs",
+    "server:start:remote": "ALLOW_REMOTE=true bun dist-server/server.mjs",
+    "server:resetpass": "bun dist-server/server.mjs --resetpass",
+
+    // === Code Quality ===
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "i18n:types": "node scripts/generate-i18n-types.js",
+
+    // === Testing ===
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test --config playwright.config.ts",
+
+    // === Misc ===
+    "prepare": "husky",
+    "postinstall": "node scripts/postinstall.js"
+  }
+}
+```
+
+**Reduction:** 37 scripts → 22 scripts. Clean separation between dev, build, dist, server, and tooling.
+
+### Dependencies to consider splitting
+
+After separation, dependencies naturally split into three groups:
+
+| Group | Examples | Where |
+|---|---|---|
+| **Frontend only** | react, react-dom, @arco-design/web-react, @icon-park/react, i18next, unocss | `src/renderer/` devDep or separate workspace |
+| **Backend only** | express, ws, better-sqlite3, @anthropic-ai/sdk, openai, grammy, sharp | `src/server/` |
+| **Electron only** | electron, electron-builder, electron-updater, electron-squirrel-startup | `src/electron/` devDep |
+| **Shared** | typescript, vitest, @aionui/protocol | root |
+
+This split is optional but reduces install size for server-only deployments (no need to install React, Arco, etc.).
+
 ## Acceptance Criteria
 
 - [ ] `src/electron/main.ts` spawns server as child process, creates BrowserWindow
