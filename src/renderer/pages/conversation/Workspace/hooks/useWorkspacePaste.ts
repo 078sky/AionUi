@@ -5,7 +5,7 @@
  */
 
 import { useApi } from '@renderer/api';
-import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { IDirOrFile } from '@aionui/protocol';
 import { ConfigStorage } from '@/common/config/storage';
 import { usePasteService } from '@/renderer/hooks/file/usePasteService';
 import { uploadFileViaHttp, MAX_UPLOAD_SIZE_MB } from '@/renderer/services/FileService';

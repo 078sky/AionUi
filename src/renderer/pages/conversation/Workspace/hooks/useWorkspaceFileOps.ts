@@ -6,7 +6,7 @@
 
 import { useApi } from '@renderer/api';
 import { downloadFileFromPath } from '@/renderer/utils/file/download';
-import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { IDirOrFile } from '@aionui/protocol';
 import type { PreviewContentType } from '@/common/types/preview';
 import { emitter } from '@/renderer/utils/emitter';
 import {

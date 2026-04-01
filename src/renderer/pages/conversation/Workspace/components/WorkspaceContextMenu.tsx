@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { IDirOrFile } from '@aionui/protocol';
 import React from 'react';
 import type { TFunction } from 'i18next';
 import { isPreviewSupportedExt } from '../utils/filePreview';

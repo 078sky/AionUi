@@ -1,7 +1,7 @@
 import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { transformMessage } from '@/common/chat/chatLib';
-import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import type { IResponseMessage } from '@aionui/protocol';
 import type { TChatConversation, TokenUsageData } from '@/common/config/storage';
 import type { ThoughtData } from '@/renderer/components/chat/ThoughtDisplay';
 import { useAddOrUpdateMessage } from '@/renderer/pages/conversation/Messages/hooks';

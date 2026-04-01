@@ -5,7 +5,7 @@
  */
 
 import { useApi } from '@renderer/api';
-import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import type { IResponseMessage } from '@aionui/protocol';
 import { ConfigStorage } from '@/common/config/storage';
 import type { IProvider } from '@/common/config/storage';
 import type { AcpModelInfo } from '@/common/types/acpTypes';

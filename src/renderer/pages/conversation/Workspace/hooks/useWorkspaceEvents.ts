@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
-import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { IDirOrFile } from '@aionui/protocol';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useRef } from 'react';
 import type { ContextMenuState } from '../types';

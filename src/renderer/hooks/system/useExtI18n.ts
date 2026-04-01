@@ -6,7 +6,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
+import { extensions as extensionsIpc } from '@/common/adapter/ipcBridge';
+import type { IExtensionSettingsTab } from '@aionui/protocol';
 
 type NestedRecord = Record<string, unknown>;
 

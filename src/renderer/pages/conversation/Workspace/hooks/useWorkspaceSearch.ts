@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { IDirOrFile } from '@aionui/protocol';
 import useDebounce from '@/renderer/hooks/ui/useDebounce';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
 import { useCallback, useEffect, useRef, useState } from 'react';

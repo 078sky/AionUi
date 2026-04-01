@@ -6,7 +6,7 @@
 
 import { useApi } from '@renderer/api';
 import { transformMessage } from '@/common/chat/chatLib';
-import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import type { IResponseMessage } from '@aionui/protocol';
 import type { TokenUsageData } from '@/common/config/storage';
 import { useAddOrUpdateMessage } from '@/renderer/pages/conversation/Messages/hooks';
 import type { ThoughtData } from '@/renderer/components/chat/ThoughtDisplay';

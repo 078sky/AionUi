@@ -15,7 +15,7 @@ import { Button, Message, Progress } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Loading, Down, Up } from '@icon-park/react';
 import classNames from 'classnames';
 import { useApi } from '@renderer/api';
-import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
+import type { ICreateConversationParams } from '@aionui/protocol';
 import type { AcpBackendAll } from '@/common/types/acpTypes';
 import type { AgentCheckResult } from '@/renderer/hooks/agent/useAgentReadinessCheck';
 

@@ -5,7 +5,7 @@
  */
 
 import type { TMessage } from '@/common/chat/chatLib';
-import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { IDirOrFile } from '@aionui/protocol';
 import type { TChatConversation } from '@/common/config/storage';
 import { getMessageRoleKey, readMessageContent, sanitizeFileName } from '@/renderer/utils/chat/conversationExport';
 

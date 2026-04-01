@@ -18,7 +18,7 @@ import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
 import type { TMessage } from '@/common/chat/chatLib';
-import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { IDirOrFile } from '@aionui/protocol';
 import type { AcpBackendConfig } from '@/common/types/acpTypes';
 
 interface SkillRuleGeneratorProps {

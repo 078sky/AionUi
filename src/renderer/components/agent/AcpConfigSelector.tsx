@@ -5,7 +5,7 @@
  */
 
 import { useApi } from '@renderer/api';
-import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import type { IResponseMessage } from '@aionui/protocol';
 import type { AcpBackend, AcpSessionConfigOption } from '@/common/types/acpTypes';
 import { Button, Dropdown, Menu } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';

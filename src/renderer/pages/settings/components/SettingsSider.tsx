@@ -1,6 +1,7 @@
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
+import { extensions as extensionsIpc } from '@/common/adapter/ipcBridge';
+import type { IExtensionSettingsTab } from '@aionui/protocol';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import {
   Communication,

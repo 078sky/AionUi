@@ -6,7 +6,8 @@
 
 import type { IChannelPluginStatus } from '@process/channels/types';
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
-import { channel, webui, type IWebUIStatus } from '@/common/adapter/ipcBridge';
+import { channel, webui } from '@/common/adapter/ipcBridge';
+import type { IWebUIStatus } from '@aionui/protocol';
 import { ConfigStorage } from '@/common/config/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useModelProviderList } from '@/renderer/hooks/agent/useModelProviderList';

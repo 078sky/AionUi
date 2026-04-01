@@ -5,7 +5,7 @@
  */
 
 import { ConfigStorage } from '@/common/config/storage';
-import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
+import type { ICreateConversationParams } from '@aionui/protocol';
 import type { TProviderWithModel } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
 import { loadPresetAssistantResources } from '@/renderer/utils/model/presetAssistantResources';

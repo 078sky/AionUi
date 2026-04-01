@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronJob } from '@/common/adapter/ipcBridge';
+import type { ICronJob } from '@aionui/protocol';
 
 /**
  * Format schedule for display - use human-readable description

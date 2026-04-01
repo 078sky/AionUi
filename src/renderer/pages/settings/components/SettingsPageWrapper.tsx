@@ -3,7 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
+import { extensions as extensionsIpc } from '@/common/adapter/ipcBridge';
+import type { IExtensionSettingsTab } from '@aionui/protocol';
 import {
   Communication,
   Computer,

@@ -1,4 +1,4 @@
-import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import type { IResponseMessage } from '@aionui/protocol';
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
 import type { GeminiModeOption } from '@/renderer/hooks/agent/useModeModeList';
 import { isApiErrorMessage, isQuotaErrorMessage } from '@/renderer/utils/model/errorDetection';
