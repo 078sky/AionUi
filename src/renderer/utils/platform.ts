@@ -119,8 +119,8 @@ export const openExternalUrl = async (url: string): Promise<void> => {
   if (!url) return;
 
   if (isElectronDesktop()) {
-    const { ipcBridge } = await import('@/common');
-    await ipcBridge.shell.openExternal.invoke(url);
+    const { getApiClient } = await import('@renderer/api');
+    await getApiClient().request('open-external', url);
   } else {
     window.open(url, '_blank', 'noopener,noreferrer');
   }

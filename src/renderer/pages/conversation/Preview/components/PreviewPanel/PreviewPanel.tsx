@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { downloadFileFromPath, downloadTextContent } from '@/renderer/utils/file/download';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { PreviewToolbarExtrasProvider, type PreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
@@ -53,6 +54,7 @@ import './preview.css';
  * Supports multiple tabs, each tab can display different types of content
  */
 const PreviewPanel: React.FC = () => {
+  const api = useApi();
   const { t } = useTranslation();
   const {
     isOpen,
@@ -382,7 +384,7 @@ const PreviewPanel: React.FC = () => {
 
     try {
       // 使用系统默认应用打开文件 / Open file with system default application
-      await ipcBridge.shell.openFile.invoke(metadata.filePath);
+      await api.request('open-file', metadata.filePath);
       try {
         messageApi.success(t('preview.openInSystemSuccess'));
       } catch {

@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { IProvider } from '@/common/config/storage';
@@ -104,7 +103,7 @@ const ModelModalContent: React.FC = () => {
   const [collapseKey, setCollapseKey] = useState<Record<string, boolean>>({});
   const [healthCheckLoading, setHealthCheckLoading] = useState<Record<string, boolean>>({});
   const { data, mutate } = useSWR('model.config', () => {
-    return ipcBridge.mode.getModelConfig.invoke().then((data) => {
+    return api.request('mode.get-model-config', undefined).then((data) => {
       if (!data) return [];
       return data;
     });
@@ -115,8 +114,8 @@ const ModelModalContent: React.FC = () => {
     // 乐观更新：立即更新 UI
     void mutate(newData, false);
 
-    ipcBridge.mode.saveModelConfig
-      .invoke(newData)
+    api
+      .request('mode.save-model-config', newData)
       .then((data) => {
         if (data.success) {
           // 保存成功后重新验证数据
@@ -322,7 +321,7 @@ const ModelModalContent: React.FC = () => {
       // 直接保存，不使用乐观更新，避免并发时互相覆盖
       try {
         // 先获取最新的数据，确保不会覆盖其他并发的更新
-        const latestData = await ipcBridge.mode.getModelConfig.invoke();
+        const latestData = await api.request('mode.get-model-config', undefined);
         const newData = (latestData || []).map((item) => {
           if (item.id === platform.id) {
             const modelHealth = { ...item.modelHealth };
@@ -337,7 +336,7 @@ const ModelModalContent: React.FC = () => {
           return item;
         });
 
-        const saveResult = await ipcBridge.mode.saveModelConfig.invoke(newData);
+        const saveResult = await api.request('mode.save-model-config', newData);
         if (saveResult.success) {
           // 保存成功后重新验证数据
           await mutate();
@@ -376,7 +375,7 @@ const ModelModalContent: React.FC = () => {
       // 直接保存，不使用乐观更新
       try {
         // 先获取最新的数据，确保不会覆盖其他并发的更新
-        const latestData = await ipcBridge.mode.getModelConfig.invoke();
+        const latestData = await api.request('mode.get-model-config', undefined);
         const newData = (latestData || []).map((item) => {
           if (item.id === platform.id) {
             const modelHealth = { ...item.modelHealth };
@@ -391,7 +390,7 @@ const ModelModalContent: React.FC = () => {
           return item;
         });
 
-        const saveResult = await ipcBridge.mode.saveModelConfig.invoke(newData);
+        const saveResult = await api.request('mode.save-model-config', newData);
         if (saveResult.success) {
           await mutate();
         }

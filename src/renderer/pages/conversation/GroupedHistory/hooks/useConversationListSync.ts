@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import { useApi } from '@renderer/api';
+import { useApi, getApiClient } from '@renderer/api';
 import type { ApiClient } from '@renderer/api/client';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
@@ -91,8 +90,8 @@ const subscribeConversationListSync = (listener: () => void) => {
 const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snapshotState;
 
 const refreshConversations = () => {
-  void ipcBridge.database.getUserConversations
-    .invoke({ page: 0, pageSize: 10000 })
+  void getApiClient()
+    .request('database.get-user-conversations', { page: 0, pageSize: 10000 })
     .then((data) => {
       if (data && Array.isArray(data)) {
         const filteredData = data.filter(

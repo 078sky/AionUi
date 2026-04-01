@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/config/constants';
 import type { IProvider } from '@/common/config/storage';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
@@ -19,6 +19,7 @@ export interface ModelProviderListResult {
  * and exposes helpers consumed by both conversation and channel settings.
  */
 export const useModelProviderList = (): ModelProviderListResult => {
+  const api = useApi();
   const { geminiModeOptions, isGoogleAuth } = useGeminiGoogleAuthModels();
 
   const geminiModeLookup = useMemo(() => {
@@ -27,7 +28,7 @@ export const useModelProviderList = (): ModelProviderListResult => {
     return lookup;
   }, [geminiModeOptions]);
 
-  const { data: modelConfig } = useSWR('model.config.shared', () => ipcBridge.mode.getModelConfig.invoke());
+  const { data: modelConfig } = useSWR('model.config.shared', () => api.request('mode.get-model-config', undefined));
 
   // Mutable cache for available-model filtering
   const availableModelsCacheRef = useRef(new Map<string, string[]>());

@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { composeMessage } from '@/common/chat/chatLib';
 import { useCallback, useEffect, useRef } from 'react';
@@ -352,11 +353,12 @@ export const useRemoveMessageByMsgId = () => {
 };
 
 export const useMessageLstCache = (key: string) => {
+  const api = useApi();
   const update = useUpdateMessageList();
   useEffect(() => {
     if (!key) return;
-    void ipcBridge.database.getConversationMessages
-      .invoke({
+    void api
+      .request('database.get-conversation-messages', {
         conversation_id: key,
         page: 0,
         pageSize: 10000, // Load all messages (up to 10k per conversation)

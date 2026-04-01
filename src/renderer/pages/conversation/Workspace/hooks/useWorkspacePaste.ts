@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import { ConfigStorage } from '@/common/config/storage';
@@ -85,8 +84,8 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
   );
 
   const handleSelectHostFiles = useCallback(() => {
-    void ipcBridge.dialog.showOpen
-      .invoke({
+    void api
+      .request('show-open', {
         properties: ['openFile', 'multiSelections'],
         defaultPath: workspace,
       })

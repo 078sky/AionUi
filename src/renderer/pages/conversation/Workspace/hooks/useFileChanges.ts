@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import type { CompareResult, FileChangeInfo, SnapshotInfo } from '@/common/types/fileSnapshot';
+import { useApi } from '@renderer/api';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type UseFileChangesParams = {
@@ -30,6 +30,7 @@ type UseFileChangesReturn = {
 };
 
 export function useFileChanges({ workspace, conversationId }: UseFileChangesParams): UseFileChangesReturn {
+  const api = useApi();
   const [result, setResult] = useState<CompareResult>({ staged: [], unstaged: [] });
   const [loading, setLoading] = useState(false);
   const [snapshotInfo, setSnapshotInfo] = useState<SnapshotInfo | null>(null);
@@ -44,14 +45,14 @@ export function useFileChanges({ workspace, conversationId }: UseFileChangesPara
     setSnapshotInfo(null);
     setBranches([]);
 
-    ipcBridge.fileSnapshot.init
-      .invoke({ workspace })
+    api
+      .request('file-snapshot-init', { workspace })
       .then((info) => {
         setSnapshotInfo(info);
         initializedRef.current = true;
         if (info.mode === 'git-repo') {
-          ipcBridge.fileSnapshot.getBranches
-            .invoke({ workspace })
+          api
+            .request('file-snapshot-get-branches', { workspace })
             .then(setBranches)
             .catch(() => {});
         }
@@ -61,15 +62,15 @@ export function useFileChanges({ workspace, conversationId }: UseFileChangesPara
       });
 
     return () => {
-      ipcBridge.fileSnapshot.dispose.invoke({ workspace }).catch(() => {});
+      void api.request('file-snapshot-dispose', { workspace }).catch(() => {});
     };
-  }, [workspace, conversationId]);
+  }, [workspace, conversationId, api]);
 
   // Silent refresh: update data without showing loading spinner (used after git operations)
   const silentRefresh = useCallback(async () => {
     if (!workspace || !initializedRef.current) return;
     try {
-      const res = await ipcBridge.fileSnapshot.compare.invoke({ workspace });
+      const res = await api.request('file-snapshot-compare', { workspace });
       setResult(res);
     } catch (err) {
       console.error('[useFileChanges] Failed to compare:', err);
@@ -81,7 +82,7 @@ export function useFileChanges({ workspace, conversationId }: UseFileChangesPara
     if (!workspace || !initializedRef.current) return;
     setLoading(true);
     try {
-      const res = await ipcBridge.fileSnapshot.compare.invoke({ workspace });
+      const res = await api.request('file-snapshot-compare', { workspace });
       setResult(res);
     } catch (err) {
       console.error('[useFileChanges] Failed to compare:', err);
@@ -93,7 +94,7 @@ export function useFileChanges({ workspace, conversationId }: UseFileChangesPara
   const stageFile = useCallback(
     async (filePath: string) => {
       if (!workspace) return;
-      await ipcBridge.fileSnapshot.stageFile.invoke({ workspace, filePath });
+      await api.request('file-snapshot-stage-file', { workspace, filePath });
       await silentRefresh();
     },
     [workspace, silentRefresh]
@@ -101,14 +102,14 @@ export function useFileChanges({ workspace, conversationId }: UseFileChangesPara
 
   const stageAll = useCallback(async () => {
     if (!workspace) return;
-    await ipcBridge.fileSnapshot.stageAll.invoke({ workspace });
+    await api.request('file-snapshot-stage-all', { workspace });
     await silentRefresh();
   }, [workspace, silentRefresh]);
 
   const unstageFile = useCallback(
     async (filePath: string) => {
       if (!workspace) return;
-      await ipcBridge.fileSnapshot.unstageFile.invoke({ workspace, filePath });
+      await api.request('file-snapshot-unstage-file', { workspace, filePath });
       await silentRefresh();
     },
     [workspace, silentRefresh]
@@ -116,14 +117,14 @@ export function useFileChanges({ workspace, conversationId }: UseFileChangesPara
 
   const unstageAll = useCallback(async () => {
     if (!workspace) return;
-    await ipcBridge.fileSnapshot.unstageAll.invoke({ workspace });
+    await api.request('file-snapshot-unstage-all', { workspace });
     await silentRefresh();
   }, [workspace, silentRefresh]);
 
   const discardFile = useCallback(
     async (filePath: string, operation: FileChangeInfo['operation']) => {
       if (!workspace) return;
-      await ipcBridge.fileSnapshot.discardFile.invoke({ workspace, filePath, operation });
+      await api.request('file-snapshot-discard-file', { workspace, filePath, operation });
       await silentRefresh();
     },
     [workspace, silentRefresh]
@@ -132,7 +133,7 @@ export function useFileChanges({ workspace, conversationId }: UseFileChangesPara
   const resetFile = useCallback(
     async (filePath: string, operation: FileChangeInfo['operation']) => {
       if (!workspace) return;
-      await ipcBridge.fileSnapshot.resetFile.invoke({ workspace, filePath, operation });
+      await api.request('file-snapshot-reset-file', { workspace, filePath, operation });
       await silentRefresh();
     },
     [workspace, silentRefresh]

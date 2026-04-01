@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { usePreviewToolbarExtras } from '../../context/PreviewToolbarExtrasContext';
 import { Button, Message } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,6 +31,7 @@ interface ElectronWebView extends HTMLElement {
 }
 
 const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar = false }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,7 @@ const PDFPreview: React.FC<PDFPreviewProps> = ({ filePath, content, hideToolbar 
     }
 
     try {
-      await ipcBridge.shell.openFile.invoke(filePath);
+      await api.request('open-file', filePath);
       messageApi.success(t('preview.openInSystemSuccess'));
     } catch (err) {
       messageApi.error(t('preview.openInSystemFailed'));

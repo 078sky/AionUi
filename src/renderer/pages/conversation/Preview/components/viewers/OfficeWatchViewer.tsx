@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import WebviewHost from '@/renderer/components/media/WebviewHost';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Spin } from '@arco-design/web-react';
@@ -12,12 +12,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type DocType = 'ppt' | 'word' | 'excel';
-
-const BRIDGE = {
-  ppt: ipcBridge.pptPreview,
-  word: ipcBridge.wordPreview,
-  excel: ipcBridge.excelPreview,
-} as const;
 
 // Web-server proxy base paths (Electron uses the direct localhost URL instead)
 const PROXY_PATH: Record<DocType, string> = {
@@ -71,6 +65,7 @@ interface OfficeWatchViewerProps {
  */
 const OfficeWatchViewer: React.FC<OfficeWatchViewerProps> = ({ docType, filePath }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const keys = I18N_KEYS[docType];
 
   const [watchUrl, setWatchUrl] = useState<string | null>(null);
@@ -79,9 +74,14 @@ const OfficeWatchViewer: React.FC<OfficeWatchViewerProps> = ({ docType, filePath
   const [error, setError] = useState<string | null>(null);
   const filePathRef = useRef(filePath);
 
+  // Map docType to endpoint name prefixes
+  const statusEventName =
+    `${docType === 'ppt' ? 'ppt' : docType === 'word' ? 'word' : 'excel'}-preview.status` as const;
+  const startEndpoint = `${docType === 'ppt' ? 'ppt' : docType === 'word' ? 'word' : 'excel'}-preview.start` as const;
+  const stopEndpoint = `${docType === 'ppt' ? 'ppt' : docType === 'word' ? 'word' : 'excel'}-preview.stop` as const;
+
   useEffect(() => {
     filePathRef.current = filePath;
-    const bridge = BRIDGE[docType];
 
     if (!filePath) {
       setLoading(false);
@@ -91,7 +91,7 @@ const OfficeWatchViewer: React.FC<OfficeWatchViewerProps> = ({ docType, filePath
 
     let cancelled = false;
 
-    const unsubStatus = bridge.status.on((evt) => {
+    const unsubStatus = api.on(statusEventName, (evt) => {
       if (cancelled) return;
       if (evt.state === 'installing') setStatus('installing');
       else if (evt.state === 'starting') setStatus('starting');
@@ -102,7 +102,7 @@ const OfficeWatchViewer: React.FC<OfficeWatchViewerProps> = ({ docType, filePath
       setStatus('starting');
       setError(null);
       try {
-        const result = await bridge.start.invoke({ filePath });
+        const result = await api.request(startEndpoint, { filePath });
         const url = result.url;
         if (!url || ('error' in result && result.error)) {
           throw new Error((result as { error?: string }).error || t(keys.startFailed));
@@ -133,7 +133,7 @@ const OfficeWatchViewer: React.FC<OfficeWatchViewerProps> = ({ docType, filePath
       cancelled = true;
       unsubStatus();
       if (filePathRef.current) {
-        bridge.stop.invoke({ filePath: filePathRef.current }).catch(() => {});
+        api.request(stopEndpoint, { filePath: filePathRef.current }).catch(() => {});
       }
     };
   }, [docType, filePath]);

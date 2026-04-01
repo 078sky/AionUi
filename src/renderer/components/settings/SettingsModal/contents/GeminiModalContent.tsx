@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useThemeContext } from '@/renderer/hooks/context/ThemeContext';
@@ -27,6 +27,7 @@ const toGeminiConfig = (config: Record<string, unknown>, accountProjects?: Recor
 
 const GeminiModalContent: React.FC = () => {
   const { t } = useTranslation();
+  const api = useApi();
   const { theme: _theme } = useThemeContext();
   const [form] = Form.useForm();
   const [googleAccountLoading, setGoogleAccountLoading] = useState(false);
@@ -56,8 +57,8 @@ const GeminiModalContent: React.FC = () => {
 
   const loadGoogleAuthStatus = (proxy?: string, geminiConfig?: Record<string, unknown>) => {
     setGoogleAccountLoading(true);
-    ipcBridge.googleAuth.status
-      .invoke({ proxy: proxy })
+    api
+      .request('google.auth.status', { proxy: proxy })
       .then((data) => {
         if (data.success && data.data?.account) {
           const email = data.data.account;
@@ -184,8 +185,8 @@ const GeminiModalContent: React.FC = () => {
                           type='outline'
                           onClick={() => {
                             setUserLoggedOut(true);
-                            ipcBridge.googleAuth.logout
-                              .invoke({})
+                            api
+                              .request('google.auth.logout', {})
                               .then(() => {
                                 form.setFieldValue('googleAccount', '');
                               })
@@ -204,8 +205,8 @@ const GeminiModalContent: React.FC = () => {
                         className='rd-100px'
                         onClick={() => {
                           setGoogleAccountLoading(true);
-                          ipcBridge.googleAuth.login
-                            .invoke({ proxy: form.getFieldValue('proxy') })
+                          api
+                            .request('google.auth.login', { proxy: form.getFieldValue('proxy') })
                             .then((result) => {
                               if (result.success) {
                                 loadGoogleAuthStatus(form.getFieldValue('proxy'));

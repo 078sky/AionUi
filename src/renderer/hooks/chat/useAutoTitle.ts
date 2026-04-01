@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { useConversationTabs } from '@/renderer/pages/conversation/hooks/ConversationTabsContext';
 import { deriveAutoTitleFromMessages } from '@/renderer/utils/chat/autoTitle';
@@ -20,7 +19,7 @@ export const useAutoTitle = () => {
           return;
         }
 
-        const messages = await ipcBridge.database.getConversationMessages.invoke({
+        const messages = await api.request('database.get-conversation-messages', {
           conversation_id: conversationId,
           page: 0,
           pageSize: 1000,

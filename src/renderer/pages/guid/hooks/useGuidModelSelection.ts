@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
 import { ConfigStorage } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
@@ -46,9 +47,10 @@ export type GuidModelSelectionResult = {
  * Hook that manages Gemini model list and selection state for the Guid page.
  */
 export const useGuidModelSelection = (): GuidModelSelectionResult => {
+  const api = useApi();
   const { geminiModeOptions, isGoogleAuth } = useGeminiGoogleAuthModels();
   const { data: modelConfig } = useSWR('model.config.welcome', () => {
-    return ipcBridge.mode.getModelConfig.invoke().then((data) => {
+    return api.request('mode.get-model-config', undefined).then((data) => {
       return (data || []).filter((platform) => !!platform.model.length);
     });
   });

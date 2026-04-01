@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { getApiClient } from '@renderer/api';
 import type { SpeechToTextResult } from '@/common/types/speech';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 
@@ -61,7 +61,7 @@ export async function transcribeAudioBlob(blob: Blob, languageHint?: string): Pr
 
   if (isElectronDesktop()) {
     const audioBuffer = new Uint8Array(await blob.arrayBuffer());
-    return ipcBridge.speechToText.transcribe.invoke({
+    return getApiClient().request('speech-to-text.transcribe', {
       audioBuffer: Array.from(audioBuffer),
       fileName,
       languageHint,

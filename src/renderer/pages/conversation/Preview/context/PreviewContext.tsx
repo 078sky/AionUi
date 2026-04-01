@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { PreviewContentType } from '@/common/types/preview';
 import { emitter } from '@/renderer/utils/emitter';
@@ -498,7 +497,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // 防抖定时器映射：每个文件路径对应一个定时器 / Debounce timer map: one timer per file path
     const debounceTimers = new Map<string, NodeJS.Timeout>();
 
-    const unsubscribe = ipcBridge.fileStream.contentUpdate.on(({ filePath, content, operation }) => {
+    const unsubscribe = api.on('file-stream-content-update', ({ filePath, content, operation }) => {
       // 如果是删除操作，立即处理，不需要防抖 / If delete operation, handle immediately without debounce
       if (operation === 'delete') {
         // 清除该文件的防抖定时器 / Clear debounce timer for this file
@@ -653,7 +652,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
     emitter.on('preview.open', handlePreviewOpen);
 
     // 监听 IPC 事件（来自主进程，如 chrome-devtools MCP 导航）/ Listen to IPC event (from main process, e.g., chrome-devtools MCP navigation)
-    const unsubscribeIpc = ipcBridge.preview.open.on(handlePreviewOpen);
+    const unsubscribeIpc = api.on('preview.open', handlePreviewOpen);
 
     return () => {
       emitter.off('preview.open', handlePreviewOpen);

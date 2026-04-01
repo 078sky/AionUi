@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '@/common/types/preview';
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -117,6 +117,7 @@ interface UsePreviewHistoryReturn {
  * @returns 历史管理相关状态和方法 / History management related states and methods
  */
 export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistoryOptions): UsePreviewHistoryReturn => {
+  const api = useApi();
   const { t } = useTranslation();
   const [historyVersions, setHistoryVersions] = useState<PreviewSnapshotInfo[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -150,7 +151,7 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      const versions = await ipcBridge.previewHistory.list.invoke({ target: historyTarget });
+      const versions = await api.request('preview-history.list', { target: historyTarget });
       setHistoryVersions(versions || []);
       setHistoryError(null);
     } catch (error) {
@@ -184,7 +185,7 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
     try {
       setSnapshotSaving(true);
       lastSnapshotTimeRef.current = now; // 更新最后保存时间 / Update last save time
-      await ipcBridge.previewHistory.save.invoke({ target: historyTarget, content: activeTab.content });
+      await api.request('preview-history.save', { target: historyTarget, content: activeTab.content });
       messageApi.success(t('preview.snapshotSaved'));
       await refreshHistory();
     } catch (error) {
@@ -202,7 +203,7 @@ export const usePreviewHistory = ({ activeTab, updateContent }: UsePreviewHistor
         return;
       }
       try {
-        const result = await ipcBridge.previewHistory.getContent.invoke({
+        const result = await api.request('preview-history.get-content', {
           target: historyTarget,
           snapshotId: snapshot.id,
         });

@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -75,6 +76,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   speechInputNode,
   onSend,
 }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
@@ -127,8 +129,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
       className='min-w-200px'
       onClickMenuItem={(key) => {
         if (key === 'file') {
-          ipcBridge.dialog.showOpen
-            .invoke({ properties: ['openFile', 'multiSelections'] })
+          api
+            .request('show-open', { properties: ['openFile', 'multiSelections'] })
             .then((uploadedFiles) => {
               if (uploadedFiles && uploadedFiles.length > 0) {
                 onFilesUploaded(uploadedFiles);
@@ -140,8 +142,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         } else if (key === 'device') {
           fileInputRef.current?.click();
         } else if (key === 'workspace') {
-          ipcBridge.dialog.showOpen
-            .invoke({ properties: ['openDirectory'] })
+          api
+            .request('show-open', { properties: ['openDirectory'] })
             .then((dirs) => {
               if (dirs && dirs[0]) {
                 onSelectWorkspace(dirs[0]);

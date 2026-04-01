@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import useSWR from 'swr';
 
 export interface GeminiModeOption {
@@ -112,6 +112,7 @@ const useModeModeList = (
     profile?: string;
   }
 ) => {
+  const api = useApi();
   return useSWR(
     [platform + '/models', { platform, base_url, api_key, try_fix, bedrockConfig }],
     async ([_url, { platform, base_url, api_key, try_fix, bedrockConfig }]): Promise<{
@@ -120,7 +121,7 @@ const useModeModeList = (
     }> => {
       // 如果有 API key、base_url 或 bedrockConfig，尝试通过 API 获取模型列表
       if (api_key || base_url || bedrockConfig) {
-        const res = await ipcBridge.mode.fetchModelList.invoke({ base_url, api_key, try_fix, platform, bedrockConfig });
+        const res = await api.request('mode.get-model-list', { base_url, api_key, try_fix, platform, bedrockConfig });
         if (res.success) {
           let modelList =
             res.data?.mode.map((v) => {

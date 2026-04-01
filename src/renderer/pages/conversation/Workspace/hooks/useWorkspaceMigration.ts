@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { uuid } from '@/common/utils';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -54,7 +53,7 @@ export function useWorkspaceMigration({
 
   const handleOpenWorkspaceRoot = useCallback(async () => {
     try {
-      await ipcBridge.shell.showItemInFolder.invoke(workspace);
+      await api.request('show-item-in-folder', workspace);
     } catch (_error) {
       messageApi.error(t('conversation.workspace.contextMenu.revealFailed'));
     }
@@ -73,7 +72,7 @@ export function useWorkspaceMigration({
     if (isElectronDesktop()) {
       // Electron: use native file dialog
       try {
-        const openFiles = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
+        const openFiles = await api.request('show-open', { properties: ['openDirectory'] });
         if (openFiles && openFiles.length > 0) {
           setSelectedTargetPath(openFiles[0]);
         }
@@ -94,7 +93,7 @@ export function useWorkspaceMigration({
 
       try {
         // Get current conversation data
-        const conversations = await ipcBridge.database.getUserConversations.invoke({ page: 0, pageSize: 10000 });
+        const conversations = await api.request('database.get-user-conversations', { page: 0, pageSize: 10000 });
         const currentConversation = conversations?.find((conv) => conv.id === conversation_id);
 
         if (!currentConversation) {

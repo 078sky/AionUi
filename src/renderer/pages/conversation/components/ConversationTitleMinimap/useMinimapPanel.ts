@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { dispatchChatMessageJump } from '@/renderer/utils/chat/chatMinimapEvents';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
@@ -53,6 +54,7 @@ type UseMinimapPanelReturn = {
  * Extracts all state management and side effects for the ConversationTitleMinimap component.
  */
 export const useMinimapPanel = (conversationId?: string): UseMinimapPanelReturn => {
+  const api = useApi();
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<TurnPreviewItem[]>([]);
@@ -114,7 +116,7 @@ export const useMinimapPanel = (conversationId?: string): UseMinimapPanelReturn 
     }
     setLoading(true);
     try {
-      const messages = await ipcBridge.database.getConversationMessages.invoke({
+      const messages = await api.request('database.get-conversation-messages', {
         conversation_id: conversationId,
         page: 0,
         pageSize: 10000,

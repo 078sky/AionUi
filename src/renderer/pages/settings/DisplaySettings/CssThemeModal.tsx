@@ -5,7 +5,6 @@
  */
 
 import type { ICssTheme } from '@/common/config/storage.ts';
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext.tsx';
 import { iconColors } from '@renderer/styles/colors';
@@ -78,7 +77,7 @@ const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, 
    */
   const handleCoverUpload = useCallback(async () => {
     try {
-      const files = await ipcBridge.dialog.showOpen.invoke({
+      const files = await api.request('show-open', {
         properties: ['openFile'],
         filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
       });

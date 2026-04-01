@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { FileChangeInfo, SnapshotInfo } from '@/common/types/fileSnapshot';
 import { isTextFile } from '@/renderer/services/FileService';
@@ -137,7 +136,7 @@ const FileChangeList: React.FC<FileChangeListProps> = ({
         let after = '';
 
         if (change.operation === 'modify' || change.operation === 'delete') {
-          const baseline = await ipcBridge.fileSnapshot.getBaselineContent.invoke({
+          const baseline = await api.request('file-snapshot-baseline', {
             workspace,
             filePath: change.relativePath,
           });

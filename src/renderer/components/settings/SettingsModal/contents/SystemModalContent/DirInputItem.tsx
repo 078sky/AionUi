@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { iconColors } from '@/renderer/styles/colors';
 import { Button, Form, Tooltip } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
@@ -19,6 +20,7 @@ const DirInputItem: React.FC<{
   label: string;
   field: string;
 }> = ({ label, field }) => {
+  const api = useApi();
   const { t } = useTranslation();
   return (
     <Form.Item label={label} field={field}>
@@ -26,8 +28,8 @@ const DirInputItem: React.FC<{
         const currentValue = form.getFieldValue(field) || '';
 
         const handlePick = () => {
-          ipcBridge.dialog.showOpen
-            .invoke({
+          api
+            .request('show-open', {
               defaultPath: currentValue,
               properties: ['openDirectory', 'createDirectory'],
             })

@@ -7,7 +7,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Progress, Message } from '@arco-design/web-react';
 import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/update/updateTypes';
@@ -19,6 +19,7 @@ type UpdateInfo = UpdateReleaseInfo;
 
 const UpdateModal: React.FC = () => {
   const { t } = useTranslation();
+  const api = useApi();
   const [visible, setVisible] = useState(false);
   const [status, setStatus] = useState<UpdateStatus>('checking');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -50,7 +51,7 @@ const UpdateModal: React.FC = () => {
 
   const openReleasePage = () => {
     if (!releasePageUrl) return;
-    void ipcBridge.shell.openExternal.invoke(releasePageUrl).catch((error) => {
+    void api.request('open-external', releasePageUrl).catch((error) => {
       console.error('Failed to open release page:', error);
     });
   };
@@ -61,7 +62,7 @@ const UpdateModal: React.FC = () => {
       // Try auto-update (electron-updater) first
       let autoUpdateOk = false;
       try {
-        const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease });
+        const res = await api.request('auto-update.check', { includePrerelease });
         if (res?.success && res.data?.updateInfo) {
           autoUpdateOk = true;
           setAutoUpdateInfo({
@@ -77,7 +78,7 @@ const UpdateModal: React.FC = () => {
       setAutoUpdateAvailable(autoUpdateOk);
 
       // Always run manual check for version info and release notes
-      const res = await ipcBridge.update.check.invoke({ includePrerelease });
+      const res = await api.request('update.check', { includePrerelease });
       if (!res?.success) {
         throw new Error(res?.msg || t('update.checkFailed'));
       }
@@ -120,7 +121,7 @@ const UpdateModal: React.FC = () => {
     setStatus('downloading');
     try {
       if (autoUpdateAvailable) {
-        const res = await ipcBridge.autoUpdate.download.invoke();
+        const res = await api.request('auto-update.download', undefined);
         if (!res?.success) {
           throw new Error(res?.msg || t('update.downloadStartFailed'));
         }
@@ -134,7 +135,7 @@ const UpdateModal: React.FC = () => {
         throw new Error(t('update.noCompatibleAssetManual'));
       }
 
-      const res = await ipcBridge.update.download.invoke({
+      const res = await api.request('update.download', {
         url: asset.url,
         fileName: asset.name,
       });
@@ -154,7 +155,7 @@ const UpdateModal: React.FC = () => {
 
   const quitAndInstall = async () => {
     try {
-      await ipcBridge.autoUpdate.quitAndInstall.invoke();
+      await api.request('auto-update.quit-and-install', undefined);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Install failed:', err);
@@ -183,7 +184,7 @@ const UpdateModal: React.FC = () => {
   };
 
   useEffect(() => {
-    const removeOpenListener = ipcBridge.update.open.on(handleOpenUpdateModal);
+    const removeOpenListener = api.on('update.open', handleOpenUpdateModal);
     window.addEventListener('aionui-open-update-modal', handleOpenUpdateModal);
 
     return () => {
@@ -194,7 +195,7 @@ const UpdateModal: React.FC = () => {
 
   // Listen for auto-update status events (e.g. from startup check)
   useEffect(() => {
-    const removeListener = ipcBridge.autoUpdate.status.on((evt: AutoUpdateStatus) => {
+    const removeListener = api.on('auto-update.status', (evt: AutoUpdateStatus) => {
       if (!evt) return;
 
       switch (evt.status) {
@@ -238,7 +239,7 @@ const UpdateModal: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    const removeProgressListener = ipcBridge.update.downloadProgress.on((evt: UpdateDownloadProgressEvent) => {
+    const removeProgressListener = api.on('update.download.progress', (evt: UpdateDownloadProgressEvent) => {
       if (!evt) return;
       if (!downloadId || evt.downloadId !== downloadId) return;
 
@@ -271,14 +272,14 @@ const UpdateModal: React.FC = () => {
 
   const openFile = () => {
     if (!downloadPath) return;
-    void ipcBridge.shell.openFile.invoke(downloadPath).catch((error) => {
+    void api.request('open-file', downloadPath).catch((error) => {
       console.error('Failed to open file:', error);
     });
   };
 
   const showInFolder = () => {
     if (!downloadPath) return;
-    void ipcBridge.shell.showItemInFolder.invoke(downloadPath).catch((error) => {
+    void api.request('show-item-in-folder', downloadPath).catch((error) => {
       console.error('Failed to show item in folder:', error);
     });
   };

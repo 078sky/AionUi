@@ -1,7 +1,7 @@
 /**
  * AddCustomPathModal — Modal for adding a custom external skill directory path.
  */
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Button, Input, Modal } from '@arco-design/web-react';
 import { FolderOpen } from '@icon-park/react';
 import React from 'react';
@@ -26,6 +26,7 @@ const AddCustomPathModal: React.FC<AddCustomPathModalProps> = ({
   customPathValue,
   setCustomPathValue,
 }) => {
+  const api = useApi();
   const { t } = useTranslation();
 
   return (
@@ -71,7 +72,7 @@ const AddCustomPathModal: React.FC<AddCustomPathModalProps> = ({
               className='rd-6px'
               onClick={async () => {
                 try {
-                  const result = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
+                  const result = await api.request('show-open', { properties: ['openDirectory'] });
                   if (result && result.length > 0) {
                     setCustomPathValue(result[0]);
                   }

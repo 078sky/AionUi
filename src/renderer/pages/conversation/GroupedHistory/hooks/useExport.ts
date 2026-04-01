@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { TChatConversation } from '@/common/config/storage';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -49,7 +48,7 @@ export const useExport = ({
   const fileExists = useCallback(async (filePath: string): Promise<boolean> => {
     try {
       const metadata = await withTimeout(
-        api.request("get-file-metadata", { path: filePath }),
+        api.request('get-file-metadata', { path: filePath }),
         EXPORT_IO_TIMEOUT_MS,
         `getFileMetadata:${filePath}`
       );
@@ -75,7 +74,7 @@ export const useExport = ({
 
   const getDesktopPath = useCallback(async (): Promise<string> => {
     try {
-      const desktopPath = await ipcBridge.application.getPath.invoke({ name: 'desktop' });
+      const desktopPath = await api.request('app.get-path', { name: 'desktop' });
       return desktopPath || '';
     } catch {
       return '';
@@ -87,7 +86,7 @@ export const useExport = ({
       exportCanceledRef.current = true;
     }
     if (exportModalLoading && currentExportRequestId) {
-      void api.request("cancel-zip-file", { requestId: currentExportRequestId });
+      void api.request('cancel-zip-file', { requestId: currentExportRequestId });
     }
     setExportModalVisible(false);
     setExportTask(null);
@@ -126,7 +125,7 @@ export const useExport = ({
 
     try {
       const desktopPath = exportTargetPath || (await getDesktopPath());
-      const folders = await ipcBridge.dialog.showOpen.invoke({
+      const folders = await api.request('show-open', {
         properties: ['openDirectory'],
         defaultPath: desktopPath || undefined,
       });
@@ -142,7 +141,7 @@ export const useExport = ({
   const fetchConversationMessages = useCallback(async (conversationId: string) => {
     try {
       return await withTimeout(
-        ipcBridge.database.getConversationMessages.invoke({
+        api.request('database.get-conversation-messages', {
           conversation_id: conversationId,
           page: 0,
           pageSize: 10000,
@@ -206,13 +205,13 @@ export const useExport = ({
     async (path: string, files: ExportZipFile[], requestId: string): Promise<boolean> => {
       try {
         return await withTimeout(
-          api.request("create-zip-file", { path, files, requestId }),
+          api.request('create-zip-file', { path, files, requestId }),
           EXPORT_IO_TIMEOUT_MS * 8,
           `createZip:${requestId}`
         );
       } catch (error) {
         // Ensure background zip task is stopped when renderer-side timeout/cancel happens.
-        void api.request("cancel-zip-file", { requestId });
+        void api.request('cancel-zip-file', { requestId });
         throw error;
       }
     },

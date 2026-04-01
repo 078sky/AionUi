@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { useCallback } from 'react';
 
 interface UseOpenFileSelectorOptions {
@@ -19,10 +19,11 @@ interface UseOpenFileSelectorResult {
  */
 export function useOpenFileSelector(options: UseOpenFileSelectorOptions): UseOpenFileSelectorResult {
   const { onFilesSelected } = options;
+  const api = useApi();
 
   const openFileSelector = useCallback(() => {
-    void ipcBridge.dialog.showOpen
-      .invoke({ properties: ['openFile', 'multiSelections'] })
+    void api
+      .request('show-open', { properties: ['openFile', 'multiSelections'] })
       .then((files) => {
         if (!files || files.length === 0) {
           return;

@@ -14,7 +14,6 @@ import {
 } from '@arco-design/web-react';
 import { Magic, FolderOpen, Lightning } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
@@ -50,7 +49,7 @@ const LoadRuleModal: React.FC<{
     setLoading(true);
     try {
       // Fetch files from workspace
-      const result = await api.request("get-file-by-dir", { dir: workspace, root: workspace });
+      const result = await api.request('get-file-by-dir', { dir: workspace, root: workspace });
       // Helper to flatten tree and filter
       const flattenFiles = (nodes: IDirOrFile[]): IDirOrFile[] => {
         let acc: IDirOrFile[] = [];
@@ -81,7 +80,7 @@ const LoadRuleModal: React.FC<{
   const handleSelectFile = async (file: IDirOrFile) => {
     setLoadingFile(true);
     try {
-      const content = await api.request("read-file", { path: file.fullPath });
+      const content = await api.request('read-file', { path: file.fullPath });
       const prompt = `
 System Instruction: The user has explicitly loaded the following rule/skill. Please internalize and apply it to our conversation immediately.
 
@@ -188,7 +187,7 @@ const SkillRuleGenerator: React.FC<SkillRuleGeneratorProps> = ({ conversationId,
       const pageSize = 50;
       const MAX_CHARS = 30000;
 
-      const messages = await ipcBridge.database.getConversationMessages.invoke({
+      const messages = await api.request('database.get-conversation-messages', {
         conversation_id: conversationId,
         pageSize: pageSize,
       });

@@ -1,4 +1,3 @@
-import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chat/chatLib';
 import { useApi } from '@renderer/api';
 import type { TChatConversation } from '@/common/config/storage';
@@ -120,7 +119,7 @@ export function useConversationExport(options: UseConversationExportOptions): Us
 
     const messages =
       messagesRef.current ??
-      (await ipcBridge.database.getConversationMessages.invoke({
+      (await api.request('database.get-conversation-messages', {
         conversation_id: conversationId,
         page: 0,
         pageSize: 10000,
@@ -150,14 +149,14 @@ export function useConversationExport(options: UseConversationExportOptions): Us
       let desktopPath = '';
       if (!workspace?.trim()) {
         try {
-          desktopPath = await ipcBridge.application.getPath.invoke({ name: 'desktop' });
+          desktopPath = await api.request('app.get-path', { name: 'desktop' });
         } catch {
           desktopPath = '';
         }
       }
 
       baseDirectoryRef.current = resolveExportBaseDirectory(workspace, desktopPath);
-      const messages = await ipcBridge.database.getConversationMessages.invoke({
+      const messages = await api.request('database.get-conversation-messages', {
         conversation_id: conversationId,
         page: 0,
         pageSize: 10000,
@@ -204,7 +203,7 @@ export function useConversationExport(options: UseConversationExportOptions): Us
 
       const normalizedFileName = normalizeExportFileName(filename);
       const targetPath = joinFilePath(baseDirectoryRef.current, normalizedFileName);
-      const success = await api.request("write-file", {
+      const success = await api.request('write-file', {
         path: targetPath,
         data: transcript,
       });

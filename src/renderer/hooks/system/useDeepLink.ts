@@ -2,11 +2,12 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
+import { useApi } from '@renderer/api';
 import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ipcBridge } from '@/common';
 
 /**
  * Deep link event payload from main process
@@ -43,6 +44,7 @@ export const consumePendingDeepLink = (): DeepLinkAddProviderDetail | null => {
  * by ModelModalContent on mount via consumePendingDeepLink().
  */
 export const useDeepLink = () => {
+  const api = useApi();
   const navigate = useNavigate();
 
   const handler = useCallback(
@@ -64,6 +66,6 @@ export const useDeepLink = () => {
   );
 
   useEffect(() => {
-    return ipcBridge.deepLink.received.on(handler);
+    return api.on('deep-link.received', handler);
   }, [handler]);
 };

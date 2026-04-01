@@ -2,7 +2,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 import { ConfigStorage } from '@/common/config/storage';
-import { ipcBridge } from '@/common';
+import { getApiClient } from '@renderer/api';
 import i18nConfig from '@/common/config/i18n-config.json';
 import {
   DEFAULT_LANGUAGE,
@@ -118,7 +118,7 @@ void initLanguage();
 // Listen for language changes broadcast by the main process (from other renderers).
 // This enables real-time sync between desktop and WebUI — when one changes language,
 // the other updates immediately without requiring a restart.
-ipcBridge.systemSettings.languageChanged.on(async ({ language }) => {
+getApiClient().on('system-settings:language-changed', async ({ language }) => {
   const normalized = normalizeLanguageCode(language);
   // Skip if already on this language (we're the one who triggered the change)
   if (i18n.language === normalized) return;
@@ -136,7 +136,9 @@ export async function changeLanguage(lang: string): Promise<void> {
   // Keep localStorage in sync so WebUI can use it as a fast hint on next load
   localStorage.setItem('i18nextLng', normalized);
   // Notify main process to sync i18n (for tray menu, etc.)
-  ipcBridge.systemSettings.changeLanguage.invoke({ language: normalized }).catch(() => {});
+  void getApiClient()
+    .request('system-settings:change-language', { language: normalized })
+    .catch(() => {});
 }
 
 // Clear translation cache (useful for development/testing)

@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import { useApi } from '@renderer/api';
+import { getApiClient, useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
@@ -58,7 +58,7 @@ const useOpenClawSendBoxDraft = getSendBoxDraftHook('openclaw-gateway', {
  * Returns true if validation passes, false otherwise (with user-facing error).
  */
 const validateRuntimeMismatch = async (conversationId: string): Promise<boolean> => {
-  const runtimeResult = await ipcBridge.openclawConversation.getRuntime.invoke({ conversation_id: conversationId });
+  const runtimeResult = await getApiClient().request('openclaw.get-runtime', { conversation_id: conversationId });
   if (!runtimeResult?.success || !runtimeResult.data) {
     Message.error('Failed to validate agent runtime');
     return false;
@@ -249,8 +249,8 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
     // The agent may have already emitted 'session_active' before this listener was set up
     // (race condition: agent starts in constructor during conversation.create, before navigation).
     // getRuntime awaits bootstrap, so by the time it returns the agent is fully connected.
-    void ipcBridge.openclawConversation.getRuntime
-      .invoke({ conversation_id })
+    void getApiClient()
+      .request('openclaw.get-runtime', { conversation_id })
       .then((res) => {
         if (res?.success && res.data?.runtime?.hasActiveSession) {
           setOpenClawStatus('session_active');

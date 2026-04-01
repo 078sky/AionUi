@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { downloadFileFromPath } from '@/renderer/utils/file/download';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
@@ -88,7 +87,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
     async (nodeData: IDirOrFile | null) => {
       if (!nodeData) return;
       try {
-        await ipcBridge.shell.openFile.invoke(nodeData.fullPath);
+        await api.request('open-file', nodeData.fullPath);
       } catch (error) {
         messageApi.error(t('conversation.workspace.contextMenu.openFailed') || 'Failed to open');
       }
@@ -104,7 +103,7 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
     async (nodeData: IDirOrFile | null) => {
       if (!nodeData) return;
       try {
-        await ipcBridge.shell.showItemInFolder.invoke(nodeData.fullPath);
+        await api.request('show-item-in-folder', nodeData.fullPath);
       } catch (error) {
         messageApi.error(t('conversation.workspace.contextMenu.revealFailed') || 'Failed to reveal');
       }

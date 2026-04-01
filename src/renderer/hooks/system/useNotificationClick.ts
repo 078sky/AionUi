@@ -2,17 +2,19 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
+import { useApi } from '@renderer/api';
 import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ipcBridge } from '@/common';
 
 /**
  * Hook to listen for notification click events from main process.
  * Navigates to the corresponding conversation page when a notification is clicked.
  */
 export const useNotificationClick = () => {
+  const api = useApi();
   const navigate = useNavigate();
 
   const handler = useCallback(
@@ -31,6 +33,6 @@ export const useNotificationClick = () => {
 
   useEffect(() => {
     console.log('[useNotificationClick] Registering notification click handler');
-    return ipcBridge.notification.clicked.on(handler);
+    return api.on('notification.clicked', handler);
   }, [handler]);
 };

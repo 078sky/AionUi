@@ -9,7 +9,7 @@ import { Button, Input, Modal, Tooltip } from '@arco-design/web-react';
 import { Tv } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { emitter, useAddEventListener } from '@renderer/utils/emitter.ts';
 import { iconColors } from '@renderer/styles/colors';
 
@@ -40,6 +40,7 @@ type DetectState = 'checking' | 'ready' | 'not_found' | 'error';
 
 const StarOfficeMonitorCard: React.FC<StarOfficeMonitorCardProps> = ({ conversationId, onOpenUrl }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const [visible, setVisible] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [detectState, setDetectState] = useState<DetectState>('checking');
@@ -71,7 +72,7 @@ const StarOfficeMonitorCard: React.FC<StarOfficeMonitorCardProps> = ({ conversat
           let found: string | null = null;
           let hasDetectError = false;
           let message = '';
-          const mainDetectResult = await ipcBridge.starOffice.detectUrl.invoke({
+          const mainDetectResult = await api.request('star-office.detect-url', {
             preferredUrl: url,
             force: options?.force,
             timeoutMs,
@@ -259,8 +260,8 @@ const StarOfficeMonitorCard: React.FC<StarOfficeMonitorCardProps> = ({ conversat
   }, [detectState, detectedUrl, onOpenUrl, runDetect, t]);
 
   const handleOpenInstallGuide = useCallback(() => {
-    void ipcBridge.shell.openExternal.invoke('https://github.com/ringhyacinth/Star-Office-UI');
-  }, []);
+    void api.request('open-external', 'https://github.com/ringhyacinth/Star-Office-UI');
+  }, [api]);
 
   const handleAskOpenClawInstall = useCallback(() => {
     if (conversationId) {

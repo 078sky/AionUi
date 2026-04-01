@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IMessageSearchItem } from '@/common/types/database';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import AionModal from '@/renderer/components/base/AionModal';
@@ -145,6 +146,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
   label,
   fullWidth = false,
 }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const conversationTabs = useOptionalConversationTabs();
@@ -196,7 +198,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
       }
 
       try {
-        const result = await ipcBridge.database.searchConversationMessages.invoke({
+        const result = await api.request('database.search-conversation-messages', {
           keyword: debouncedKeyword,
           page: pageToLoad,
           pageSize: PAGE_SIZE,

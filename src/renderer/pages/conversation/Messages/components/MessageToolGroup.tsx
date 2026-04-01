@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { IMessageToolGroup } from '@/common/chat/chatLib';
 import { iconColors } from '@/renderer/styles/colors';
@@ -449,6 +448,7 @@ const ToolResultDisplay: React.FC<{
 };
 
 const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
+  const api = useApi();
   const { t } = useTranslation();
 
   // 收集所有 WriteFile 结果用于汇总显示 / Collect all WriteFile results for summary display
@@ -487,8 +487,8 @@ const MessageToolGroup: React.FC<IMessageToolGroupProps> = ({ message }) => {
               key={callId}
               content={content}
               onConfirm={(outcome) => {
-                ipcBridge.geminiConversation.confirmMessage
-                  .invoke({
+                api
+                  .request('input.confirm.message', {
                     confirmKey: outcome,
                     msg_id: message.id,
                     callId: callId,

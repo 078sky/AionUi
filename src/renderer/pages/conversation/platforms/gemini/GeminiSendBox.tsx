@@ -157,8 +157,8 @@ const GeminiSendBox: React.FC<{
     autoSwitchTriggeredRef.current = false;
     resetAgentCheck();
 
-    void ipcBridge.database.getConversationMessages
-      .invoke({ conversation_id, page: 0, pageSize: 1 })
+    void api
+      .request('database.get-conversation-messages', { conversation_id, page: 0, pageSize: 1 })
       .then((messages) => {
         const hasMessages = messages && messages.length > 0;
         setIsNewConversation(!hasMessages);

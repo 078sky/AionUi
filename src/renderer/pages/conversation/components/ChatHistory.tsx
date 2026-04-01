@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { TChatConversation } from '@/common/config/storage';
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
@@ -107,8 +106,8 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
   useEffect(() => {
     const refresh = () => {
       // Get conversations from database instead of file storage
-      ipcBridge.database.getUserConversations
-        .invoke({ page: 0, pageSize: 10000 })
+      api
+        .request('database.get-user-conversations', { page: 0, pageSize: 10000 })
         .then((history) => {
           if (history && Array.isArray(history) && history.length > 0) {
             const sortedHistory = history.toSorted((a, b) => getActivityTime(b) - getActivityTime(a));

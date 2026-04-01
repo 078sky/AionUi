@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { RemoteAgentConfig, RemoteAgentInput } from '@process/agent/remote/types';
 import EmojiPicker from '@/renderer/components/chat/EmojiPicker';
 import {
@@ -41,6 +41,7 @@ const RemoteAgentFormModal: React.FC<{
   onSaved: () => void;
 }> = ({ visible, editAgent, onClose, onSaved }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const [form] = Form.useForm<RemoteAgentInput>();
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -85,7 +86,7 @@ const RemoteAgentFormModal: React.FC<{
 
       pollTimerRef.current = setInterval(async () => {
         try {
-          const result = await ipcBridge.remoteAgent.handshake.invoke({ id: agentId });
+          const result = await api.request('remote-agent.handshake', { id: agentId });
           if (result.status === 'ok') {
             stopPolling();
             setPairingState('idle');
@@ -115,7 +116,7 @@ const RemoteAgentFormModal: React.FC<{
     }
     setTesting(true);
     try {
-      const result = await ipcBridge.remoteAgent.testConnection.invoke({
+      const result = await api.request('remote-agent.test-connection', {
         url: values.url,
         authType: values.authType || 'none',
         authToken: values.authToken,
@@ -141,10 +142,10 @@ const RemoteAgentFormModal: React.FC<{
 
       let agentId: string;
       if (editAgent) {
-        await ipcBridge.remoteAgent.update.invoke({ id: editAgent.id, updates: payload });
+        await api.request('remote-agent.update', { id: editAgent.id, updates: payload });
         agentId = editAgent.id;
       } else {
-        const created = await ipcBridge.remoteAgent.create.invoke(payload);
+        const created = await api.request('remote-agent.create', payload);
         agentId = created.id;
       }
       savedAgentIdRef.current = agentId;
@@ -152,7 +153,7 @@ const RemoteAgentFormModal: React.FC<{
       // For openclaw protocol, perform full handshake
       if (activeProtocol === 'openclaw') {
         setPairingState('handshaking');
-        const result = await ipcBridge.remoteAgent.handshake.invoke({ id: agentId });
+        const result = await api.request('remote-agent.handshake', { id: agentId });
 
         if (result.status === 'ok') {
           Message.success(editAgent ? t('settings.remoteAgent.updated') : t('settings.remoteAgent.created'));
@@ -369,7 +370,8 @@ const RemoteAgentFormModal: React.FC<{
 
 const RemoteAgentManagement: React.FC = () => {
   const { t } = useTranslation();
-  const { data: agents, mutate } = useSWR('remote-agents.list', () => ipcBridge.remoteAgent.list.invoke());
+  const api = useApi();
+  const { data: agents, mutate } = useSWR('remote-agents.list', () => api.request('remote-agent.list', undefined));
   const [modalVisible, setModalVisible] = useState(false);
   const [editAgent, setEditAgent] = useState<RemoteAgentConfig>();
 
@@ -390,7 +392,7 @@ const RemoteAgentManagement: React.FC = () => {
         content: t('settings.remoteAgent.deleteConfirmContent', { name: agent.name }),
         okButtonProps: { status: 'danger' },
         onOk: async () => {
-          await ipcBridge.remoteAgent.delete.invoke({ id: agent.id });
+          await api.request('remote-agent.delete', { id: agent.id });
           Message.success(t('settings.remoteAgent.deleted'));
           await mutate();
         },

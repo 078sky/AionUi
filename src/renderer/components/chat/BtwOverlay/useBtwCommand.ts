@@ -1,4 +1,3 @@
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useRef, useState } from 'react';

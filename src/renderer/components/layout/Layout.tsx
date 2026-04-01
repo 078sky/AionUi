@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage, type ICssTheme } from '@/common/config/storage';
 import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
@@ -26,11 +27,12 @@ import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils
 import '@renderer/styles/layout.css';
 
 const useDebug = () => {
+  const api = useApi();
   const [count, setCount] = useState(0);
   const timer = useRef<any>(null);
   const onClick = () => {
     const open = () => {
-      ipcBridge.application.openDevTools.invoke().catch((error) => {
+      api.request('open-dev-tools', undefined).catch((error) => {
         console.error('Failed to open dev tools:', error);
       });
       setCount(0);
@@ -84,6 +86,7 @@ const Layout: React.FC<{
   sider: React.ReactNode;
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
+  const api = useApi();
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
@@ -271,7 +274,7 @@ const Layout: React.FC<{
 
   // Bridge Main Process logs to F12 Console
   useEffect(() => {
-    const unsubscribe = ipcBridge.application.logStream.on((entry) => {
+    const unsubscribe = api.on('app.log-stream', (entry) => {
       const prefix = `%c[Main:${entry.tag}]%c ${entry.message}`;
       const style = 'color:#7c3aed;font-weight:bold';
       if (entry.level === 'error') {
@@ -307,8 +310,7 @@ const Layout: React.FC<{
 
     // Handle pause all tasks request from tray / 托盘请求暂停所有任务
     const handlePauseAllTasks = async () => {
-      const { ipcBridge } = await import('@/common');
-      const result = await ipcBridge.task.stopAll.invoke();
+      const result = await api.request('task.stop-all', undefined);
       if (result?.success) {
         // Navigate to settings page to show task status
         void navigate('/settings/system');

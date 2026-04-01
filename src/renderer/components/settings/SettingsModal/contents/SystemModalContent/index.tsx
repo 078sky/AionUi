@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
 import { iconColors } from '@/renderer/styles/colors';
@@ -27,6 +27,7 @@ import PreferenceRow from './PreferenceRow';
  */
 const SystemModalContent: React.FC = () => {
   const { t } = useTranslation();
+  const api = useApi();
   const [form] = Form.useForm();
   const [modal, modalContextHolder] = Modal.useModal();
   const [error, setError] = useState<string | null>(null);
@@ -40,22 +41,22 @@ const SystemModalContent: React.FC = () => {
   const [promptTimeout, setPromptTimeout] = useState<number>(300);
 
   useEffect(() => {
-    ipcBridge.systemSettings.getCloseToTray
-      .invoke()
+    api
+      .request('system-settings:get-close-to-tray', undefined)
       .then((enabled) => setCloseToTray(enabled))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    ipcBridge.systemSettings.getNotificationEnabled
-      .invoke()
+    api
+      .request('system-settings:get-notification-enabled', undefined)
       .then((enabled) => setNotificationEnabled(enabled))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    ipcBridge.systemSettings.getCronNotificationEnabled
-      .invoke()
+    api
+      .request('system-settings:get-cron-notification-enabled', undefined)
       .then((enabled) => setCronNotificationEnabled(enabled))
       .catch(() => {});
   }, []);
@@ -70,21 +71,21 @@ const SystemModalContent: React.FC = () => {
 
   const handleCloseToTrayChange = useCallback((checked: boolean) => {
     setCloseToTray(checked);
-    ipcBridge.systemSettings.setCloseToTray.invoke({ enabled: checked }).catch(() => {
+    api.request('system-settings:set-close-to-tray', { enabled: checked }).catch(() => {
       setCloseToTray(!checked);
     });
   }, []);
 
   const handleNotificationEnabledChange = useCallback((checked: boolean) => {
     setNotificationEnabled(checked);
-    ipcBridge.systemSettings.setNotificationEnabled.invoke({ enabled: checked }).catch(() => {
+    api.request('system-settings:set-notification-enabled', { enabled: checked }).catch(() => {
       setNotificationEnabled(!checked);
     });
   }, []);
 
   const handleCronNotificationEnabledChange = useCallback((checked: boolean) => {
     setCronNotificationEnabled(checked);
-    ipcBridge.systemSettings.setCronNotificationEnabled.invoke({ enabled: checked }).catch(() => {
+    api.request('system-settings:set-cron-notification-enabled', { enabled: checked }).catch(() => {
       setCronNotificationEnabled(!checked);
     });
   }, []);
@@ -96,7 +97,7 @@ const SystemModalContent: React.FC = () => {
   }, []);
 
   // Get system directory info
-  const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
+  const { data: systemInfo } = useSWR('system.dir.info', () => api.request('system.info', undefined));
 
   // Initialize form data
   useEffect(() => {
@@ -157,9 +158,9 @@ const SystemModalContent: React.FC = () => {
       setError(null);
       try {
         await saveDirConfigValidate({ cacheDir, workDir });
-        const result = await ipcBridge.application.updateSystemInfo.invoke({ cacheDir, workDir });
+        const result = await api.request('system.update-info', { cacheDir, workDir });
         if (result.success) {
-          await ipcBridge.application.restart.invoke();
+          await api.request('restart-app', undefined);
         } else {
           setError(result.msg || 'Failed to update system info');
           form.setFieldValue('cacheDir', systemInfo.cacheDir);
@@ -248,7 +249,7 @@ const SystemModalContent: React.FC = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (systemInfo?.logDir) {
-                          void ipcBridge.shell.openFile.invoke(systemInfo.logDir);
+                          void api.request('open-file', systemInfo.logDir);
                         }
                       }}
                     />

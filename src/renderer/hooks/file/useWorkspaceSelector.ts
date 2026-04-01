@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { Message } from '@arco-design/web-react';
 import { emitter } from '@/renderer/utils/emitter';
@@ -27,7 +26,7 @@ export const useWorkspaceSelector = (conversationId: string, eventPrefix: Worksp
   return useCallback(async () => {
     try {
       // 选择新的工作空间目录 / Prompt user to pick a new workspace directory
-      const files = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
+      const files = await api.request('show-open', { properties: ['openDirectory'] });
       const workspacePath = files?.[0];
       if (!workspacePath) {
         return;

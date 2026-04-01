@@ -1,3 +1,4 @@
+import { useApi } from '@renderer/api';
 import type { IProvider } from '@/common/config/storage';
 import ModalHOC from '@/renderer/utils/ui/ModalHOC';
 import { Form, Input, Message, Select } from '@arco-design/web-react';
@@ -5,7 +6,6 @@ import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import AionModal from '@/renderer/components/base/AionModal';
 import { LinkCloud } from '@icon-park/react';
-import { ipcBridge } from '@/common';
 import useModeModeList from '@renderer/hooks/agent/useModeModeList';
 
 // Provider Logo imports
@@ -105,6 +105,7 @@ const ProviderLogo: React.FC<{ logo: string | null; name: string; size?: number 
 
 const EditModeModal = ModalHOC<{ data?: IProvider; onChange(data: IProvider): void }>(
   ({ modalProps, modalCtrl, ...props }) => {
+    const api = useApi();
     const { t } = useTranslation();
     const { data } = props;
     const [form] = Form.useForm();
@@ -337,7 +338,7 @@ const EditModeModal = ModalHOC<{ data?: IProvider; onChange(data: IProvider): vo
                           }),
                     };
                     try {
-                      const res = await ipcBridge.mode.fetchModelList.invoke({
+                      const res = await api.request('mode.get-model-list', {
                         platform: data?.platform || 'bedrock',
                         api_key: '',
                         bedrockConfig,

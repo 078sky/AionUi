@@ -1,6 +1,6 @@
+import { useApi } from '@renderer/api';
 import type { IProvider } from '@/common/config/storage';
 import type { ProtocolDetectionResponse, ProtocolType } from '@/common/utils/protocolDetector';
-import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import { isGoogleApisHost } from '@/common/utils/urlValidation';
 import ModalHOC from '@/renderer/utils/ui/ModalHOC';
@@ -209,6 +209,7 @@ const AddPlatformModal = ModalHOC<{
   onSubmit: (platform: IProvider) => void;
   deepLinkData?: DeepLinkAddProviderDetail;
 }>(({ modalProps, onSubmit, modalCtrl, deepLinkData }) => {
+  const api = useApi();
   const [message, messageContext] = Message.useMessage();
   const { t } = useTranslation();
   const [form] = Form.useForm();
@@ -610,7 +611,7 @@ const AddPlatformModal = ModalHOC<{
                             }),
                       };
                       try {
-                        const res = await ipcBridge.mode.fetchModelList.invoke({
+                        const res = await api.request('mode.get-model-list', {
                           platform,
                           api_key: '',
                           bedrockConfig,
@@ -673,7 +674,7 @@ const AddPlatformModal = ModalHOC<{
         }}
         onTestKey={async (key) => {
           try {
-            const res = await ipcBridge.mode.fetchModelList.invoke({
+            const res = await api.request('mode.get-model-list', {
               base_url: actualBaseUrl,
               api_key: key,
               platform: selectedPlatform?.platform ?? 'custom',

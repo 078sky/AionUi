@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Minus, CloseSmall } from '@icon-park/react';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 
 const WindowMaximizeIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
   <svg width={size} height={size} viewBox='0 0 18 18' fill='none' stroke='currentColor' strokeWidth='1.4'>
@@ -19,6 +19,7 @@ const WindowRestoreIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
 );
 
 const WindowControls: React.FC = () => {
+  const api = useApi();
   const [isMaximized, setIsMaximized] = useState(false);
   const [available, setAvailable] = useState(true);
 
@@ -27,8 +28,8 @@ const WindowControls: React.FC = () => {
     let isMounted = true;
 
     // 获取初始窗口状态 / Get initial window state
-    ipcBridge.windowControls.isMaximized
-      .invoke()
+    api
+      .request('window-controls:is-maximized', undefined)
       .then((state) => {
         if (isMounted) {
           setIsMaximized(state);
@@ -41,7 +42,7 @@ const WindowControls: React.FC = () => {
       });
 
     // 订阅窗口最大化状态变化 / Subscribe to window maximize state changes
-    const unsubscribe = ipcBridge.windowControls.maximizedChanged.on(({ isMaximized }) => {
+    const unsubscribe = api.on('window-controls:maximized-changed', ({ isMaximized }) => {
       if (isMounted) {
         setIsMaximized(isMaximized);
       }
@@ -60,18 +61,18 @@ const WindowControls: React.FC = () => {
 
   // 以下处理三种窗口按钮点击事件 / Handle minimize, maximize/restore, and close button events
   const handleMinimize = () => {
-    void ipcBridge.windowControls.minimize.invoke();
+    void api.request('window-controls:minimize', undefined);
   };
 
   const handleClose = () => {
-    void ipcBridge.windowControls.close.invoke();
+    void api.request('window-controls:close', undefined);
   };
 
   const handleToggleMaximize = () => {
     if (isMaximized) {
-      void ipcBridge.windowControls.unmaximize.invoke();
+      void api.request('window-controls:unmaximize', undefined);
     } else {
-      void ipcBridge.windowControls.maximize.invoke();
+      void api.request('window-controls:maximize', undefined);
     }
   };
 

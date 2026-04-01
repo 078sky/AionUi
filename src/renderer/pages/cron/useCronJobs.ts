@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/adapter/ipcBridge';
+import { useApi } from '@renderer/api';
 import { emitter } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -26,9 +26,10 @@ function useCronJobActions(
   onJobUpdated?: (jobId: string, job: ICronJob) => void,
   onJobDeleted?: (jobId: string) => void
 ): CronJobActionsResult {
+  const api = useApi();
   const pauseJob = useCallback(
     async (jobId: string) => {
-      const updated = await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: false } });
+      const updated = await api.request('cron.update-job', { jobId, updates: { enabled: false } });
       onJobUpdated?.(jobId, updated);
     },
     [onJobUpdated]
@@ -36,7 +37,7 @@ function useCronJobActions(
 
   const resumeJob = useCallback(
     async (jobId: string) => {
-      const updated = await ipcBridge.cron.updateJob.invoke({ jobId, updates: { enabled: true } });
+      const updated = await api.request('cron.update-job', { jobId, updates: { enabled: true } });
       onJobUpdated?.(jobId, updated);
     },
     [onJobUpdated]
@@ -44,7 +45,7 @@ function useCronJobActions(
 
   const deleteJob = useCallback(
     async (jobId: string) => {
-      await ipcBridge.cron.removeJob.invoke({ jobId });
+      await api.request('cron.remove-job', { jobId });
       onJobDeleted?.(jobId);
     },
     [onJobDeleted]
@@ -52,7 +53,7 @@ function useCronJobActions(
 
   const updateJob = useCallback(
     async (jobId: string, updates: Partial<ICronJob>) => {
-      const updated = await ipcBridge.cron.updateJob.invoke({ jobId, updates });
+      const updated = await api.request('cron.update-job', { jobId, updates });
       onJobUpdated?.(jobId, updated);
       return updated;
     },
@@ -75,10 +76,11 @@ interface CronJobEventHandlers {
  * Subscribe to cron job events with unified cleanup
  */
 function useCronJobSubscription(handlers: CronJobEventHandlers) {
+  const api = useApi();
   useEffect(() => {
-    const unsubCreate = ipcBridge.cron.onJobCreated.on(handlers.onJobCreated);
-    const unsubUpdate = ipcBridge.cron.onJobUpdated.on(handlers.onJobUpdated);
-    const unsubRemove = ipcBridge.cron.onJobRemoved.on(handlers.onJobRemoved);
+    const unsubCreate = api.on('cron.job-created', handlers.onJobCreated);
+    const unsubUpdate = api.on('cron.job-updated', handlers.onJobUpdated);
+    const unsubRemove = api.on('cron.job-removed', handlers.onJobRemoved);
 
     return () => {
       unsubCreate();
@@ -93,6 +95,7 @@ function useCronJobSubscription(handlers: CronJobEventHandlers) {
  * @param conversationId - The conversation ID to fetch jobs for
  */
 export function useCronJobs(conversationId?: string) {
+  const api = useApi();
   const [jobs, setJobs] = useState<ICronJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -108,7 +111,7 @@ export function useCronJobs(conversationId?: string) {
     setError(null);
 
     try {
-      const result = await ipcBridge.cron.listJobsByConversation.invoke({ conversationId });
+      const result = await api.request('cron.list-jobs-by-conversation', { conversationId });
       setJobs(result || []);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch cron jobs'));
@@ -169,6 +172,7 @@ export function useCronJobs(conversationId?: string) {
  * Hook for managing all cron jobs across all conversations
  */
 export function useAllCronJobs() {
+  const api = useApi();
   const [jobs, setJobs] = useState<ICronJob[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -176,7 +180,7 @@ export function useAllCronJobs() {
   const fetchJobs = useCallback(async () => {
     setLoading(true);
     try {
-      const allJobs = await ipcBridge.cron.listJobs.invoke();
+      const allJobs = await api.request('cron.list-jobs', undefined);
       setJobs(allJobs || []);
     } catch (err) {
       console.error('[useAllCronJobs] Failed to fetch jobs:', err);
@@ -238,6 +242,7 @@ export function useAllCronJobs() {
  * Used by ChatHistory to show indicators
  */
 export function useCronJobsMap() {
+  const api = useApi();
   const [jobsMap, setJobsMap] = useState<Map<string, ICronJob[]>>(new Map());
   const [loading, setLoading] = useState(true);
   // Track conversations with unread cron executions (red dot indicator)
@@ -271,7 +276,7 @@ export function useCronJobsMap() {
   const fetchAllJobs = useCallback(async () => {
     setLoading(true);
     try {
-      const allJobs = await ipcBridge.cron.listJobs.invoke();
+      const allJobs = await api.request('cron.list-jobs', undefined);
       const map = new Map<string, ICronJob[]>();
 
       for (const job of allJobs || []) {
@@ -370,9 +375,9 @@ export function useCronJobsMap() {
   );
 
   useEffect(() => {
-    const unsubCreate = ipcBridge.cron.onJobCreated.on(eventHandlers.onJobCreated);
-    const unsubUpdate = ipcBridge.cron.onJobUpdated.on(eventHandlers.onJobUpdated);
-    const unsubRemove = ipcBridge.cron.onJobRemoved.on(eventHandlers.onJobRemoved);
+    const unsubCreate = api.on('cron.job-created', eventHandlers.onJobCreated);
+    const unsubUpdate = api.on('cron.job-updated', eventHandlers.onJobUpdated);
+    const unsubRemove = api.on('cron.job-removed', eventHandlers.onJobRemoved);
 
     return () => {
       unsubCreate();

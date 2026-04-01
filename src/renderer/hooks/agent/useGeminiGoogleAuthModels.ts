@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,13 +24,14 @@ export interface GeminiGoogleAuthModelResult {
 }
 
 export const useGeminiGoogleAuthModels = (): GeminiGoogleAuthModelResult => {
+  const api = useApi();
   const { t } = useTranslation();
   const { data: geminiConfig } = useSWR('gemini.config', () => ConfigStorage.get('gemini.config'));
   const proxyKey = geminiConfig?.proxy || '';
 
   // 先通过 Google Auth 状态判断是否可用原生 Gemini。Check whether Google Auth CLI is ready.
   const { data: isGoogleAuth } = useSWR('google.auth.status' + proxyKey, async () => {
-    const data = await ipcBridge.googleAuth.status.invoke({ proxy: geminiConfig?.proxy });
+    const data = await api.request('google.auth.status', { proxy: geminiConfig?.proxy });
     return data.success;
   });
 
@@ -38,7 +40,7 @@ export const useGeminiGoogleAuthModels = (): GeminiGoogleAuthModelResult => {
   // 仅在通过认证后才触发订阅状态查询。Only hit CLI subscription API when authenticated.
   const subscriptionKey = shouldCheckSubscription ? 'gemini.subscription.status' + proxyKey : null;
   const { data: subscriptionResponse } = useSWR(subscriptionKey, () => {
-    return ipcBridge.gemini.subscriptionStatus.invoke({ proxy: geminiConfig?.proxy });
+    return api.request('gemini.subscription-status', { proxy: geminiConfig?.proxy });
   });
 
   // 生成与终端 CLI 一致的模型列表 / Generate model list matching terminal CLI

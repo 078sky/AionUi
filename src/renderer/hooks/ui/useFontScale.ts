@@ -2,9 +2,10 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { useCallback, useEffect, useState } from 'react';
 
 const UI_SCALE_DEFAULT = 1;
@@ -26,12 +27,13 @@ const clampFontScale = (value: number) => {
 };
 
 const useFontScale = (): [number, (scale: number) => Promise<void>] => {
+  const api = useApi();
   const [fontScale, setFontScaleState] = useState(FONT_SCALE_DEFAULT);
 
   // 从主进程读取当前缩放，保持 UI 与 Electron 同步 / Pull zoom factor from main to keep UI state aligned
   const fetchZoomFactor = useCallback(async () => {
     try {
-      const currentFactor = await ipcBridge.application.getZoomFactor.invoke();
+      const currentFactor = await api.request('app.get-zoom-factor', undefined);
       if (typeof currentFactor === 'number') {
         setFontScaleState(clampFontScale(currentFactor));
       }
@@ -50,7 +52,7 @@ const useFontScale = (): [number, (scale: number) => Promise<void>] => {
       const clamped = clampFontScale(nextScale);
       setFontScaleState(clamped);
       try {
-        const updatedFactor = await ipcBridge.application.setZoomFactor.invoke({ factor: clamped });
+        const updatedFactor = await api.request('app.set-zoom-factor', { factor: clamped });
         if (typeof updatedFactor === 'number' && updatedFactor !== clamped) {
           setFontScaleState(clampFontScale(updatedFactor));
         }

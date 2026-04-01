@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
 import type { IProvider } from '@/common/config/storage';
@@ -188,7 +187,7 @@ export const useGuidAgentSelection = ({
   });
 
   // Fetch remote agents from DB and merge into available agents
-  const { data: remoteAgentsData } = useSWR('remote-agents.list', () => ipcBridge.remoteAgent.list.invoke());
+  const { data: remoteAgentsData } = useSWR('remote-agents.list', () => api.request('remote-agent.list', undefined));
 
   useEffect(() => {
     if (!availableAgentsData) return;

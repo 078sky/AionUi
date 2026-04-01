@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { getFileTypeInfo } from '@/renderer/utils/file/fileType';
 import { useEffect } from 'react';
@@ -22,14 +22,15 @@ import { useEffect } from 'react';
  *   to an old conversation never replays past events.
  */
 export const useAutoPreviewOfficeFiles = (workspace: string | undefined) => {
+  const api = useApi();
   const { findPreviewTab, openPreview } = usePreviewContext();
 
   useEffect(() => {
     if (!workspace) return;
 
-    ipcBridge.workspaceOfficeWatch.start.invoke({ workspace }).catch(() => {});
+    api.request('workspace-office-watch-start', { workspace }).catch(() => {});
 
-    const unsub = ipcBridge.workspaceOfficeWatch.fileAdded.on(({ filePath, workspace: ws }) => {
+    const unsub = api.on('workspace-office-file-added', ({ filePath, workspace: ws }) => {
       if (ws !== workspace) return;
 
       const { contentType } = getFileTypeInfo(filePath);
@@ -42,7 +43,7 @@ export const useAutoPreviewOfficeFiles = (workspace: string | undefined) => {
 
     return () => {
       unsub();
-      ipcBridge.workspaceOfficeWatch.stop.invoke({ workspace }).catch(() => {});
+      api.request('workspace-office-watch-stop', { workspace }).catch(() => {});
     };
   }, [workspace, findPreviewTab, openPreview]);
 };

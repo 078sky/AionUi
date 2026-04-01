@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Alert, Button, Collapse, Message, Switch, Tooltip } from '@arco-design/web-react';
 import { Copy, Down, Link } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
@@ -19,7 +19,8 @@ import PreferenceRow from './PreferenceRow';
  */
 const DevSettings: React.FC = () => {
   const { t } = useTranslation();
-  const { data: cdpStatus, isLoading } = useSWR('cdp.status', () => ipcBridge.application.getCdpStatus.invoke());
+  const api = useApi();
+  const { data: cdpStatus, isLoading } = useSWR('cdp.status', () => api.request('app.get-cdp-status', undefined));
   const [switchLoading, setSwitchLoading] = useState(false);
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [expandedMcpKeys, setExpandedMcpKeys] = useState<string[]>([]);
@@ -33,12 +34,12 @@ const DevSettings: React.FC = () => {
   useEffect(() => {
     if (isLoading || status?.isDevMode === false) return;
 
-    ipcBridge.application.isDevToolsOpened
-      .invoke()
+    api
+      .request('is-dev-tools-opened', undefined)
       .then((isOpen) => setIsDevToolsOpen(isOpen))
       .catch((error) => console.error('Failed to get DevTools state:', error));
 
-    const unsubscribe = ipcBridge.application.devToolsStateChanged.on((event) => {
+    const unsubscribe = api.on('app.devtools-state-changed', (event) => {
       setIsDevToolsOpen(event.isOpen);
     });
 
@@ -46,8 +47,8 @@ const DevSettings: React.FC = () => {
   }, [isLoading, status?.isDevMode]);
 
   const handleToggleDevTools = () => {
-    ipcBridge.application.openDevTools
-      .invoke()
+    api
+      .request('open-dev-tools', undefined)
       .then((isOpen) => setIsDevToolsOpen(Boolean(isOpen)))
       .catch((error) => console.error('Failed to toggle dev tools:', error));
   };
@@ -55,7 +56,7 @@ const DevSettings: React.FC = () => {
   const handleToggle = async (checked: boolean) => {
     setSwitchLoading(true);
     try {
-      const result = await ipcBridge.application.updateCdpConfig.invoke({ enabled: checked });
+      const result = await api.request('app.update-cdp-config', { enabled: checked });
       if (result.success) {
         Message.success(t('settings.cdp.configSaved'));
         await mutate('cdp.status');
@@ -71,7 +72,7 @@ const DevSettings: React.FC = () => {
 
   const handleRestart = async () => {
     try {
-      await ipcBridge.application.restart.invoke();
+      await api.request('restart-app', undefined);
     } catch {
       Message.error(t('common.error'));
     }
@@ -80,7 +81,7 @@ const DevSettings: React.FC = () => {
   const openCdpUrl = () => {
     if (status?.port) {
       const url = `http://127.0.0.1:${status.port}/json`;
-      ipcBridge.shell.openExternal.invoke(url).catch(console.error);
+      api.request('open-external', url).catch(console.error);
     }
   };
 

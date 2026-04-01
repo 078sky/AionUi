@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
@@ -217,7 +216,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
       if (res?.extra?.workspace) setWorkspacePath(res.extra.workspace);
       const extra = res?.extra as { remoteAgentId?: string } | undefined;
       if (extra?.remoteAgentId) {
-        const agent = await ipcBridge.remoteAgent.get.invoke({ id: extra.remoteAgentId });
+        const agent = await api.request('remote-agent.get', { id: extra.remoteAgentId });
         if (agent?.name) setAgentName(agent.name);
       }
     });

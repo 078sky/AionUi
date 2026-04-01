@@ -1,4 +1,3 @@
-import { ipcBridge } from '@/common';
 import { useApi } from '@renderer/api';
 import { Button, Message, Modal, Typography, Input, Dropdown, Menu } from '@arco-design/web-react';
 import { Delete, FolderOpen, Info, Search, Plus, Refresh } from '@icon-park/react';
@@ -146,7 +145,7 @@ const SkillsHubSettings: React.FC = () => {
 
   const handleManualImport = async () => {
     try {
-      const result = await ipcBridge.dialog.showOpen.invoke({
+      const result = await api.request('show-open', {
         properties: ['openDirectory'],
       });
       if (result && result.length > 0) {
@@ -614,7 +613,7 @@ const SkillsHubSettings: React.FC = () => {
                 className='rd-6px'
                 onClick={async () => {
                   try {
-                    const result = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
+                    const result = await api.request('show-open', { properties: ['openDirectory'] });
                     if (result && result.length > 0) {
                       setCustomPathValue(result[0]);
                     }

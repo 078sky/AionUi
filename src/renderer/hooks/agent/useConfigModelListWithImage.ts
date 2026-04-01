@@ -1,10 +1,11 @@
+import { useApi } from '@renderer/api';
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
 
 const useConfigModelListWithImage = () => {
+  const api = useApi();
   const { data } = useSWR('configModelListWithImage', () => {
-    return ipcBridge.mode.getModelConfig.invoke();
+    return api.request('mode.get-model-config', undefined);
   });
 
   const modelListWithImage = useMemo(() => {

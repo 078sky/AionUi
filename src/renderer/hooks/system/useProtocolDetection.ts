@@ -2,10 +2,11 @@
  * @license
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
+
  */
 
+import { useApi } from '@renderer/api';
 import type { ProtocolDetectionResponse } from '@/common/utils/protocolDetector';
-import { ipcBridge } from '@/common';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -57,6 +58,7 @@ export function useProtocolDetection(
   options: UseProtocolDetectionOptions = {}
 ): UseProtocolDetectionResult {
   const { debounceMs = 800, autoDetect = true, timeout = 10000, testAllKeys = false } = options;
+  const api = useApi();
 
   const [isDetecting, setIsDetecting] = useState(false);
   const [result, setResult] = useState<ProtocolDetectionResponse | null>(null);
@@ -93,7 +95,7 @@ export function useProtocolDetection(
       setError(null);
 
       try {
-        const response = await ipcBridge.mode.detectProtocol.invoke({
+        const response = await api.request('mode.detect-protocol', {
           baseUrl: url,
           apiKey: key,
           timeout,

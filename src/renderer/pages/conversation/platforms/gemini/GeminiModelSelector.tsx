@@ -1,3 +1,4 @@
+import { useApi } from '@renderer/api';
 import type { GeminiModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGeminiModelSelection';
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -8,7 +9,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
 import type { IProvider } from '@/common/config/storage';
 
 // Unified model dropdown for chat header, send box, and channel settings
@@ -18,6 +18,7 @@ const GeminiModelSelector: React.FC<{
   label?: string;
   variant?: 'header' | 'settings';
 }> = ({ selection, disabled = false, label: customLabel, variant = 'header' }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const { isOpen: isPreviewOpen } = usePreviewContext();
   const layout = useLayoutContext();
@@ -26,7 +27,9 @@ const GeminiModelSelector: React.FC<{
   const defaultModelLabel = t('common.defaultModel');
 
   // 获取模型配置数据（包含健康状态）
-  const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
+  const { data: modelConfig } = useSWR<IProvider[]>('model.config', () =>
+    api.request('mode.get-model-config', undefined)
+  );
 
   // 获取当前模型的健康状态 (must be called before any early return to keep hooks count stable)
   const currentModel = selection?.currentModel;
