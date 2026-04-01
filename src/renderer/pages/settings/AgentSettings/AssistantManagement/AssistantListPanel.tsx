@@ -57,8 +57,6 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
 
   const filterOptions: Array<{ key: AssistantListFilter; label: string }> = [
     { key: 'all', label: t('settings.assistantFilterAll', { defaultValue: 'All' }) },
-    { key: 'enabled', label: t('settings.assistantFilterEnabled', { defaultValue: 'Enabled' }) },
-    { key: 'disabled', label: t('settings.assistantFilterDisabled', { defaultValue: 'Disabled' }) },
     { key: 'builtin', label: t('settings.assistantFilterBuiltin', { defaultValue: 'System' }) },
     { key: 'custom', label: t('settings.assistantFilterCustom', { defaultValue: 'Custom' }) },
   ];
@@ -67,20 +65,16 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
     const source = getAssistantSource(assistant);
 
     if (source === 'builtin' || source === 'extension') {
-      return (
-        <Tag
-          size='small'
-          color='arcoblue'
-          bordered={false}
-          className='!text-11px !leading-16px !px-8px !py-1px !rounded-8px opacity-88'
-        >
-          {t('settings.assistantSourceBuiltin', { defaultValue: 'System' })}
-        </Tag>
-      );
+      return null;
     }
 
     return (
-      <Tag size='small' color='green' bordered={false} className='!text-11px !leading-16px !px-8px !py-1px !rounded-8px opacity-88'>
+      <Tag
+        size='small'
+        color='green'
+        bordered={false}
+        className='!text-11px !leading-16px !px-8px !py-1px !rounded-8px !bg-primary-1 !text-primary-6'
+      >
         {t('settings.assistantSourceCustom', { defaultValue: 'Custom' })}
       </Tag>
     );
@@ -92,7 +86,7 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
     return (
       <div
         key={assistant.id}
-        className='group border border-solid border-[var(--color-neutral-3)] bg-[var(--color-bg-2)] rounded-16px px-16px py-14px flex items-center justify-between cursor-pointer transition-all duration-180 hover:border-[var(--color-primary-light-4)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.06)]'
+        className='group border border-solid border-[var(--color-neutral-3)] bg-fill-0 rounded-16px px-16px py-14px flex items-center justify-between cursor-pointer transition-all duration-180 hover:border-[var(--color-primary-light-4)] hover:bg-bg-1'
         onClick={() => {
           setActiveAssistantId(assistant.id);
           onEdit(assistant);
@@ -186,18 +180,6 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
                   defaultValue: 'Build task-specific assistants by combining an AI agent with custom rules and skills.',
                 })}
               </p>
-              <div className='flex flex-wrap gap-x-14px gap-y-6px'>
-                {[
-                  t('settings.assistantsFeatureAgent', { defaultValue: 'AI Agent' }),
-                  t('settings.assistantsFeatureRules', { defaultValue: 'Custom Rules' }),
-                  t('settings.assistantsFeatureSkills', { defaultValue: 'Enabled Skills' }),
-                ].map((featureLabel) => (
-                  <div key={featureLabel} className='inline-flex items-center gap-6px text-12px text-t-tertiary'>
-                    <span className='block h-4px w-4px rounded-full bg-[var(--color-primary)] opacity-65' />
-                    <span>{featureLabel}</span>
-                  </div>
-                ))}
-              </div>
             </div>
             <div
               className={`flex ${isMobile ? 'items-center justify-between' : 'items-center'} gap-10px text-12px text-t-tertiary`}
@@ -205,7 +187,7 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
               <Button
                 type={isSearchVisible ? 'secondary' : 'text'}
                 size='small'
-                className='!rounded-10px !h-34px !w-34px !p-0 flex items-center justify-center'
+                className='!rounded-10px !h-34px !w-34px !p-0 flex items-center justify-center !text-t-secondary hover:!bg-fill-1 hover:!text-t-primary'
                 icon={
                   isSearchVisible ? <CloseSmall size={16} fill='currentColor' /> : <Search size={16} fill='currentColor' />
                 }
@@ -237,7 +219,7 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
             activeTab={activeFilter}
             onChange={(key) => setActiveFilter((key as AssistantListFilter) || 'all')}
             type='line'
-            className={`assistant-filter-tabs ${isMobile ? 'w-full' : 'max-w-fit'}`}
+            className='assistant-filter-tabs w-full'
           >
             {filterOptions.map((filterOption) => (
               <Tabs.TabPane key={filterOption.key} title={filterOption.label} />

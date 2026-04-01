@@ -245,16 +245,20 @@ body[arco-theme='dark'] .arco-message-error {
   }
 
   .arco-tabs-nav-tab:hover {
-    color: var(--color-text-1);
+    color: var(--aou-7);
   }
 
   .arco-tabs-nav-tab-active {
-    color: var(--color-text-1);
+    color: var(--aou-7);
     font-weight: 600;
   }
 
   .arco-tabs-nav-ink {
-    height: 2px;
-    background: var(--color-primary);
+    height: 3px;
+    background: var(--aou-6);
+  }
+
+  .arco-tabs-nav-tab:first-child {
+    margin-left: 0;
   }
 }
