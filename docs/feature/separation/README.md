@@ -21,28 +21,223 @@ Split AionUi into an independent frontend and backend with a language-agnostic c
 
 ## Architecture
 
+### Overall Structure
+
 ```
-┌─────────────────────────────────────────────────┐
-│              packages/protocol                   │
-│  - Wire protocol spec (JSON over WebSocket)     │
-│  - TypeScript types (shared by frontend & Node)  │
-│  - REST endpoint definitions                     │
-└─────────────────┬───────────────────────────────┘
-                  │
-       ┌──────────┼──────────┐
-       ▼                     ▼
-┌─────────────┐       ┌──────────────┐
-│ src/renderer │       │ src/server   │
-│ (Frontend)   │       │ (Backend)    │
-│              │       │              │
-│ ApiClient ───┼─WS/HTTP─┤ WsRouter    │
-│              │       │ REST routes  │
-└─────────────┘       └──────────────┘
-                           │
-                    ┌──────┴──────┐
-                    │ src/electron │
-                    │ (Thin shell) │
-                    └─────────────┘
+                        ┌──────────────────────────────────┐
+                        │        packages/protocol          │
+                        │                                    │
+                        │  Wire Protocol    Endpoint Types   │
+                        │  ┌───────────┐   ┌─────────────┐  │
+                        │  │ WsRequest  │   │ EndpointMap  │  │
+                        │  │ WsResponse │   │ EventMap     │  │
+                        │  │ WsEvent    │   │ REST defs    │  │
+                        │  └───────────┘   └─────────────┘  │
+                        │                                    │
+                        │  Shared Types    Shared Config     │
+                        │  ┌───────────┐   ┌─────────────┐  │
+                        │  │ acpTypes   │   │ storage.ts   │  │
+                        │  │ chatLib    │   │ i18n-config  │  │
+                        │  │ preview    │   │ constants    │  │
+                        │  └───────────┘   └─────────────┘  │
+                        └───────────┬──────────┬────────────┘
+                                    │          │
+                        import types│          │import types
+                     ┌──────────────┘          └──────────────┐
+                     ▼                                        ▼
+┌────────────────────────────────────┐  ┌────────────────────────────────────┐
+│         src/renderer (Frontend)     │  │         src/server (Backend)        │
+│                                     │  │                                     │
+│  ┌─────────┐  ┌──────────────────┐ │  │ ┌──────────┐  ┌────────────────┐  │
+│  │ pages/   │  │ api/             │ │  │ │ router/   │  │ handlers/      │  │
+│  │ guid     │  │ ┌─────────────┐ │ │  │ │ WsRouter  │  │ conversation   │  │
+│  │ convers. │  │ │ ApiClient   │ │ │  │ │ dispatch  │  │ fs, model      │  │
+│  │ settings │  │ │ .request()  │─┼─┼──┼─┤ .handle() │  │ agent, channel │  │
+│  │ cron     │  │ │ .on()      │ │ │  │ │ .emit()   │  │ extensions     │  │
+│  └─────────┘  │ └─────────────┘ │ │  │ └──────────┘  │ cron, mcp ...  │  │
+│               └──────────────────┘ │  │               └────────────────┘  │
+│  ┌───────────┐  ┌───────────────┐  │  │ ┌────────────┐  ┌──────────────┐ │
+│  │ components│  │ hooks/        │  │  │ │ http/       │  │ services/    │ │
+│  │ chat      │  │ useApi()     │  │  │ │ Express     │  │ database     │ │
+│  │ settings  │  │ agent hooks  │  │  │ │ REST routes │  │ cron         │ │
+│  │ markdown  │  │ file hooks   │  │  │ │ middleware  │  │ conversion   │ │
+│  └───────────┘  └───────────────┘  │  │ │ WebSocket   │  │ mcpServices  │ │
+│               ┌───────────────┐    │  │ └────────────┘  └──────────────┘ │
+│               │ utils/        │    │  │ ┌────────────┐  ┌──────────────┐ │
+│               │ platformAdapt.│    │  │ │ agent/      │  │ worker/      │ │
+│               │ model, file   │    │  │ │ acp, gemini │  │ fork tasks   │ │
+│               └───────────────┘    │  │ │ codex, etc. │  │ per-convers. │ │
+│                                     │  │ └────────────┘  └──────────────┘ │
+│  No @office-ai/platform             │  │ ┌────────────┐  ┌──────────────┐ │
+│  No electron imports                │  │ │ channels/   │  │ extensions/  │ │
+│  No Node.js APIs                    │  │ │ telegram    │  │ registry     │ │
+│                                     │  │ │ lark, wechat│  │ lifecycle    │ │
+└─────────────────────────────────────┘  │ │ dingtalk    │  │ sandbox      │ │
+                                         │ └────────────┘  └──────────────┘ │
+                                         │                                   │
+                                         │  No electron imports              │
+                                         │  Standalone deployable            │
+                                         └───────────────────────────────────┘
+
+┌─────────────────────────────────────┐
+│      src/electron (Thin Shell)       │
+│                                      │
+│  main.ts                             │
+│  ├─ spawn server process (port=rand) │
+│  ├─ create BrowserWindow             │
+│  └─ manage lifecycle                 │
+│                                      │
+│  preload.ts                          │
+│  └─ expose { serverUrl }             │
+│                                      │
+│  handlers/                           │
+│  ├─ dialog (native file picker)      │
+│  ├─ shell (open external)            │
+│  ├─ windowControls (min/max/close)   │
+│  └─ update (electron-updater)        │
+│                                      │
+│  lifecycle/                          │
+│  ├─ tray, menu, deepLink            │
+│  └─ singleInstance                   │
+│                                      │
+│  Only package that imports electron  │
+└──────────────────────────────────────┘
+```
+
+### Communication Layer
+
+```
+═══════════════════════════════════════════════════════════════════════════
+  MODE 1: Electron Desktop
+═══════════════════════════════════════════════════════════════════════════
+
+  ┌─ Electron Process ───────────────────────────────────────────────┐
+  │                                                                   │
+  │  src/electron/main.ts                                             │
+  │  │                                                                │
+  │  ├──spawn──▶ src/server (child process, localhost:51234)          │
+  │  │           ├─ HTTP  /api/*  (auth, upload, directory)           │
+  │  │           ├─ WS    ws://localhost:51234                        │
+  │  │           └─ Static /  (renderer build output)                 │
+  │  │                         ▲                                      │
+  │  └──create──▶ BrowserWindow │                                     │
+  │               (renderer)    │                                     │
+  │               │             │                                     │
+  │               └─ ApiClient ─┘ ws://localhost:51234                │
+  │                                                                   │
+  │  Electron-only IPC (5-6 calls):                                   │
+  │  renderer ──ipc──▶ main.ts                                        │
+  │    dialog, shell, windowControls, update                          │
+  └───────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════
+  MODE 2: Web (Self-Hosted)
+═══════════════════════════════════════════════════════════════════════════
+
+  ┌─ Browser ──────────────┐         ┌─ Server ────────────────────┐
+  │                         │         │                              │
+  │  GET http://host:3000/  │────────▶│  Express serves index.html   │
+  │  (loads React SPA)      │         │  + static JS/CSS assets      │
+  │                         │         │                              │
+  │  ApiClient              │         │  WsRouter                    │
+  │  ├─ .request(name,data) │───WS───▶│  ├─ dispatch(name) → handler │
+  │  │  ← response {id}     │◀──WS───│  └─ response {id, data}      │
+  │  │                      │         │                              │
+  │  └─ .on(event, cb)      │◀──WS───│  .emit(event, data)          │
+  │     (server push)       │         │  (broadcast to all clients)  │
+  │                         │         │                              │
+  │  HTTP calls             │         │  REST routes                 │
+  │  ├─ POST /api/auth/login│───HTTP─▶│  ├─ /api/auth/*              │
+  │  ├─ POST /api/upload    │───HTTP─▶│  ├─ /api/upload              │
+  │  └─ GET  /api/directory │───HTTP─▶│  └─ /api/directory/*         │
+  └─────────────────────────┘         └────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════
+  MODE 3: Development
+═══════════════════════════════════════════════════════════════════════════
+
+  ┌─ Browser ──────────────┐  ┌─ Vite Dev ────┐  ┌─ Server ─────────┐
+  │                         │  │ localhost:5173 │  │ localhost:3000    │
+  │  React SPA (HMR)       │◀─│ hot reload     │  │                   │
+  │                         │  └────────────────┘  │ WsRouter          │
+  │  ApiClient              │                      │ REST routes       │
+  │  └─ ws://localhost:3000 │──────────WS─────────▶│ handlers          │
+  │                         │──────────HTTP───────▶│                   │
+  └─────────────────────────┘                      └───────────────────┘
+```
+
+### Wire Protocol
+
+```
+  Frontend (ApiClient)                    Backend (WsRouter)
+  ══════════════════                      ══════════════════
+
+  Request/Response (Provider):
+  ─────────────────────────────────────────────────────────
+  { type:"request", id:"uuid-1",    ──WS──▶  router.dispatch()
+    name:"create-conversation",                  │
+    data: { type:"acp", ... } }                  ▼
+                                            handler(data)
+  { type:"response", id:"uuid-1",  ◀──WS──     │
+    data: { id:"conv-123", ... } }          return result
+
+
+  Server Push (Emitter):
+  ─────────────────────────────────────────────────────────
+                                            router.emit(
+  { type:"event",                  ◀──WS──   "chat.response.stream",
+    name:"chat.response.stream",               { type:"text",
+    data: { ... } }                              data: "Hello..." })
+
+
+  Heartbeat:
+  ─────────────────────────────────────────────────────────
+  { name:"pong", data:{ts} }      ──WS──▶  (keep alive)
+                                   ◀──WS──  { name:"ping" }
+```
+
+### Data Flow
+
+```
+                    ┌─────────────────────────────┐
+                    │         ~/.aionui/            │
+                    │                               │
+                    │  aionui.db (SQLite)           │
+                    │  ├─ conversations             │
+                    │  ├─ messages                  │
+                    │  └─ channels, cron jobs...    │
+                    │                               │
+                    │  aionui-config.txt            │
+                    │  ├─ model providers           │
+                    │  ├─ MCP servers               │
+                    │  └─ custom agents             │
+                    │                               │
+                    │  assistants/                  │
+                    │  skills/                      │
+                    │  builtin-skills/              │
+                    │                               │
+                    └──────────────┬────────────────┘
+                                   │
+                              read/write
+                                   │
+                    ┌──────────────┴────────────────┐
+                    │        src/server              │
+                    │   (only process with           │
+                    │    filesystem access)           │
+                    └──────────────┬────────────────┘
+                                   │
+                          WS / HTTP API
+                                   │
+              ┌────────────────────┼────────────────────┐
+              ▼                    ▼                     ▼
+     ┌──────────────┐    ┌──────────────┐     ┌──────────────┐
+     │ Electron      │    │ Web Browser   │     │ Future:      │
+     │ BrowserWindow │    │ Chrome/Safari │     │ Mobile App   │
+     └──────────────┘    └──────────────┘     └──────────────┘
+
+     All frontends are display-only.
+     All data lives on server.
+     All communication via standard WebSocket + HTTP.
 ```
 
 All three deployment modes use the same protocol:
