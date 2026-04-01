@@ -7,7 +7,7 @@
 import { Close } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { getFileExtension } from '@/renderer/services/FileService';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Image } from '@arco-design/web-react';
 import fileIcon from '@/renderer/assets/icons/file-icon.svg';
 
@@ -40,6 +40,7 @@ interface FilePreviewProps {
 }
 
 const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = false }) => {
+  const api = useApi();
   // Defensive check: ensure path is a string
   if (typeof path !== 'string') {
     console.error('[FilePreview] Invalid path type:', typeof path, path);
@@ -56,8 +57,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
 
   useEffect(() => {
     // 获取文件大小
-    ipcBridge.fs.getFileMetadata
-      .invoke({ path })
+    api
+      .request('get-file-metadata', { path })
       .then((metadata) => {
         setFileSize(formatFileSize(metadata.size));
       })
@@ -74,8 +75,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({ path, onRemove, readonly = fa
       let retryTimer: ReturnType<typeof setTimeout>;
 
       const loadImage = () => {
-        ipcBridge.fs.getImageBase64
-          .invoke({ path })
+        api
+          .request('get-image-base64', { path })
           .then((base64) => {
             if (cancelled) return;
             if (base64.includes(IMAGE_NOT_FOUND_B64_MARKER) && retryCount < MAX_IMAGE_RETRIES) {

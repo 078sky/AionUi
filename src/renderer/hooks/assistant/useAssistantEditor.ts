@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import type { Message } from '@arco-design/web-react';
 import type { AcpBackendConfig } from '@/common/types/acpTypes';
@@ -39,6 +39,7 @@ export const useAssistantEditor = ({
   refreshAgentDetection,
   message,
 }: UseAssistantEditorParams) => {
+  const api = useApi();
   const { t } = useTranslation();
 
   // Edit drawer state
@@ -67,7 +68,7 @@ export const useAssistantEditor = ({
   const loadAssistantContext = useCallback(
     async (assistantId: string): Promise<string> => {
       try {
-        const content = await ipcBridge.fs.readAssistantRule.invoke({ assistantId, locale: localeKey });
+        const content = await api.request('read-assistant-rule', { assistantId, locale: localeKey });
         return content || '';
       } catch (error) {
         console.error(`Failed to load rule for ${assistantId}:`, error);
@@ -81,7 +82,7 @@ export const useAssistantEditor = ({
   const loadAssistantSkills = useCallback(
     async (assistantId: string): Promise<string> => {
       try {
-        const content = await ipcBridge.fs.readAssistantSkill.invoke({ assistantId, locale: localeKey });
+        const content = await api.request('read-assistant-skill', { assistantId, locale: localeKey });
         return content || '';
       } catch (error) {
         console.error(`Failed to load skills for ${assistantId}:`, error);
@@ -125,7 +126,7 @@ export const useAssistantEditor = ({
 
       // Load skills list for builtin assistants with skillFiles and all custom assistants
       if (hasBuiltinSkills(assistant.id) || !assistant.isBuiltin) {
-        const skillsList = await ipcBridge.fs.listAvailableSkills.invoke();
+        const skillsList = await api.request('list-available-skills', undefined);
         setAvailableSkills(skillsList);
         setSelectedSkills(assistant.enabledSkills || []);
         setCustomSkills(assistant.customSkillNames || []);
@@ -160,7 +161,7 @@ export const useAssistantEditor = ({
 
     // Load available skills list
     try {
-      const skillsList = await ipcBridge.fs.listAvailableSkills.invoke();
+      const skillsList = await api.request('list-available-skills', undefined);
       setAvailableSkills(skillsList);
     } catch (error) {
       console.error('Failed to load skills:', error);
@@ -183,12 +184,12 @@ export const useAssistantEditor = ({
     try {
       const [skillsList, context, skills] = isExtensionAssistantUtil(assistant)
         ? await Promise.all([
-            ipcBridge.fs.listAvailableSkills.invoke(),
+            api.request('list-available-skills', undefined),
             Promise.resolve(assistant.context || ''),
             Promise.resolve(''),
           ])
         : await Promise.all([
-            ipcBridge.fs.listAvailableSkills.invoke(),
+            api.request('list-available-skills', undefined),
             loadAssistantContext(assistant.id),
             loadAssistantSkills(assistant.id),
           ]);
@@ -235,7 +236,7 @@ export const useAssistantEditor = ({
         if (skillsToImport.length > 0) {
           for (const pendingSkill of skillsToImport) {
             try {
-              const response = await ipcBridge.fs.importSkillWithSymlink.invoke({ skillPath: pendingSkill.path });
+              const response = await api.request('import-skill-with-symlink', { skillPath: pendingSkill.path });
               if (!response.success) {
                 message.error(`Failed to import skill "${pendingSkill.name}": ${response.msg}`);
                 return;
@@ -247,7 +248,7 @@ export const useAssistantEditor = ({
             }
           }
           // Reload skills list after successful import
-          const skillsList = await ipcBridge.fs.listAvailableSkills.invoke();
+          const skillsList = await api.request('list-available-skills', undefined);
           setAvailableSkills(skillsList);
         }
       }
@@ -276,7 +277,7 @@ export const useAssistantEditor = ({
 
         // Save rule file
         if (editContext.trim()) {
-          await ipcBridge.fs.writeAssistantRule.invoke({
+          await api.request('write-assistant-rule', {
             assistantId: newId,
             locale: localeKey,
             content: editContext,
@@ -304,7 +305,7 @@ export const useAssistantEditor = ({
 
         // Save rule file (if changed)
         if (editContext.trim()) {
-          await ipcBridge.fs.writeAssistantRule.invoke({
+          await api.request('write-assistant-rule', {
             assistantId: activeAssistant.id,
             locale: localeKey,
             content: editContext,
@@ -350,8 +351,8 @@ export const useAssistantEditor = ({
     try {
       // Delete rule and skill files
       await Promise.all([
-        ipcBridge.fs.deleteAssistantRule.invoke({ assistantId: activeAssistant.id }),
-        ipcBridge.fs.deleteAssistantSkill.invoke({ assistantId: activeAssistant.id }),
+        api.request('delete-assistant-rule', { assistantId: activeAssistant.id }),
+        api.request('delete-assistant-skill', { assistantId: activeAssistant.id }),
       ]);
 
       // Remove assistant from config

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { getApiClient } from '@renderer/api';
 import type { FileMetadata } from './FileService';
 import { getFileExtension, uploadFileViaHttp, MAX_UPLOAD_SIZE_MB } from './FileService';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -25,9 +25,9 @@ async function createTempFile(
     throw new Error('FILE_TOO_LARGE');
   }
   if (isElectronDesktop()) {
-    const tempPath = await ipcBridge.fs.createTempFile.invoke({ fileName });
+    const tempPath = await getApiClient().request('create-temp-file', { fileName });
     if (tempPath) {
-      await ipcBridge.fs.writeFile.invoke({ path: tempPath, data });
+      await getApiClient().request('write-file', { path: tempPath, data });
     }
     return tempPath;
   }

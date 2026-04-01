@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import { ConfigStorage } from '@/common/config/storage';
 import { usePasteService } from '@/renderer/hooks/file/usePasteService';
@@ -38,6 +39,7 @@ interface UseWorkspacePasteOptions {
  * Handle file paste and add logic
  */
 export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
+  const api = useApi();
   const {
     conversationId,
     workspace,
@@ -64,7 +66,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
         return;
       }
 
-      const result = await ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths: selectedFiles, workspace });
+      const result = await api.request('copy-files-to-workspace', { filePaths: selectedFiles, workspace });
       const copiedFiles = result.data?.copiedFiles ?? [];
       const failedFiles = result.data?.failedFiles ?? [];
 
@@ -177,7 +179,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       if (skipConfirm) {
         try {
           const filePaths = filesMeta.map((f) => f.path);
-          const res = await ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths, workspace: targetFolderPath });
+          const res = await api.request('copy-files-to-workspace', { filePaths, workspace: targetFolderPath });
           const copiedFiles = res.data?.copiedFiles ?? [];
           const failedFiles = res.data?.failedFiles ?? [];
 
@@ -231,7 +233,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       const targetFolderPath = targetFolder.fullPath;
 
       const filePaths = pasteConfirm.filesToPaste.map((f) => f.path);
-      const res = await ipcBridge.fs.copyFilesToWorkspace.invoke({ filePaths, workspace: targetFolderPath });
+      const res = await api.request('copy-files-to-workspace', { filePaths, workspace: targetFolderPath });
       const copiedFiles = res.data?.copiedFiles ?? [];
       const failedFiles = res.data?.failedFiles ?? [];
 

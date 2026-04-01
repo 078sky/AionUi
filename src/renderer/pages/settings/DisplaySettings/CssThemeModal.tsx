@@ -6,6 +6,7 @@
 
 import type { ICssTheme } from '@/common/config/storage.ts';
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext.tsx';
 import { iconColors } from '@renderer/styles/colors';
 import { Button, Input } from '@arco-design/web-react';
@@ -47,6 +48,7 @@ interface CssThemeModalProps {
  * 用于添加或编辑 CSS 皮肤主题 / For adding or editing CSS skin themes
  */
 const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, onSave, onDelete }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const { theme: colorTheme } = useThemeContext();
   const [name, setName] = useState('');
@@ -83,7 +85,7 @@ const CssThemeModal: React.FC<CssThemeModalProps> = ({ visible, theme, onClose, 
 
       if (files && files[0]) {
         // 使用 IPC 读取图片并转换为 base64 / Use IPC to read image and convert to base64
-        const base64 = await ipcBridge.fs.getImageBase64.invoke({ path: files[0] });
+        const base64 = await api.request('get-image-base64', { path: files[0] });
         if (base64) {
           setCover(base64);
           applyBackgroundImageToCss(base64);

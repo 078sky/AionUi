@@ -49,7 +49,7 @@ export const useExport = ({
   const fileExists = useCallback(async (filePath: string): Promise<boolean> => {
     try {
       const metadata = await withTimeout(
-        ipcBridge.fs.getFileMetadata.invoke({ path: filePath }),
+        api.request("get-file-metadata", { path: filePath }),
         EXPORT_IO_TIMEOUT_MS,
         `getFileMetadata:${filePath}`
       );
@@ -87,7 +87,7 @@ export const useExport = ({
       exportCanceledRef.current = true;
     }
     if (exportModalLoading && currentExportRequestId) {
-      void ipcBridge.fs.cancelZip.invoke({ requestId: currentExportRequestId });
+      void api.request("cancel-zip-file", { requestId: currentExportRequestId });
     }
     setExportModalVisible(false);
     setExportTask(null);
@@ -206,13 +206,13 @@ export const useExport = ({
     async (path: string, files: ExportZipFile[], requestId: string): Promise<boolean> => {
       try {
         return await withTimeout(
-          ipcBridge.fs.createZip.invoke({ path, files, requestId }),
+          api.request("create-zip-file", { path, files, requestId }),
           EXPORT_IO_TIMEOUT_MS * 8,
           `createZip:${requestId}`
         );
       } catch (error) {
         // Ensure background zip task is stopped when renderer-side timeout/cancel happens.
-        void ipcBridge.fs.cancelZip.invoke({ requestId });
+        void api.request("cancel-zip-file", { requestId });
         throw error;
       }
     },

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { getApiClient } from '@renderer/api';
 import { trackUpload, type UploadSource } from '@/renderer/hooks/file/useUploadState';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 
@@ -288,9 +288,9 @@ class FileServiceClass {
             // Electron: use IPC to create temp file
             const arrayBuffer = await file.arrayBuffer();
             const uint8Array = new Uint8Array(arrayBuffer);
-            const tempPath = await ipcBridge.fs.createTempFile.invoke({ fileName: file.name });
+            const tempPath = await getApiClient().request('create-temp-file', { fileName: file.name });
             if (tempPath) {
-              await ipcBridge.fs.writeFile.invoke({ path: tempPath, data: uint8Array });
+              await getApiClient().request('write-file', { path: tempPath, data: uint8Array });
               filePath = tempPath;
             }
           }

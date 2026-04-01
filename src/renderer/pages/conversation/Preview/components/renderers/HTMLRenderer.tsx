@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
+import type { ApiClient } from '@renderer/api/client';
 import { useTypingAnimation } from '@/renderer/hooks/chat/useTypingAnimation';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -85,7 +86,7 @@ function resolveRelativePath(basePath: string, relativePath: string): string {
  * @param basePath 基础文件路径 / Base file path
  * @returns 处理后的 HTML / Processed HTML
  */
-async function inlineRelativeResources(html: string, basePath: string): Promise<string> {
+async function inlineRelativeResources(html: string, basePath: string, api: ApiClient): Promise<string> {
   let result = html;
 
   // 1. 处理 <img src="relative"> -> base64 / Handle <img src="relative"> -> base64
@@ -96,7 +97,7 @@ async function inlineRelativeResources(html: string, basePath: string): Promise<
     const [fullMatch, before, src, after] = match;
     try {
       const absolutePath = resolveRelativePath(basePath, src);
-      const dataUrl = await ipcBridge.fs.getImageBase64.invoke({ path: absolutePath });
+      const dataUrl = await api.request('get-image-base64', { path: absolutePath });
       if (dataUrl) {
         // getImageBase64 已经返回完整的 data URL / getImageBase64 already returns complete data URL
         const newTag = `<img${before} src="${dataUrl}"${after}>`;
@@ -118,7 +119,7 @@ async function inlineRelativeResources(html: string, basePath: string): Promise<
     if (isStylesheet) {
       try {
         const absolutePath = resolveRelativePath(basePath, href);
-        const cssContent = await ipcBridge.fs.readFile.invoke({ path: absolutePath });
+        const cssContent = await api.request('read-file', { path: absolutePath });
         if (cssContent) {
           // 替换 CSS 中的相对 url() 引用为 base64 / Replace relative url() references in CSS with base64
           let processedCss = cssContent;
@@ -131,7 +132,7 @@ async function inlineRelativeResources(html: string, basePath: string): Promise<
               // CSS 文件的基础路径 / Base path for CSS file
               const cssBasePath = absolutePath;
               const resourcePath = resolveRelativePath(cssBasePath, urlPath);
-              const dataUrl = await ipcBridge.fs.getImageBase64.invoke({ path: resourcePath });
+              const dataUrl = await api.request('get-image-base64', { path: resourcePath });
               if (dataUrl) {
                 // getImageBase64 已经返回完整的 data URL / getImageBase64 already returns complete data URL
                 processedCss = processedCss.replace(urlFullMatch, `url("${dataUrl}")`);
@@ -158,7 +159,7 @@ async function inlineRelativeResources(html: string, basePath: string): Promise<
     const [fullMatch, before, src, after] = match;
     try {
       const absolutePath = resolveRelativePath(basePath, src);
-      const scriptContent = await ipcBridge.fs.readFile.invoke({ path: absolutePath });
+      const scriptContent = await api.request('read-file', { path: absolutePath });
       if (scriptContent) {
         // 保留其他属性（如 type, defer, async 等，但 async/defer 对 inline 无效）
         // Keep other attributes (like type, but defer/async don't work for inline)
@@ -190,6 +191,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({
   copySuccessMessage,
   onElementSelected,
 }) => {
+  const api = useApi();
   const divRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<ElectronWebView | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -274,7 +276,7 @@ const HTMLRenderer: React.FC<HTMLRendererProps> = ({
     // Browser 环境且有相对资源，进行内联化处理
     // Browser environment with relative resources, perform inlining
     let cancelled = false;
-    inlineRelativeResources(content, filePath)
+    inlineRelativeResources(content, filePath, api)
       .then((inlined) => {
         if (!cancelled) {
           setInlinedHtmlContent(inlined);

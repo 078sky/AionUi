@@ -204,7 +204,7 @@ export function useConversationExport(options: UseConversationExportOptions): Us
 
       const normalizedFileName = normalizeExportFileName(filename);
       const targetPath = joinFilePath(baseDirectoryRef.current, normalizedFileName);
-      const success = await ipcBridge.fs.writeFile.invoke({
+      const success = await api.request("write-file", {
         path: targetPath,
         data: transcript,
       });

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { getApiClient } from '@renderer/api';
 import { base64ToBlob, BINARY_MIME_MAP } from './base64';
 
 function triggerBlobDownload(blob: Blob, fileName: string): void {
@@ -23,7 +23,7 @@ function triggerBlobDownload(blob: Blob, fileName: string): void {
  * Uses getImageBase64 + in-memory atob decode to bypass CSP connect-src restrictions.
  */
 export async function downloadFileFromPath(filePath: string, fileName: string): Promise<void> {
-  const dataUrl = await ipcBridge.fs.getImageBase64.invoke({ path: filePath });
+  const dataUrl = await getApiClient().request('get-image-base64', { path: filePath });
   const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
   const mimeType = BINARY_MIME_MAP[ext] ?? 'application/octet-stream';
   const blob = base64ToBlob(dataUrl, mimeType);

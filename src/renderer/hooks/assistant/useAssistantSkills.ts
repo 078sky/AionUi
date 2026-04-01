@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { Message } from '@arco-design/web-react';
 import type {
   ExternalSource,
@@ -35,6 +35,7 @@ export const useAssistantSkills = ({
   setSelectedSkills,
   message,
 }: UseAssistantSkillsParams) => {
+  const api = useApi();
   const { t } = useTranslation();
 
   const [externalSources, setExternalSources] = useState<ExternalSource[]>([]);
@@ -53,7 +54,7 @@ export const useAssistantSkills = ({
     setExternalSkillsLoading(true);
     setRefreshing(true);
     try {
-      const response = await ipcBridge.fs.detectAndCountExternalSkills.invoke();
+      const response = await api.request('detect-and-count-external-skills', undefined);
       if (response.success && response.data) {
         setExternalSources(response.data);
         if (response.data.length > 0 && !response.data.find((s) => s.source === activeSourceTab)) {
@@ -79,7 +80,7 @@ export const useAssistantSkills = ({
   const handleAddCustomPath = useCallback(async () => {
     if (!customPathName.trim() || !customPathValue.trim()) return;
     try {
-      const result = await ipcBridge.fs.addCustomExternalPath.invoke({
+      const result = await api.request('add-custom-external-path', {
         name: customPathName.trim(),
         path: customPathValue.trim(),
       });

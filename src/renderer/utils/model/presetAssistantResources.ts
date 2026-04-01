@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { getApiClient } from '@renderer/api';
 import { ASSISTANT_PRESETS } from '@/common/config/presets/assistantPresets';
 import { ConfigStorage } from '@/common/config/storage';
 
@@ -30,10 +30,10 @@ export type PresetAssistantResources = {
 };
 
 const defaultDeps: PresetAssistantResourceDeps = {
-  readAssistantRule: (args) => ipcBridge.fs.readAssistantRule.invoke(args),
-  readAssistantSkill: (args) => ipcBridge.fs.readAssistantSkill.invoke(args),
-  readBuiltinRule: (args) => ipcBridge.fs.readBuiltinRule.invoke(args),
-  readBuiltinSkill: (args) => ipcBridge.fs.readBuiltinSkill.invoke(args),
+  readAssistantRule: (args) => getApiClient().request('read-assistant-rule', args),
+  readAssistantSkill: (args) => getApiClient().request('read-assistant-skill', args),
+  readBuiltinRule: (args) => getApiClient().request('read-builtin-rule', args),
+  readBuiltinSkill: (args) => getApiClient().request('read-builtin-skill', args),
   getEnabledSkills: async (customAgentId) => {
     const customAgents = await ConfigStorage.get('acp.customAgents');
     const assistant = customAgents?.find((agent) => agent.id === customAgentId);

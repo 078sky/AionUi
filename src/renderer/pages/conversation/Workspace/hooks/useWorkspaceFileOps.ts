@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { downloadFileFromPath } from '@/renderer/utils/file/download';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import type { PreviewContentType } from '@/common/types/preview';
@@ -54,6 +55,7 @@ interface UseWorkspaceFileOpsOptions {
  * File operations logic (open, delete, rename, preview, add to chat)
  */
 export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
+  const api = useApi();
   const {
     workspace,
     eventPrefix,
@@ -391,10 +393,10 @@ export function useWorkspaceFileOps(options: UseWorkspaceFileOpsOptions) {
           content = '';
         } else if (contentType === 'image') {
           // 图片: 读取为 Base64 格式 / Image: Read as Base64 format
-          content = await ipcBridge.fs.getImageBase64.invoke({ path: nodeData.fullPath });
+          content = await api.request('get-image-base64', { path: nodeData.fullPath });
         } else {
           // 文本文件：使用 UTF-8 编码读取 / Text files: Read using UTF-8 encoding
-          content = await ipcBridge.fs.readFile.invoke({ path: nodeData.fullPath });
+          content = await api.request('read-file', { path: nodeData.fullPath });
 
           // 大文本仅保留前一段预览内容，避免切换/关闭 tab 时卡顿
           // Keep only first chunk for large text preview to reduce tab switch/close jank

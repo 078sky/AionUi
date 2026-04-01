@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { joinPath } from '@/common/chat/chatLib';
 import { LoadingTwo } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -15,6 +15,7 @@ const LocalImageView: React.FC<{
   Provider: typeof LocalImageProvider;
   useUpdateLocalImage: typeof useUpdateLocalImage;
 } = ({ src, alt, className }) => {
+  const api = useApi();
   const [loading, setLoading] = useState(true);
   const [url, setUrl] = useState(src);
   const { root } = useLocalImage();
@@ -36,8 +37,8 @@ const LocalImageView: React.FC<{
 
   useEffect(() => {
     setLoading(true);
-    ipcBridge.fs.getImageBase64
-      .invoke({ path: absolutePath })
+    api
+      .request('get-image-base64', { path: absolutePath })
       .then((base64) => {
         setUrl(base64);
         setLoading(false);

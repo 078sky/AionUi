@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { joinPath } from '@/common/chat/chatLib';
 import type { PreviewContentType } from '@/common/types/preview';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
@@ -67,6 +67,7 @@ interface PreviewLaunchOptions {
  * @returns {{ launchPreview: Function, loading: boolean }}
  */
 export const usePreviewLauncher = () => {
+  const api = useApi();
   const conversationContext = useConversationContextSafe();
   const workspace = conversationContext?.workspace;
   const { openPreview } = usePreviewContext();
@@ -126,7 +127,7 @@ export const usePreviewLauncher = () => {
             const pathToRead = absolutePath || originalPath;
 
             if (contentType === 'image') {
-              const base64 = await ipcBridge.fs.getImageBase64.invoke({ path: pathToRead! });
+              const base64 = await api.request('get-image-base64', { path: pathToRead! });
               openPreview(base64, contentType, {
                 ...metadata,
                 editable,
@@ -147,7 +148,7 @@ export const usePreviewLauncher = () => {
 
             // 使用 Promise.race 防止长时间卡死 / Use Promise.race to prevent hanging
             const content = await Promise.race([
-              ipcBridge.fs.readFile.invoke({ path: pathToRead! }),
+              api.request('read-file', { path: pathToRead! }),
               new Promise<never>((_, reject) => setTimeout(() => reject(new Error('File read timeout')), 5000)),
             ]);
             const normalizedContent = normalizeLargeTextPreview(content, contentType);

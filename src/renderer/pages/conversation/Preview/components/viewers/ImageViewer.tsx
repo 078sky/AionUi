@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Image } from '@arco-design/web-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,6 +16,7 @@ interface ImagePreviewProps {
 }
 
 const ImagePreview: React.FC<ImagePreviewProps> = ({ filePath, content, fileName }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const [imageSrc, setImageSrc] = useState<string>(content || '');
   const [loading, setLoading] = useState<boolean>(!!filePath && !content);
@@ -41,7 +42,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ filePath, content, fileName
       try {
         setLoading(true);
         setError(null);
-        const base64 = await ipcBridge.fs.getImageBase64.invoke({ path: filePath });
+        const base64 = await api.request('get-image-base64', { path: filePath });
         if (!isMounted) return;
         setImageSrc(base64);
       } catch (err) {

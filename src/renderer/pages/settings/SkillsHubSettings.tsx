@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Button, Message, Modal, Typography, Input, Dropdown, Menu } from '@arco-design/web-react';
 import { Delete, FolderOpen, Info, Search, Plus, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
@@ -39,6 +40,7 @@ const getAvatarColorClass = (name: string) => {
 };
 
 const SkillsHubSettings: React.FC = () => {
+  const api = useApi();
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [availableSkills, setAvailableSkills] = useState<SkillInfo[]>([]);
@@ -64,10 +66,10 @@ const SkillsHubSettings: React.FC = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const skills = await ipcBridge.fs.listAvailableSkills.invoke();
+      const skills = await api.request('list-available-skills', undefined);
       setAvailableSkills(skills);
 
-      const external = await ipcBridge.fs.detectAndCountExternalSkills.invoke();
+      const external = await api.request('detect-and-count-external-skills', undefined);
       if (external.success && external.data) {
         setExternalSources(external.data);
         if (external.data.length > 0 && !activeSourceTab) {
@@ -75,7 +77,7 @@ const SkillsHubSettings: React.FC = () => {
         }
       }
 
-      const paths = await ipcBridge.fs.getSkillPaths.invoke();
+      const paths = await api.request('get-skill-paths', undefined);
       setSkillPaths(paths);
     } catch (error) {
       console.error('Failed to fetch skills:', error);
@@ -91,7 +93,7 @@ const SkillsHubSettings: React.FC = () => {
 
   const handleImport = async (skillPath: string) => {
     try {
-      const result = await ipcBridge.fs.importSkillWithSymlink.invoke({ skillPath });
+      const result = await api.request('import-skill-with-symlink', { skillPath });
       if (result.success) {
         Message.success(
           result.msg || t('settings.skillsHub.importSuccess', { defaultValue: 'Skill imported successfully' })
@@ -110,7 +112,7 @@ const SkillsHubSettings: React.FC = () => {
     let successCount = 0;
     for (const skill of skills) {
       try {
-        const result = await ipcBridge.fs.importSkillWithSymlink.invoke({ skillPath: skill.path });
+        const result = await api.request('import-skill-with-symlink', { skillPath: skill.path });
         if (result.success) successCount++;
       } catch {
         // continue
@@ -129,7 +131,7 @@ const SkillsHubSettings: React.FC = () => {
 
   const handleDelete = async (skillName: string) => {
     try {
-      const result = await ipcBridge.fs.deleteSkill.invoke({ skillName });
+      const result = await api.request('delete-skill', { skillName });
       if (result.success) {
         Message.success(result.msg || t('settings.skillsHub.deleteSuccess', { defaultValue: 'Skill deleted' }));
         void fetchData();
@@ -158,7 +160,7 @@ const SkillsHubSettings: React.FC = () => {
   const handleRefreshExternal = useCallback(async () => {
     setRefreshing(true);
     try {
-      const external = await ipcBridge.fs.detectAndCountExternalSkills.invoke();
+      const external = await api.request('detect-and-count-external-skills', undefined);
       if (external.success && external.data) {
         setExternalSources(external.data);
         if (external.data.length > 0 && !external.data.find((s) => s.source === activeSourceTab)) {
@@ -176,7 +178,7 @@ const SkillsHubSettings: React.FC = () => {
   const handleAddCustomPath = useCallback(async () => {
     if (!customPathName.trim() || !customPathValue.trim()) return;
     try {
-      const result = await ipcBridge.fs.addCustomExternalPath.invoke({
+      const result = await api.request('add-custom-external-path', {
         name: customPathName.trim(),
         path: customPathValue.trim(),
       });
@@ -471,7 +473,7 @@ const SkillsHubSettings: React.FC = () => {
                                         const skillPath = skill.location.replace(/[\\/]SKILL\.md$/, '');
 
                                         const result = await Promise.race([
-                                          ipcBridge.fs.exportSkillWithSymlink.invoke({
+                                          api.request('export-skill-with-symlink', {
                                             skillPath,
                                             targetDir: source.path,
                                           }),

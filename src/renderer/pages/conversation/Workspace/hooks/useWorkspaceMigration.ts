@@ -113,7 +113,7 @@ export function useWorkspaceMigration({
 
         // Copy all files to the target workspace
         if (filePaths.length > 0) {
-          const copyResult = await ipcBridge.fs.copyFilesToWorkspace.invoke({
+          const copyResult = await api.request("copy-files-to-workspace", {
             filePaths,
             workspace: targetWorkspace,
             sourceRoot: workspace,

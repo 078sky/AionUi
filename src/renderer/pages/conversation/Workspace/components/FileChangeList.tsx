@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { FileChangeInfo, SnapshotInfo } from '@/common/types/fileSnapshot';
 import { isTextFile } from '@/renderer/services/FileService';
 import { Button, Empty, Spin, Tooltip } from '@arco-design/web-react';
@@ -123,6 +124,7 @@ const FileChangeList: React.FC<FileChangeListProps> = ({
   onDiscardFile,
   onResetFile,
 }) => {
+  const api = useApi();
   const isGitRepo = snapshotInfo?.mode === 'git-repo';
 
   const handleClick = useCallback(
@@ -143,7 +145,7 @@ const FileChangeList: React.FC<FileChangeListProps> = ({
         }
 
         if (change.operation === 'modify' || change.operation === 'create') {
-          const current = await ipcBridge.fs.readFile.invoke({ path: change.filePath });
+          const current = await api.request('read-file', { path: change.filePath });
           after = typeof current === 'string' ? current : '';
         }
 

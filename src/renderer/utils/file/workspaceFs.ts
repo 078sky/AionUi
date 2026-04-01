@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { getApiClient } from '@renderer/api';
 
 interface IBridgeResponse<D = unknown> {
   success: boolean;
@@ -17,7 +17,7 @@ interface IBridgeResponse<D = unknown> {
  * 调用主进程桥接接口从工作空间中移除文件或文件夹。
  */
 export const removeWorkspaceEntry = (path: string) => {
-  return ipcBridge.fs.removeEntry.invoke({ path }) as Promise<IBridgeResponse>;
+  return getApiClient().request('remove-entry', { path }) as Promise<IBridgeResponse>;
 };
 
 /**
@@ -25,5 +25,5 @@ export const removeWorkspaceEntry = (path: string) => {
  * 调用主进程桥接接口重命名工作空间中的文件或文件夹。
  */
 export const renameWorkspaceEntry = (path: string, newName: string) => {
-  return ipcBridge.fs.renameEntry.invoke({ path, newName }) as Promise<IBridgeResponse<{ newPath: string }>>;
+  return getApiClient().request('rename-entry', { path, newName }) as Promise<IBridgeResponse<{ newPath: string }>>;
 };

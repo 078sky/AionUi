@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IMessageToolGroup } from '@/common/chat/chatLib';
 import { iconColors } from '@/renderer/styles/colors';
 import { Alert, Button, Image, Message, Radio, Tag, Tooltip } from '@arco-design/web-react';
@@ -224,6 +225,7 @@ const ImageDisplay: React.FC<{
   imgUrl: string;
   relativePath?: string;
 }> = ({ imgUrl, relativePath }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const [messageApi, messageContext] = Message.useMessage();
   const [imageUrl, setImageUrl] = useState<string>(imgUrl);
@@ -239,8 +241,8 @@ const ImageDisplay: React.FC<{
     } else {
       setLoading(true);
       setError(false);
-      ipcBridge.fs.getImageBase64
-        .invoke({ path: imgUrl })
+      api
+        .request('get-image-base64', { path: imgUrl })
         .then((base64) => {
           setImageUrl(base64);
           setLoading(false);

@@ -50,7 +50,7 @@ const LoadRuleModal: React.FC<{
     setLoading(true);
     try {
       // Fetch files from workspace
-      const result = await ipcBridge.fs.getFilesByDir.invoke({ dir: workspace, root: workspace });
+      const result = await api.request("get-file-by-dir", { dir: workspace, root: workspace });
       // Helper to flatten tree and filter
       const flattenFiles = (nodes: IDirOrFile[]): IDirOrFile[] => {
         let acc: IDirOrFile[] = [];
@@ -81,7 +81,7 @@ const LoadRuleModal: React.FC<{
   const handleSelectFile = async (file: IDirOrFile) => {
     setLoadingFile(true);
     try {
-      const content = await ipcBridge.fs.readFile.invoke({ path: file.fullPath });
+      const content = await api.request("read-file", { path: file.fullPath });
       const prompt = `
 System Instruction: The user has explicitly loaded the following rule/skill. Please internalize and apply it to our conversation immediately.
 

@@ -5,7 +5,7 @@
  */
 
 import { joinPath } from '@/common/chat/chatLib';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { useAutoScroll } from '@/renderer/hooks/chat/useAutoScroll';
 import { useTextSelection } from '@/renderer/hooks/ui/useTextSelection';
 import { useTypingAnimation } from '@/renderer/hooks/chat/useTypingAnimation';
@@ -86,6 +86,7 @@ const useImageResolverCache = () => {
 };
 
 const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, alt, baseDir, ...props }) => {
+  const api = useApi();
   const [resolvedSrc, setResolvedSrc] = useState<string | undefined>(undefined);
   const resolveImage = useImageResolverCache();
 
@@ -100,7 +101,7 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, alt, baseDir, ...pro
 
       if (isDataOrRemoteUrl(src)) {
         if (/^https?:/i.test(src)) {
-          resolveImage(src, () => ipcBridge.fs.fetchRemoteImage.invoke({ url: src }))
+          resolveImage(src, () => api.request('fetch-remote-image', { url: src }))
             .then((dataUrl) => {
               if (!cancelled) {
                 setResolvedSrc(dataUrl);
@@ -131,7 +132,7 @@ const MarkdownImage: React.FC<MarkdownImageProps> = ({ src, alt, baseDir, ...pro
         return;
       }
 
-      resolveImage(absolutePath, () => ipcBridge.fs.getImageBase64.invoke({ path: absolutePath }))
+      resolveImage(absolutePath, () => api.request('get-image-base64', { path: absolutePath }))
         .then((dataUrl) => {
           if (!cancelled) {
             setResolvedSrc(dataUrl);
@@ -203,6 +204,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   onScroll: externalOnScroll,
   filePath,
 }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const internalContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = externalContainerRef || internalContainerRef; // 使用外部 ref 或内部 ref / Use external ref or internal ref
@@ -311,8 +313,8 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
         return;
       }
 
-      void ipcBridge.fs.getImageBase64
-        .invoke({ path: absolutePath })
+      void api
+        .request('get-image-base64', { path: absolutePath })
         .then((dataUrl) => {
           img.src = dataUrl;
         })

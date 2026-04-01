@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { Message, Switch, Tooltip } from '@arco-design/web-react';
@@ -15,6 +15,7 @@ const SKILLS_MARKET_DETAILS_ZH = 'https://github.com/iOfficeAI/AionUi/discussion
 const SKILLS_MARKET_DETAILS_EN = 'https://github.com/iOfficeAI/AionUi/discussions/1325';
 
 const SkillsMarketBanner: React.FC = () => {
+  const api = useApi();
   const { t, i18n } = useTranslation();
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -45,8 +46,8 @@ const SkillsMarketBanner: React.FC = () => {
       setLoading(true);
       try {
         const result = checked
-          ? await ipcBridge.fs.enableSkillsMarket.invoke()
-          : await ipcBridge.fs.disableSkillsMarket.invoke();
+          ? await api.request('enable-skills-market', undefined)
+          : await api.request('disable-skills-market', undefined);
 
         if (result?.success) {
           setEnabled(checked);

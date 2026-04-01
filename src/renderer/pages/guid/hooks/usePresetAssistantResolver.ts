@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ASSISTANT_PRESETS } from '@/common/config/presets/assistantPresets';
 import type { AcpBackend, AcpBackendConfig } from '../types';
 import { useCallback } from 'react';
@@ -35,6 +35,8 @@ export const usePresetAssistantResolver = ({
   customAgents,
   localeKey,
 }: UsePresetAssistantResolverOptions): UsePresetAssistantResolverResult => {
+  const api = useApi();
+
   const resolvePresetRulesAndSkills = useCallback(
     async (
       agentInfo: { backend: AcpBackend; customAgentId?: string; context?: string } | undefined
@@ -51,7 +53,7 @@ export const usePresetAssistantResolver = ({
       let skills = '';
 
       try {
-        rules = await ipcBridge.fs.readAssistantRule.invoke({
+        rules = await api.request('read-assistant-rule', {
           assistantId: customAgentId,
           locale: localeKey,
         });
@@ -60,7 +62,7 @@ export const usePresetAssistantResolver = ({
       }
 
       try {
-        skills = await ipcBridge.fs.readAssistantSkill.invoke({
+        skills = await api.request('read-assistant-skill', {
           assistantId: customAgentId,
           locale: localeKey,
         });
@@ -77,7 +79,7 @@ export const usePresetAssistantResolver = ({
             try {
               const ruleFile = preset.ruleFiles[localeKey] || preset.ruleFiles['en-US'];
               if (ruleFile) {
-                rules = await ipcBridge.fs.readBuiltinRule.invoke({ fileName: ruleFile });
+                rules = await api.request('read-builtin-rule', { fileName: ruleFile });
               }
             } catch (e) {
               console.warn(`Failed to load builtin rules for ${customAgentId}:`, e);
@@ -87,7 +89,7 @@ export const usePresetAssistantResolver = ({
             try {
               const skillFile = preset.skillFiles[localeKey] || preset.skillFiles['en-US'];
               if (skillFile) {
-                skills = await ipcBridge.fs.readBuiltinSkill.invoke({ fileName: skillFile });
+                skills = await api.request('read-builtin-skill', { fileName: skillFile });
               }
             } catch (_e) {
               // skills fallback failure is ok

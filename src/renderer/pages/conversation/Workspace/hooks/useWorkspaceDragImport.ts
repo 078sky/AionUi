@@ -7,7 +7,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import type { TFunction } from 'i18next';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { FileService, MAX_UPLOAD_SIZE_MB } from '@/renderer/services/FileService';
 import { platformAdapter } from '@renderer/utils/platformAdapter';
 import type { MessageApi } from '../types';
@@ -47,6 +47,7 @@ export function useWorkspaceDragImport({
   t,
   conversationId,
 }: UseWorkspaceDragImportOptions) {
+  const api = useApi();
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
@@ -105,7 +106,7 @@ export function useWorkspaceDragImport({
 
     for (const item of items) {
       try {
-        const metadata = await ipcBridge.fs.getFileMetadata.invoke({ path: item.path });
+        const metadata = await api.request('get-file-metadata', { path: item.path });
         const itemName = metadata.name || item.name || getBaseName(item.path);
         const kind = metadata.isDirectory ? 'directory' : 'file';
         unique.set(item.path, { path: item.path, name: itemName, kind });

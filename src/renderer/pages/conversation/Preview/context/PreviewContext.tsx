@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { PreviewContentType } from '@/common/types/preview';
 import { emitter } from '@/renderer/utils/emitter';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -149,6 +150,7 @@ const loadPersistedState = (): { isOpen: boolean; tabs: PreviewTab[]; activeTabI
 };
 
 export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const api = useApi();
   // 从 localStorage 恢复初始状态 / Restore initial state from localStorage
   const persistedState = loadPersistedState();
   const [isOpen, setIsOpen] = useState(persistedState.isOpen);
@@ -427,7 +429,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
           savingFilesRef.current.add(filePath);
 
           // 使用 IPC 写入文件 / Write file via IPC
-          const success = await ipcBridge.fs.writeFile.invoke({
+          const success = await api.request('write-file', {
             path: filePath,
             data: tab.content,
           });
@@ -574,8 +576,8 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const filePath = tab.metadata?.filePath;
       if (!filePath || tab.isDirty || savingFilesRef.current.has(filePath)) return;
 
-      void ipcBridge.fs.getFileMetadata
-        .invoke({ path: filePath })
+      void api
+        .request('get-file-metadata', { path: filePath })
         .then((metadata) => {
           if (!metadata) return;
           const prevMtime = fileMtimeRef.current.get(filePath);
@@ -584,8 +586,8 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
           const readPromise =
             tab.contentType === 'image'
-              ? ipcBridge.fs.getImageBase64.invoke({ path: filePath })
-              : ipcBridge.fs.readFile.invoke({ path: filePath });
+              ? api.request('get-image-base64', { path: filePath })
+              : api.request('read-file', { path: filePath });
 
           void readPromise
             .then((content) => {
