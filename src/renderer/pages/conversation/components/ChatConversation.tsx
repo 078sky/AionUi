@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IProvider, TChatConversation, TProviderWithModel } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/icons/add-chat.svg';
@@ -34,8 +35,9 @@ import StarOfficeMonitorCard from '../platforms/openclaw/StarOfficeMonitorCard.t
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
 
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+  const api = useApi();
   const { data } = useSWR(['getAssociateConversation', conversation_id], () =>
-    ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id })
+    api.request('get-associated-conversation', { conversation_id })
   );
   const navigate = useNavigate();
   const list = useMemo(() => {
@@ -82,6 +84,7 @@ const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conver
 };
 
 const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ conversation }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const isCreatingRef = useRef(false);
@@ -97,9 +100,9 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
           try {
             const id = uuid();
             // Fetch latest conversation from DB to ensure sessionMode is current
-            const latest = await ipcBridge.conversation.get.invoke({ id: conversation.id }).catch((): null => null);
+            const latest = await api.request('get-conversation', { id: conversation.id }).catch((): null => null);
             const source = latest || conversation;
-            await ipcBridge.conversation.createWithConversation.invoke({
+            await api.request('create-conversation-with-conversation', {
               conversation: {
                 ...source,
                 id,
@@ -133,11 +136,12 @@ const GeminiConversationPanel: React.FC<{ conversation: GeminiConversation; slid
   conversation,
   sliderTitle,
 }) => {
+  const api = useApi();
   // Save model selection to conversation via IPC
   const onSelectModel = useCallback(
     async (_provider: IProvider, modelName: string) => {
       const selected = { ..._provider, useModel: modelName } as TProviderWithModel;
-      const ok = await ipcBridge.conversation.update.invoke({ id: conversation.id, updates: { model: selected } });
+      const ok = await api.request('update-conversation', { id: conversation.id, updates: { model: selected } });
       return Boolean(ok);
     },
     [conversation.id]

@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
 import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { emitter } from '@/renderer/utils/emitter';
@@ -100,6 +101,7 @@ const CreateConversationTrigger: React.FC<CreateConversationTriggerProps> = ({ d
  * Displays all open conversation tabs, supports switching, closing, and creating new conversations
  */
 const ConversationTabs: React.FC = () => {
+  const api = useApi();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const {
@@ -236,7 +238,8 @@ const ConversationTabs: React.FC = () => {
         }
 
         // Use conversation.create (calls ConversationService) not createWithConversation (direct DB insert)
-        const newConversation = await ipcBridge.conversation.create.invoke(
+        const newConversation = await api.request(
+          'create-conversation',
           applyDefaultConversationName(params, defaultConversationName)
         );
 

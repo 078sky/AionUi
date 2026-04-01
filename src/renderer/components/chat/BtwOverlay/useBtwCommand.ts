@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Message } from '@arco-design/web-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +20,7 @@ const INITIAL_STATE: BtwCommandState = {
 
 export function useBtwCommand(conversationId?: string, enabled = true) {
   const { t } = useTranslation();
+  const api = useApi();
   const requestIdRef = useRef(0);
   const previousConversationIdRef = useRef(conversationId);
   const previousEnabledRef = useRef(enabled);
@@ -65,7 +67,7 @@ export function useBtwCommand(conversationId?: string, enabled = true) {
       }
 
       try {
-        const response = await ipcBridge.conversation.askSideQuestion.invoke({
+        const response = await api.request('conversation.ask-side-question', {
           conversation_id: conversationId,
           question,
         });

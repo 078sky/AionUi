@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { AcpBackend } from '@/common/types/acpTypes';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import { uuid } from '@/common/utils';
@@ -95,6 +96,7 @@ const AcpSendBox: React.FC<{
     contextLimit,
     hasThinkingMessage,
   } = useAcpMessage(conversation_id);
+  const api = useApi();
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
   const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
@@ -257,7 +259,7 @@ Please check your local CLI tool authentication status`,
   const handleStop = async (): Promise<void> => {
     // Use finally to ensure UI state is reset even if backend stop fails
     try {
-      await ipcBridge.conversation.stop.invoke({ conversation_id });
+      await api.request('chat.stop.stream', { conversation_id });
     } finally {
       resetState();
       resetActiveExecution('stop');

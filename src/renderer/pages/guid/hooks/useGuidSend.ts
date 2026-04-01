@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TProviderWithModel } from '@/common/config/storage';
 import type { TChatConversation } from '@/common/config/storage';
 import { emitter } from '@/renderer/utils/emitter';
@@ -107,6 +108,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     openTab,
     t,
   } = deps;
+  const api = useApi();
   const sendingRef = useRef(false);
 
   const handleSend = useCallback(async () => {
@@ -149,7 +151,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       try {
         const presetAssistantIdToPass = isPreset ? agentInfo?.customAgentId : undefined;
 
-        const conversation = await ipcBridge.conversation.create.invoke({
+        const conversation = await api.request('create-conversation', {
           type: 'gemini',
           name: input,
           model: placeholderModel,
@@ -202,7 +204,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
 
       try {
-        const conversation = await ipcBridge.conversation.create.invoke({
+        const conversation = await api.request('create-conversation', {
           type: 'openclaw-gateway',
           name: input,
           model: currentModel!,
@@ -259,7 +261,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       const nanobotAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
 
       try {
-        const conversation = await ipcBridge.conversation.create.invoke({
+        const conversation = await api.request('create-conversation', {
           type: 'nanobot',
           name: input,
           model: currentModel!,
@@ -322,7 +324,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       }
 
       try {
-        const conversation = await ipcBridge.conversation.create.invoke({
+        const conversation = await api.request('create-conversation', {
           type: 'acp',
           name: input,
           model: currentModel!,

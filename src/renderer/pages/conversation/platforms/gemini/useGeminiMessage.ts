@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { transformMessage } from '@/common/chat/chatLib';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { TChatConversation, TokenUsageData } from '@/common/config/storage';
@@ -7,6 +8,7 @@ import { useAddOrUpdateMessage } from '@/renderer/pages/conversation/Messages/ho
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export const useGeminiMessage = (conversation_id: string, onError?: (message: IResponseMessage) => void) => {
+  const api = useApi();
   const addOrUpdateMessage = useAddOrUpdateMessage();
   const [streamRunning, setStreamRunning] = useState(false); // API 流是否在运行
   const [hasActiveTools, setHasActiveTools] = useState(false); // 是否有工具在执行或等待确认
@@ -219,7 +221,7 @@ export const useGeminiMessage = (conversation_id: string, onError?: (message: IR
               setTokenUsage(newTokenUsage);
               // Persist token usage stats to conversation's extra.lastTokenUsage field
               // Uses mergeExtra option so backend auto-merges extra field
-              void ipcBridge.conversation.update.invoke({
+              void api.request('update-conversation', {
                 id: conversation_id,
                 updates: {
                   extra: {
@@ -298,7 +300,7 @@ export const useGeminiMessage = (conversation_id: string, onError?: (message: IR
 
     // Check actual conversation status from backend before resetting all running states
     // to avoid flicker when switching to a running conversation
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (cancelled) {
         return;
       }

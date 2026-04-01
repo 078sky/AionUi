@@ -7,8 +7,8 @@
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import { PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
+import { useApi } from '@renderer/api';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { emitter } from '@/renderer/utils/emitter';
 import { useCallback, useRef, useState } from 'react';
@@ -28,6 +28,7 @@ type UseDragAndDropParams = {
 };
 
 export const useDragAndDrop = ({ pinnedConversations, batchMode, collapsed }: UseDragAndDropParams) => {
+  const api = useApi();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -44,21 +45,24 @@ export const useDragAndDrop = ({ pinnedConversations, batchMode, collapsed }: Us
     })
   );
 
-  const persistSortOrder = useCallback(async (conversationId: string, sortOrder: number) => {
-    try {
-      await ipcBridge.conversation.update.invoke({
-        id: conversationId,
-        updates: {
-          extra: {
-            sortOrder,
-          } as Partial<TChatConversation['extra']>,
-        } as Partial<TChatConversation>,
-        mergeExtra: true,
-      });
-    } catch (error) {
-      console.error('[DragAndDrop] Failed to persist sort order:', error);
-    }
-  }, []);
+  const persistSortOrder = useCallback(
+    async (conversationId: string, sortOrder: number) => {
+      try {
+        await api.request('update-conversation', {
+          id: conversationId,
+          updates: {
+            extra: {
+              sortOrder,
+            } as Partial<TChatConversation['extra']>,
+          } as Partial<TChatConversation>,
+          mergeExtra: true,
+        });
+      } catch (error) {
+        console.error('[DragAndDrop] Failed to persist sort order:', error);
+      }
+    },
+    [api]
+  );
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {

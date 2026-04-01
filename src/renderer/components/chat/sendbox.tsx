@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import BtwOverlay from '@/renderer/components/chat/BtwOverlay';
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
@@ -88,6 +89,7 @@ const SendBox: React.FC<{
   enableBtw = false,
   allowSendWhileLoading = false,
 }) => {
+  const api = useApi();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const conversationContext = useConversationContextSafe();
@@ -445,7 +447,7 @@ const SendBox: React.FC<{
       if (warmupTimerRef.current) clearTimeout(warmupTimerRef.current);
       warmupTimerRef.current = setTimeout(() => {
         warmedConversationRef.current = cid;
-        ipcBridge.conversation.warmup.invoke({ conversation_id: cid }).catch(() => {});
+        api.request('conversation.warmup', { conversation_id: cid }).catch(() => {});
       }, 1000);
     }
   }, [handlePasteFocus, isMobile, conversationContext?.conversationId]);

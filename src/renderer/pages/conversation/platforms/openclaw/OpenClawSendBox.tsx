@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
@@ -114,6 +115,7 @@ const validateRuntimeMismatch = async (conversationId: string): Promise<boolean>
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
 const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+  const api = useApi();
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -226,7 +228,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
     // Check actual conversation status from backend before resetting aiProcessing
     // to avoid flicker when switching to a running conversation
     // 先获取后端状态再重置 aiProcessing，避免切换到运行中的会话时闪烁
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (cancelled) {
         return;
       }
@@ -347,7 +349,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   }, [conversation_id, addOrUpdateMessage]);
 
   useEffect(() => {
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (!res?.extra?.workspace) return;
       setWorkspacePath(res.extra.workspace);
     });
@@ -576,7 +578,7 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
 
   const handleStop = async (): Promise<void> => {
     try {
-      await ipcBridge.conversation.stop.invoke({ conversation_id });
+      await api.request('chat.stop.stream', { conversation_id });
     } finally {
       setAiProcessing(false);
       aiProcessingRef.current = false;

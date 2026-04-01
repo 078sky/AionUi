@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { transformMessage } from '@/common/chat/chatLib';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { TokenUsageData } from '@/common/config/storage';
@@ -27,6 +28,7 @@ type UseAcpMessageReturn = {
 };
 
 export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
+  const api = useApi();
   const addOrUpdateMessage = useAddOrUpdateMessage();
   const [running, setRunning] = useState(false);
   const [hasHydratedRunningState, setHasHydratedRunningState] = useState(false);
@@ -316,7 +318,7 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
 
     // Check actual conversation status from backend before resetting running/aiProcessing
     // to avoid flicker when switching to a running conversation
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (cancelled) {
         return;
       }

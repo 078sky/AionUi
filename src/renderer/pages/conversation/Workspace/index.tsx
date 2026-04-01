@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -52,6 +52,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
   messageApi: externalMessageApi,
 }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { openPreview } = usePreviewContext();
@@ -512,8 +513,8 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
                 }}
                 loadMore={(treeNode) => {
                   const path = treeNode.props.dataRef.fullPath;
-                  return ipcBridge.conversation.getWorkspace
-                    .invoke({ conversation_id, workspace, path })
+                  return api
+                    .request('conversation.get-workspace', { conversation_id, workspace, path })
                     .then((res) => {
                       if (res[0]?.children) {
                         treeNode.props.dataRef.children = res[0].children;

@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TChatConversation } from '@/common/config/storage';
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { CronJobIndicator, useCronJobsMap } from '@/renderer/pages/cron';
@@ -65,6 +66,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
   onSessionClick,
   collapsed = false,
 }) => {
+  const api = useApi();
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const [chatHistory, setChatHistory] = useState<TChatConversation[]>([]);
@@ -89,7 +91,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     cleanupSiderTooltips();
     blockMobileInputFocus();
     blurActiveElement();
-    // ipcBridge.conversation.createWithConversation.invoke({ conversation }).then(() => {
+    // api.request('create-conversation-with-conversation', { conversation }).then(() => {
     Promise.resolve(navigate(`/conversation/${conversation.id}`)).catch((error) => {
       console.error('Navigation failed:', error);
     });
@@ -125,8 +127,8 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
   }, [isConversation]);
 
   const handleRemoveConversation = (id: string) => {
-    void ipcBridge.conversation.remove
-      .invoke({ id })
+    void api
+      .request('remove-conversation', { id })
       .then((success) => {
         if (success) {
           // Trigger refresh to reload from database
@@ -150,13 +152,13 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     if (!editingId || !editingName.trim()) return;
 
     try {
-      const success = await ipcBridge.conversation.update.invoke({
+      const success = await api.request('update-conversation', {
         id: editingId,
         updates: { name: editingName.trim() },
       });
 
       if (success) {
-        await refreshConversationCache(editingId);
+        await refreshConversationCache(api, editingId);
         // Trigger refresh to reload from database
         emitter.emit('chat.history.refresh');
       }

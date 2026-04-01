@@ -1,5 +1,6 @@
 import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chat/chatLib';
+import { useApi } from '@renderer/api';
 import type { TChatConversation } from '@/common/config/storage';
 import { Button } from '@arco-design/web-react';
 import type { SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
@@ -56,6 +57,7 @@ type UseConversationExportResult = {
 
 export function useConversationExport(options: UseConversationExportOptions): UseConversationExportResult {
   const { conversationId, workspace, t, messageApi } = options;
+  const api = useApi();
   const [step, setStep] = useState<ExportFlowStep>('closed');
   const [activeIndex, setActiveIndex] = useState(0);
   const [filename, setFilename] = useState('');
@@ -97,11 +99,11 @@ export function useConversationExport(options: UseConversationExportOptions): Us
       return conversationRef.current;
     }
 
-    const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
+    const conversation = await api.request('get-conversation', { id: conversationId });
     conversationRef.current = conversation;
     transcriptRef.current = null;
     return conversation;
-  }, [conversationId]);
+  }, [api, conversationId]);
 
   const loadTranscript = useCallback(async (): Promise<string | null> => {
     if (!conversationId) {

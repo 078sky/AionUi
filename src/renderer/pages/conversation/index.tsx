@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Spin } from '@arco-design/web-react';
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,7 @@ import { useAutoTitle } from '@/renderer/hooks/chat/useAutoTitle';
 
 const ChatConversationIndex: React.FC = () => {
   const { id } = useParams();
+  const api = useApi();
   const { t } = useTranslation();
   const { closePreview } = usePreviewContext();
   const { openTab } = useConversationTabs();
@@ -32,13 +33,13 @@ const ChatConversationIndex: React.FC = () => {
   }, [id, closePreview]);
 
   const { data, isLoading, mutate } = useSWR(`conversation/${id}`, () => {
-    return ipcBridge.conversation.get.invoke({ id });
+    return api.request('get-conversation', { id });
   });
 
   useEffect(() => {
     if (!id) return;
 
-    return ipcBridge.conversation.listChanged.on((event) => {
+    return api.on('conversation.list-changed', (event) => {
       if (event.conversationId !== id || event.action !== 'updated') {
         return;
       }

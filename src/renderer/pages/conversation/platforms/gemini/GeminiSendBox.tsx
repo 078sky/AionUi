@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { uuid } from '@/common/utils';
 import AgentSetupCard from '@/renderer/components/agent/AgentSetupCard';
 import ContextUsageIndicator from '@/renderer/components/agent/ContextUsageIndicator';
@@ -86,6 +87,7 @@ const GeminiSendBox: React.FC<{
   conversation_id: string;
   modelSelection: GeminiModelSelection;
 }> = ({ conversation_id, modelSelection }) => {
+  const api = useApi();
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -142,7 +144,7 @@ const GeminiSendBox: React.FC<{
   });
 
   useEffect(() => {
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (!res?.extra?.workspace) return;
       setWorkspacePath(res.extra.workspace);
     });
@@ -323,7 +325,7 @@ const GeminiSendBox: React.FC<{
   const handleStop = async (): Promise<void> => {
     // Use finally to ensure UI state is reset even if backend stop fails
     try {
-      await ipcBridge.conversation.stop.invoke({ conversation_id });
+      await api.request('chat.stop.stream', { conversation_id });
     } finally {
       resetState();
       resetActiveExecution('stop');

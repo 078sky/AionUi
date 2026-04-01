@@ -1,6 +1,6 @@
 import { isSlashCommandListEnabled } from '@/common/chat/slash/availability';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { useEffect, useRef, useState } from 'react';
 
 interface CacheEntry {
@@ -43,6 +43,7 @@ interface UseSlashCommandsOptions {
 }
 
 export function useSlashCommands(conversationId: string, options: UseSlashCommandsOptions = {}) {
+  const api = useApi();
   const { conversationType, codexStatus, agentStatus } = options;
   const canUseCachedCommands = isSlashCommandListEnabled({ conversationType, codexStatus });
   const requestIdRef = useRef(0);
@@ -72,8 +73,8 @@ export function useSlashCommands(conversationId: string, options: UseSlashComman
       setCommands(cached);
     }
 
-    void ipcBridge.conversation.getSlashCommands
-      .invoke({ conversation_id: conversationId })
+    void api
+      .request('conversation.get-slash-commands', { conversation_id: conversationId })
       .then((response) => {
         if (isCancelled || requestId !== requestIdRef.current) {
           return;

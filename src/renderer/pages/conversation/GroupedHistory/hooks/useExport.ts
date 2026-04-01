@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TChatConversation } from '@/common/config/storage';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Message } from '@arco-design/web-react';
@@ -35,6 +36,7 @@ export const useExport = ({
   setSelectedConversationIds,
   onBatchModeChange,
 }: UseExportParams) => {
+  const api = useApi();
   const [exportTask, setExportTask] = useState<ExportTask>(null);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportTargetPath, setExportTargetPath] = useState('');
@@ -162,7 +164,7 @@ export const useExport = ({
 
     try {
       const trees = await withTimeout(
-        ipcBridge.conversation.getWorkspace.invoke({
+        api.request('conversation.get-workspace', {
           conversation_id: conversation.id,
           workspace,
           path: workspace,

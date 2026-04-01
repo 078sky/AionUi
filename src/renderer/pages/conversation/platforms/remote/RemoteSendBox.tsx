@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
@@ -45,6 +46,7 @@ const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
 
 const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+  const api = useApi();
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -132,7 +134,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
     setThought({ subject: '', description: '' });
     hasContentInTurnRef.current = false;
 
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (!res) {
         setAiProcessing(false);
         aiProcessingRef.current = false;
@@ -161,7 +163,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
   );
 
   useEffect(() => {
-    return ipcBridge.conversation.responseStream.on((message) => {
+    return api.on('chat.response.stream', (message) => {
       if (conversation_id !== message.conversation_id) return;
 
       switch (message.type) {
@@ -211,7 +213,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
   }, [conversation_id, addOrUpdateMessage]);
 
   useEffect(() => {
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then(async (res) => {
+    void api.request('get-conversation', { id: conversation_id }).then(async (res) => {
       if (res?.extra?.workspace) setWorkspacePath(res.extra.workspace);
       const extra = res?.extra as { remoteAgentId?: string } | undefined;
       if (extra?.remoteAgentId) {
@@ -251,7 +253,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
         aiProcessingRef.current = true;
 
         void checkAndUpdateTitle(conversation_id, input);
-        await ipcBridge.conversation.sendMessage.invoke({
+        await api.request('chat.send.message', {
           input: initialDisplayMessage,
           msg_id,
           conversation_id,
@@ -324,7 +326,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
       try {
         void checkAndUpdateTitle(conversation_id, message);
         const atPathStrings = currentAtPath.map((item) => (typeof item === 'string' ? item : item.path));
-        await ipcBridge.conversation.sendMessage.invoke({
+        await api.request('chat.send.message', {
           input: displayMessage,
           msg_id,
           conversation_id,
@@ -360,7 +362,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
 
   const handleStop = async (): Promise<void> => {
     try {
-      await ipcBridge.conversation.stop.invoke({ conversation_id });
+      await api.request('chat.stop.stream', { conversation_id });
     } finally {
       setAiProcessing(false);
       aiProcessingRef.current = false;

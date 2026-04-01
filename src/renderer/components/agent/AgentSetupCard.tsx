@@ -15,6 +15,7 @@ import { Button, Message, Progress } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Loading, Down, Up } from '@icon-park/react';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
 import type { AcpBackendAll } from '@/common/types/acpTypes';
 import type { AgentCheckResult } from '@/renderer/hooks/agent/useAgentReadinessCheck';
@@ -77,6 +78,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
   initialMessage,
 }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const navigate = useNavigate();
   const [switching, setSwitching] = useState(false);
   const [expanded, setExpanded] = useState(false); // Default collapsed
@@ -91,7 +93,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
 
       try {
         // Get current conversation info
-        const conversation = await ipcBridge.conversation.get.invoke({ id: conversationId });
+        const conversation = await api.request('get-conversation', { id: conversationId });
         if (!conversation) {
           Message.error(t('conversation.chat.switchAgentFailed', { defaultValue: 'Failed to switch agent' }));
           switchingRef.current = false;
@@ -140,7 +142,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
         };
 
         // Create new conversation with the selected agent
-        const newConversation = await ipcBridge.conversation.create.invoke(
+        const newConversation = await api.request('create-conversation', 
           applyDefaultConversationName(createParams, defaultConversationName)
         );
 

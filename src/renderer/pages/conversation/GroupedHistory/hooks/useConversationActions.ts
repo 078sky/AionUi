@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
+import { useApi } from '@renderer/api';
 import { refreshConversationCache } from '@/renderer/pages/conversation/utils/conversationCache';
 import { emitter } from '@/renderer/utils/emitter';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/ui/focus';
@@ -43,6 +43,7 @@ export const useConversationActions = ({
   const [dropdownVisibleId, setDropdownVisibleId] = useState<string | null>(null);
   const { id } = useParams();
   const { t } = useTranslation();
+  const api = useApi();
   const navigate = useNavigate();
   const { openTab, closeAllTabs, activeTab, updateTabName } = useConversationTabs();
 
@@ -93,7 +94,7 @@ export const useConversationActions = ({
 
   const removeConversation = useCallback(
     async (conversationId: string) => {
-      const success = await ipcBridge.conversation.remove.invoke({ id: conversationId });
+      const success = await api.request('remove-conversation', { id: conversationId });
       if (!success) {
         return false;
       }
@@ -104,7 +105,7 @@ export const useConversationActions = ({
       }
       return true;
     },
-    [id, navigate]
+    [api, id, navigate]
   );
 
   const handleDeleteClick = useCallback(
@@ -185,13 +186,13 @@ export const useConversationActions = ({
 
     setRenameLoading(true);
     try {
-      const success = await ipcBridge.conversation.update.invoke({
+      const success = await api.request('update-conversation', {
         id: renameModalId,
         updates: { name: renameModalName.trim() },
       });
 
       if (success) {
-        await refreshConversationCache(renameModalId);
+        await refreshConversationCache(api, renameModalId);
         updateTabName(renameModalId, renameModalName.trim());
         emitter.emit('chat.history.refresh');
         setRenameModalVisible(false);
@@ -207,7 +208,7 @@ export const useConversationActions = ({
     } finally {
       setRenameLoading(false);
     }
-  }, [renameModalId, renameModalName, updateTabName, t]);
+  }, [api, renameModalId, renameModalName, updateTabName, t]);
 
   const handleRenameCancel = useCallback(() => {
     setRenameModalVisible(false);
@@ -220,7 +221,7 @@ export const useConversationActions = ({
       const pinned = isConversationPinned(conversation);
 
       try {
-        const success = await ipcBridge.conversation.update.invoke({
+        const success = await api.request('update-conversation', {
           id: conversation.id,
           updates: {
             extra: {
@@ -241,7 +242,7 @@ export const useConversationActions = ({
         Message.error(t('conversation.history.pinFailed'));
       }
     },
-    [t]
+    [api, t]
   );
 
   const handleMenuVisibleChange = useCallback((conversationId: string, visible: boolean) => {

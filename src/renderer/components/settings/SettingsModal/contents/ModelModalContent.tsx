@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { IProvider } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
@@ -97,6 +98,7 @@ const HEALTH_CHECK_FIRST_RESPONSE_TIMEOUT_MS = 30000;
 
 const ModelModalContent: React.FC = () => {
   const { t } = useTranslation();
+  const api = useApi();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const [collapseKey, setCollapseKey] = useState<Record<string, boolean>>({});
@@ -191,10 +193,10 @@ const ModelModalContent: React.FC = () => {
 
     try {
       // 测活走统一对话链路，与常规请求路径保持一致
-      const responseStream = ipcBridge.conversation.responseStream;
+      // Response stream subscription is set up below via api.on()
 
       // 1. 创建临时对话
-      const conversation = await ipcBridge.conversation.create.invoke({
+      const conversation = await api.request('create-conversation', {
         type: 'gemini',
         name: `[Health Check] ${platform.name} - ${modelName}`,
         model: {
@@ -278,7 +280,7 @@ const ModelModalContent: React.FC = () => {
           resolveOnce({ success: true, latency: duration });
         };
 
-        unsubscribe = responseStream.on(responseListener);
+        unsubscribe = api.on('chat.response.stream', responseListener);
 
         // 首个响应超时（默认 30s）
         timeoutId = setTimeout(() => {
@@ -305,7 +307,7 @@ const ModelModalContent: React.FC = () => {
       responsePromise.catch(() => {});
 
       // 3. 发送测试消息
-      await ipcBridge.conversation.sendMessage.invoke({
+      await api.request('chat.send.message', {
         conversation_id: tempConversationId,
         input: 'ping',
         msg_id: uuid(),
@@ -404,7 +406,7 @@ const ModelModalContent: React.FC = () => {
       }
       if (tempConversationId) {
         // 删除临时对话
-        ipcBridge.conversation.remove.invoke({ id: tempConversationId }).catch(() => {});
+        api.request('remove-conversation', { id: tempConversationId }).catch(() => {});
       }
       setHealthCheckLoading((prev) => ({ ...prev, [loadingKey]: false }));
     }

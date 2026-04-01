@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
@@ -54,6 +55,7 @@ const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
 
 const NanobotSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+  const api = useApi();
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -147,7 +149,7 @@ const NanobotSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id
     setHasHydratedRunningState(false);
     setThought({ subject: '', description: '' });
 
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (cancelled) {
         return;
       }
@@ -179,7 +181,7 @@ const NanobotSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id
   );
 
   useEffect(() => {
-    return ipcBridge.conversation.responseStream.on((message) => {
+    return api.on('chat.response.stream', (message) => {
       if (conversation_id !== message.conversation_id) {
         return;
       }
@@ -251,7 +253,7 @@ const NanobotSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id
       setAiProcessing(true);
       try {
         void checkAndUpdateTitle(conversation_id, input);
-        const result = await ipcBridge.conversation.sendMessage.invoke({
+        const result = await api.request('chat.send.message', {
           input: displayMessage,
           msg_id,
           conversation_id,
@@ -330,7 +332,7 @@ const NanobotSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id
       try {
         setAiProcessing(true);
         const { input, files = [] } = JSON.parse(stored) as { input: string; files?: string[] };
-        const res = await ipcBridge.conversation.get.invoke({ id: conversation_id });
+        const res = await api.request('get-conversation', { id: conversation_id });
         const resolvedWorkspace = res?.extra?.workspace ?? '';
         setWorkspacePath(resolvedWorkspace);
         const msg_id = `initial_${conversation_id}_${Date.now()}`;
@@ -350,7 +352,7 @@ const NanobotSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id
         addOrUpdateMessage(userMessage, true);
 
         void checkAndUpdateTitle(conversation_id, input);
-        const result = await ipcBridge.conversation.sendMessage.invoke({
+        const result = await api.request('chat.send.message', {
           input: initialDisplayMessage,
           msg_id,
           conversation_id,
@@ -369,7 +371,7 @@ const NanobotSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id
 
   const handleStop = async (): Promise<void> => {
     try {
-      await ipcBridge.conversation.stop.invoke({ conversation_id });
+      await api.request('chat.stop.stream', { conversation_id });
     } finally {
       setAiProcessing(false);
       setThought({ subject: '', description: '' });

@@ -6,6 +6,8 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
+import { useApi } from '@renderer/api';
+import type { ApiClient } from '@renderer/api/client';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
@@ -158,7 +160,7 @@ const setActiveConversationState = (conversationId: string | null) => {
   activeConversationIdState = conversationId;
 };
 
-const initializeConversationListSyncStore = () => {
+const initializeConversationListSyncStore = (api: ApiClient) => {
   if (isStoreInitialized) {
     return;
   }
@@ -167,14 +169,14 @@ const initializeConversationListSyncStore = () => {
   refreshConversations();
 
   addEventListener('chat.history.refresh', refreshConversations);
-  ipcBridge.conversation.listChanged.on((event) => {
+  api.on('conversation.list-changed', (event) => {
     if (event.action === 'deleted') {
       clearGenerating(event.conversationId);
       clearCompletionUnreadState(event.conversationId);
     }
     refreshConversations();
   });
-  ipcBridge.conversation.responseStream.on((message) => {
+  api.on('chat.response.stream', (message) => {
     const conversationId = message.conversation_id;
     if (!conversationId) {
       return;
@@ -197,7 +199,7 @@ const initializeConversationListSyncStore = () => {
       markGenerating(conversationId);
     }
   });
-  ipcBridge.conversation.turnCompleted.on((event) => {
+  api.on('conversation.turn.completed', (event) => {
     if (isTerminalTurnState(event.state) && activeConversationIdState !== event.sessionId) {
       markCompletionUnread(event.sessionId);
     }
@@ -207,9 +209,10 @@ const initializeConversationListSyncStore = () => {
 };
 
 export const useConversationListSync = () => {
+  const api = useApi();
   useEffect(() => {
-    initializeConversationListSyncStore();
-  }, []);
+    initializeConversationListSyncStore(api);
+  }, [api]);
 
   const { conversations, generatingConversationIds, completionUnreadConversationIds } = useSyncExternalStore(
     subscribeConversationListSync,

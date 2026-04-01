@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
@@ -52,6 +53,7 @@ const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
 
 const CodexSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
+  const api = useApi();
   const [workspacePath, setWorkspacePath] = useState('');
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
@@ -164,7 +166,7 @@ const CodexSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }
     hasContentInTurnRef.current = false;
 
     // Check actual conversation status from backend
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (cancelled) {
         return;
       }
@@ -267,7 +269,7 @@ const CodexSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }
   }, [conversation_id, addOrUpdateMessage]);
 
   useEffect(() => {
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void api.request('get-conversation', { id: conversation_id }).then((res) => {
       if (!res?.extra?.workspace) return;
       setWorkspacePath(res.extra.workspace);
     });
@@ -465,7 +467,7 @@ const CodexSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id }
   const handleStop = async (): Promise<void> => {
     // Use finally to ensure UI state is reset even if backend stop fails
     try {
-      await ipcBridge.conversation.stop.invoke({ conversation_id });
+      await api.request('chat.stop.stream', { conversation_id });
     } finally {
       setRunning(false);
       setAiProcessing(false);

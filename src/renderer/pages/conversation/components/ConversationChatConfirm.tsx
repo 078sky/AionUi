@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IConfirmation } from '@/common/chat/chatLib';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { Divider, Typography } from '@arco-design/web-react';
@@ -11,6 +11,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
   conversation_id,
   children,
 }) => {
+  const api = useApi();
   const [confirmations, setConfirmations] = useState<IConfirmation<any>[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { t } = useTranslation();
@@ -31,7 +32,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
       if (!action) return false;
 
       try {
-        const isApproved = await ipcBridge.conversation.approval.check.invoke({
+        const isApproved = await api.request('approval.check', {
           conversation_id,
           action,
           commandType,
@@ -43,7 +44,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
             (opt) => opt.value === 'proceed_always' || opt.value === 'proceed_once'
           );
           if (allowOption) {
-            void ipcBridge.conversation.confirmation.confirm.invoke({
+            void api.request('confirmation.confirm', {
               conversation_id,
               callId: confirmation.callId,
               msg_id: confirmation.id,
@@ -68,7 +69,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
 
     const loadConfirmations = async () => {
       try {
-        const data = await ipcBridge.conversation.confirmation.list.invoke({ conversation_id });
+        const data = await api.request('confirmation.list', { conversation_id });
         // Filter out confirmations that should be auto-confirmed (async)
         const manualConfirmations: IConfirmation<any>[] = [];
         for (const c of data) {
@@ -94,7 +95,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
     void loadConfirmations();
 
     return removeStack(
-      ipcBridge.conversation.confirmation.add.on((data) => {
+      api.on('confirmation.add', (data) => {
         if (conversation_id !== data.conversation_id) return;
         // Check if should auto-confirm (async)
         void checkAndAutoConfirm(data).then((autoConfirmed) => {
@@ -104,11 +105,11 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
           }
         });
       }),
-      ipcBridge.conversation.confirmation.remove.on((data) => {
+      api.on('confirmation.remove', (data) => {
         if (conversation_id !== data.conversation_id) return;
         setConfirmations((prev) => prev.filter((p) => p.id !== data.id));
       }),
-      ipcBridge.conversation.confirmation.update.on(({ ...data }) => {
+      api.on('confirmation.update', (data) => {
         if (conversation_id !== data.conversation_id) return;
         setConfirmations((list) => list.map((p) => (p.id === data.id ? { ...p, ...data } : p)));
       })
@@ -124,7 +125,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
 
     const confirmOption = (option: (typeof confirmation.options)[number]) => {
       setConfirmations((prev) => prev.filter((p) => p.id !== confirmation.id));
-      void ipcBridge.conversation.confirmation.confirm.invoke({
+      void api.request('confirmation.confirm', {
         conversation_id,
         callId: confirmation.callId,
         msg_id: confirmation.id,
@@ -211,8 +212,8 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
           <button
             onClick={() => {
               setLoadError(null);
-              void ipcBridge.conversation.confirmation.list
-                .invoke({ conversation_id })
+              void api
+                .request('confirmation.list', { conversation_id })
                 .then((data) => setConfirmations(data))
                 .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load'));
             }}
@@ -271,7 +272,7 @@ const ConversationChatConfirm: React.FC<PropsWithChildren<{ conversation_id: str
                     // Note: "always allow" is stored by backend when proceed_always is confirmed
                     // 注意：后端会在确认 proceed_always 时自动存储权限
                     setConfirmations((prev) => prev.filter((p) => p.id !== confirmation.id));
-                    void ipcBridge.conversation.confirmation.confirm.invoke({
+                    void api.request('confirmation.confirm', {
                       conversation_id,
                       callId: confirmation.callId,
                       msg_id: confirmation.id,

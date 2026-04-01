@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { uuid } from '@/common/utils';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { emitter } from '@/renderer/utils/emitter';
@@ -34,6 +35,7 @@ export function useWorkspaceMigration({
   t,
   isTemporaryWorkspace,
 }: UseWorkspaceMigrationParams) {
+  const api = useApi();
   const navigate = useNavigate();
 
   // Migration modal state
@@ -100,7 +102,7 @@ export function useWorkspaceMigration({
         }
 
         // Get all files from the workspace
-        const workspaceFiles = await ipcBridge.conversation.getWorkspace.invoke({
+        const workspaceFiles = await api.request('conversation.get-workspace', {
           conversation_id,
           workspace,
           path: workspace,
@@ -136,7 +138,7 @@ export function useWorkspaceMigration({
           },
         } as typeof currentConversation;
 
-        await ipcBridge.conversation.createWithConversation.invoke({
+        await api.request('create-conversation-with-conversation', {
           conversation: newConversation,
           sourceConversationId: conversation_id,
           migrateCron,

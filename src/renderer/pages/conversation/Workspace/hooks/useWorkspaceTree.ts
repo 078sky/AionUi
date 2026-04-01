@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspace/workspaceEvents';
@@ -23,6 +23,8 @@ interface UseWorkspaceTreeOptions {
  * Merge tree state management and selection logic
  */
 export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: UseWorkspaceTreeOptions) {
+  const api = useApi();
+
   // Tree state / 树状态
   const [files, setFiles] = useState<IDirOrFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -72,8 +74,8 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
     (path: string, search?: string) => {
       const seq = ++loadSeqRef.current;
       setLoadingHandler(true);
-      return ipcBridge.conversation.getWorkspace
-        .invoke({ path, workspace, conversation_id, search: search || '' })
+      return api
+        .request('conversation.get-workspace', { path, workspace, conversation_id, search: search || '' })
         .then((res) => {
           // Ignore stale responses from aborted requests:
           // The backend aborts previous getWorkspace calls, returning [].
@@ -129,7 +131,7 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
           setLoadingHandler(false);
         });
     },
-    [conversation_id, workspace, setLoadingHandler]
+    [api, conversation_id, workspace, setLoadingHandler]
   );
 
   /**

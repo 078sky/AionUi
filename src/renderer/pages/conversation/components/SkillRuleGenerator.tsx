@@ -15,6 +15,7 @@ import {
 import { Magic, FolderOpen, Lightning } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
 import type { TMessage } from '@/common/chat/chatLib';
@@ -33,6 +34,7 @@ const LoadRuleModal: React.FC<{
   conversationId: string;
 }> = ({ visible, onCancel, workspace, conversationId }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<IDirOrFile[]>([]);
   const [loadingFile, setLoadingFile] = useState(false);
@@ -93,7 +95,7 @@ ${content}
 Please acknowledge receiving this rule/skill and confirm you will apply it.
       `.trim();
 
-      await ipcBridge.conversation.sendMessage.invoke({
+      await api.request('chat.send.message', {
         input: prompt,
         msg_id: uuid(),
         conversation_id: conversationId,
@@ -159,6 +161,7 @@ Please acknowledge receiving this rule/skill and confirm you will apply it.
 };
 
 const SkillRuleGenerator: React.FC<SkillRuleGeneratorProps> = ({ conversationId, workspace }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const [generateVisible, setGenerateVisible] = useState(false);
   const [loadVisible, setLoadVisible] = useState(false);
@@ -233,7 +236,7 @@ Requirements:
       let capturedContent = '';
 
       // Listen for the response to capture preset content
-      const removeListener = ipcBridge.conversation.responseStream.on((msg) => {
+      const removeListener = api.on('chat.response.stream', (msg) => {
         if (msg.conversation_id === conversationId && msg.msg_id === msg_id) {
           if (msg.type === 'content') {
             capturedContent += msg.data as string;
@@ -249,7 +252,7 @@ Requirements:
       });
 
       // 3. Send prompt to the agent
-      await ipcBridge.conversation.sendMessage.invoke({
+      await api.request('chat.send.message', {
         input: prompt,
         msg_id: msg_id,
         conversation_id: conversationId,

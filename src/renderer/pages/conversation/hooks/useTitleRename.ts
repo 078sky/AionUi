@@ -1,4 +1,4 @@
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { refreshConversationCache } from '@/renderer/pages/conversation/utils/conversationCache';
 import { emitter } from '@/renderer/utils/emitter';
 import { Message } from '@arco-design/web-react';
@@ -27,6 +27,7 @@ type UseTitleRenameReturn = {
  */
 export function useTitleRename({ title, conversationId, updateTabName }: UseTitleRenameParams): UseTitleRenameReturn {
   const { t } = useTranslation();
+  const api = useApi();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(typeof title === 'string' ? title : '');
   const [renameLoading, setRenameLoading] = useState(false);
@@ -58,13 +59,13 @@ export function useTitleRename({ title, conversationId, updateTabName }: UseTitl
 
     setRenameLoading(true);
     try {
-      const success = await ipcBridge.conversation.update.invoke({
+      const success = await api.request('update-conversation', {
         id: conversationId,
         updates: { name: nextTitle },
       });
 
       if (success) {
-        await refreshConversationCache(conversationId);
+        await refreshConversationCache(api, conversationId);
         updateTabName(conversationId, nextTitle);
         emitter.emit('chat.history.refresh');
         setEditingTitle(false);
