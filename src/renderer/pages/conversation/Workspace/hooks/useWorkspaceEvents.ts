@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useRef } from 'react';
@@ -39,6 +40,7 @@ interface UseWorkspaceEventsOptions {
  * Manage all event listeners
  */
 export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
+  const api = useApi();
   const {
     conversation_id,
     eventPrefix,
@@ -136,7 +138,7 @@ export function useWorkspaceEvents(options: UseWorkspaceEventsOptions) {
       }
     };
     const unsubscribeGemini = ipcBridge.geminiConversation.responseStream.on(handleGeminiResponse);
-    const unsubscribeAcp = ipcBridge.acpConversation.responseStream.on(handleAcpResponse);
+    const unsubscribeAcp = api.on('chat.response.stream', handleAcpResponse);
     const unsubscribeCodex = ipcBridge.codexConversation.responseStream.on(handleCodexResponse);
 
     return () => {

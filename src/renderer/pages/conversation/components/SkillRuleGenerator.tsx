@@ -281,7 +281,7 @@ Requirements:
       };
       customAgents.push(presetAgent);
       await ConfigStorage.set('acp.customAgents', customAgents);
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+      await api.request('acp.refresh-custom-agents', undefined);
       Message.success(
         t('conversation.skill_generator.preset_registered', { defaultValue: 'Agent preset registered successfully!' })
       );

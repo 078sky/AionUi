@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
 import type { IProvider } from '@/common/config/storage';
 import { ConfigStorage } from '@/common/config/storage';
@@ -65,6 +66,7 @@ export const useGuidAgentSelection = ({
   isGoogleAuth,
   localeKey,
 }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
+  const api = useApi();
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('gemini');
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [selectedMode, _setSelectedMode] = useState<string>('default');
@@ -178,7 +180,7 @@ export const useGuidAgentSelection = ({
 
   // --- SWR: Fetch available agents ---
   const { data: availableAgentsData } = useSWR('acp.agents.available', async () => {
-    const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
+    const result = await api.request('acp.get-available-agents', undefined);
     if (result.success) {
       return result.data.filter((agent) => !(agent.backend === 'gemini' && agent.cliPath));
     }
@@ -254,8 +256,8 @@ export const useGuidAgentSelection = ({
     let cancelled = false;
     probedModelBackendsRef.current.add('codex');
 
-    ipcBridge.acpConversation.probeModelInfo
-      .invoke({ backend: 'codex' })
+    api
+      .request('acp.probe-model-info', { backend: 'codex' })
       .then(async (result) => {
         if (cancelled) return;
         const modelInfo = result.success ? result.data?.modelInfo : null;

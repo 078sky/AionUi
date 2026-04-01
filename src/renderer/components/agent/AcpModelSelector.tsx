@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import { ConfigStorage } from '@/common/config/storage';
 import type { IProvider } from '@/common/config/storage';
@@ -38,6 +38,7 @@ const AcpModelSelector: React.FC<{
   initialModelId?: string;
 }> = ({ conversationId, backend, initialModelId }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const { isOpen: isPreviewOpen } = usePreviewContext();
   const layout = useLayoutContext();
   const [modelInfo, setModelInfo] = useState<AcpModelInfo | null>(null);
@@ -49,8 +50,8 @@ const AcpModelSelector: React.FC<{
   // Fetch initial model info on mount, fallback to cached models if manager not ready
   useEffect(() => {
     let cancelled = false;
-    ipcBridge.acpConversation.getModelInfo
-      .invoke({ conversationId })
+    api
+      .request('acp.get-model-info', { conversationId })
       .then((result) => {
         if (cancelled) return;
         if (result.success && result.data?.modelInfo) {
@@ -145,14 +146,14 @@ const AcpModelSelector: React.FC<{
         }
       }
     };
-    return ipcBridge.acpConversation.responseStream.on(handler);
+    return api.on('chat.response.stream', handler);
   }, [conversationId, initialModelId]);
 
   const handleSelectModel = useCallback(
     (modelId: string) => {
       hasUserChangedModel.current = true;
-      ipcBridge.acpConversation.setModel
-        .invoke({ conversationId, modelId })
+      api
+        .request('acp.set-model', { conversationId, modelId })
         .then((result) => {
           if (result.success && result.data?.modelInfo) {
             setModelInfo(result.data.modelInfo);
@@ -177,7 +178,9 @@ const AcpModelSelector: React.FC<{
   const isMobileCompact = Boolean(layout?.isMobile);
 
   // 获取模型配置数据（包含健康状态）
-  const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
+  const { data: modelConfig } = useSWR<IProvider[]>('model.config', () =>
+    api.request('mode.get-model-config', undefined)
+  );
 
   // 获取当前模型的健康状态
   const currentModelHealth = React.useMemo(() => {

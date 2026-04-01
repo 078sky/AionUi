@@ -98,7 +98,7 @@ export const useInitialMessage = (
  *     const userMessage: TMessage = { ... };
  *     addOrUpdateMessage(userMessage, true);
  *
- *     const result = await ipcBridge.acpConversation.sendMessage.invoke({
+ *     const result = await api.request('chat.send.message', {
  *       input, msg_id, conversation_id, files
  *     });
  *

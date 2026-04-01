@@ -6,7 +6,7 @@
 
 import { useMemo } from 'react';
 import useSWR from 'swr';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { AvailableAgent } from '@/renderer/utils/model/agentTypes';
 import {
   AVAILABLE_AGENTS_SWR_KEY,
@@ -30,12 +30,13 @@ export type UseConversationAgentsResult = {
  * Filters out gemini-CLI agents (BUG-4: matches useGuidAgentSelection filter logic).
  */
 export const useConversationAgents = (): UseConversationAgentsResult => {
+  const api = useApi();
   const {
     data: availableAgents,
     isLoading,
     mutate,
   } = useSWR(AVAILABLE_AGENTS_SWR_KEY, async () => {
-    const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
+    const result = await api.request('acp.get-available-agents', undefined);
     if (result.success) {
       return filterAvailableAgentsForUi(result.data);
     }

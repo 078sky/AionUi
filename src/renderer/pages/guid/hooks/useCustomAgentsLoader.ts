@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { ConfigStorage } from '@/common/config/storage';
 import type { AcpBackendConfig } from '../types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -27,6 +28,7 @@ type UseCustomAgentsLoaderResult = {
 export const useCustomAgentsLoader = ({
   availableCustomAgentIds,
 }: UseCustomAgentsLoaderOptions): UseCustomAgentsLoaderResult => {
+  const api = useApi();
   const [customAgents, setCustomAgents] = useState<AcpBackendConfig[]>([]);
 
   const customAgentAvatarMap = useMemo(() => {
@@ -82,7 +84,7 @@ export const useCustomAgentsLoader = ({
 
   const refreshCustomAgents = useCallback(async () => {
     try {
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+      await api.request('acp.refresh-custom-agents', undefined);
       await mutate('acp.agents.available');
     } catch (error) {
       console.error('Failed to refresh custom agents:', error);

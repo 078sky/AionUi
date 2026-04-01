@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { useCallback, useEffect, useState } from 'react';
 import useSWR, { mutate } from 'swr';
 
@@ -7,6 +8,7 @@ import useSWR, { mutate } from 'swr';
  * extension-contributed ACP adapters.
  */
 export const useAssistantBackends = () => {
+  const api = useApi();
   const [availableBackends, setAvailableBackends] = useState<Set<string>>(new Set(['gemini']));
 
   // Load extension-contributed ACP adapters so they appear in the main agent dropdown
@@ -18,7 +20,7 @@ export const useAssistantBackends = () => {
   useEffect(() => {
     void (async () => {
       try {
-        const resp = await ipcBridge.acpConversation.getAvailableAgents.invoke();
+        const resp = await api.request('acp.get-available-agents', undefined);
         if (resp.success && resp.data) {
           setAvailableBackends(new Set(resp.data.map((a) => a.backend)));
         }
@@ -30,7 +32,7 @@ export const useAssistantBackends = () => {
 
   const refreshAgentDetection = useCallback(async () => {
     try {
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+      await api.request('acp.refresh-custom-agents', undefined);
       await mutate('acp.agents.available');
     } catch {
       // ignore

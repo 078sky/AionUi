@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { iconColors } from '@/renderer/styles/colors';
@@ -72,6 +72,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
   hideCompactLabelPrefixOnMobile = false,
 }) => {
   const { t } = useTranslation();
+  const api = useApi();
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const modes = getAgentModes(backend);
@@ -106,8 +107,8 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     if (!conversationId || !canSwitchMode) return;
     let cancelled = false;
 
-    ipcBridge.acpConversation.getMode
-      .invoke({ conversationId })
+    api
+      .request('acp.get-mode', { conversationId })
       .then((result) => {
         if (!cancelled && result.success && result.data) {
           // Only sync from backend when manager is initialized;
@@ -145,7 +146,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
 
       setIsLoading(true);
       try {
-        const result = await ipcBridge.acpConversation.setMode.invoke({
+        const result = await api.request('acp.set-mode', {
           conversationId,
           mode,
         });

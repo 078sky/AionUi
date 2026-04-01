@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import { Link, Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -14,11 +14,12 @@ import AgentCard from './AgentCard';
 
 const LocalAgents: React.FC = () => {
   const { t } = useTranslation();
+  const api = useApi();
   const navigate = useNavigate();
 
   // Detected agents (filter out custom and remote)
   const { data: detectedAgents } = useSWR('acp.agents.available.settings', async () => {
-    const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
+    const result = await api.request('acp.get-available-agents', undefined);
     if (result.success) {
       return result.data.filter((agent) => agent.backend !== 'custom' && agent.backend !== 'remote');
     }

@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { AcpBackendAll } from '@/common/types/acpTypes';
 
 export type AgentCheckResult = {
@@ -67,6 +67,7 @@ const AGENT_NAMES: Partial<Record<AcpBackendAll, string>> = {
  */
 export function useAgentReadinessCheck(options: UseAgentReadinessCheckOptions) {
   const { backend, conversationType, autoCheck = false, onAgentReady } = options;
+  const api = useApi();
 
   const [state, setState] = useState<AgentReadinessState>({
     isReady: true, // Assume ready until proven otherwise
@@ -89,7 +90,7 @@ export function useAgentReadinessCheck(options: UseAgentReadinessCheckOptions) {
     }));
 
     try {
-      const result = await ipcBridge.acpConversation.checkAgentHealth.invoke({
+      const result = await api.request('acp.check-agent-health', {
         backend: agentToCheck,
       });
 
@@ -134,7 +135,7 @@ export function useAgentReadinessCheck(options: UseAgentReadinessCheckOptions) {
     }));
 
     try {
-      const result = await ipcBridge.acpConversation.getAvailableAgents.invoke();
+      const result = await api.request('acp.get-available-agents', undefined);
       if (!result.success || !result.data) {
         setState((prev) => ({
           ...prev,
@@ -179,7 +180,7 @@ export function useAgentReadinessCheck(options: UseAgentReadinessCheckOptions) {
         const startTime = Date.now();
 
         try {
-          const healthResult = await ipcBridge.acpConversation.checkAgentHealth.invoke({
+          const healthResult = await api.request('acp.check-agent-health', {
             backend: agent.backend,
           });
           const latency = Date.now() - startTime;

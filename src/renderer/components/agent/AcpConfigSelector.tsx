@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { AcpBackend, AcpSessionConfigOption } from '@/common/types/acpTypes';
 import { Button, Dropdown, Menu } from '@arco-design/web-react';
@@ -35,6 +35,7 @@ const AcpConfigSelector: React.FC<{
   conversationId: string;
   backend?: AcpBackend;
 }> = ({ conversationId, backend }) => {
+  const api = useApi();
   const { t } = useTranslation();
   const [configOptions, setConfigOptions] = useState<AcpSessionConfigOption[]>([]);
 
@@ -45,8 +46,8 @@ const AcpConfigSelector: React.FC<{
   useEffect(() => {
     if (!isSupported) return;
     let cancelled = false;
-    ipcBridge.acpConversation.getConfigOptions
-      .invoke({ conversationId })
+    api
+      .request('acp.get-config-options', { conversationId })
       .then((result) => {
         if (cancelled) return;
         if (result.success && result.data?.configOptions?.length > 0) {
@@ -66,8 +67,8 @@ const AcpConfigSelector: React.FC<{
     const handler = (message: IResponseMessage) => {
       if (message.conversation_id !== conversationId) return;
       if (message.type === 'acp_model_info') {
-        ipcBridge.acpConversation.getConfigOptions
-          .invoke({ conversationId })
+        api
+          .request('acp.get-config-options', { conversationId })
           .then((result) => {
             if (result.success && result.data?.configOptions?.length > 0) {
               setConfigOptions(result.data.configOptions);
@@ -76,7 +77,7 @@ const AcpConfigSelector: React.FC<{
           .catch(() => {});
       }
     };
-    return ipcBridge.acpConversation.responseStream.on(handler);
+    return api.on('chat.response.stream', handler);
   }, [conversationId, isSupported]);
 
   const handleSelectOption = useCallback(
@@ -87,8 +88,8 @@ const AcpConfigSelector: React.FC<{
       );
 
       // Send to ACP backend
-      ipcBridge.acpConversation.setConfigOption
-        .invoke({ conversationId, configId, value })
+      api
+        .request('acp.set-config-option', { conversationId, configId, value })
         .then((result) => {
           if (result.success && result.data?.configOptions?.length > 0) {
             setConfigOptions(result.data.configOptions);
@@ -97,8 +98,8 @@ const AcpConfigSelector: React.FC<{
         .catch((error) => {
           console.error('[AcpConfigSelector] Failed to set config option:', error);
           // Revert on error by re-fetching
-          ipcBridge.acpConversation.getConfigOptions
-            .invoke({ conversationId })
+          api
+            .request('acp.get-config-options', { conversationId })
             .then((result) => {
               if (result.success && result.data?.configOptions) {
                 setConfigOptions(result.data.configOptions);

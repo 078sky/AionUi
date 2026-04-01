@@ -302,7 +302,7 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
   );
 
   useEffect(() => {
-    return ipcBridge.acpConversation.responseStream.on(handleResponseMessage);
+    return api.on('chat.response.stream', handleResponseMessage);
   }, [handleResponseMessage]);
 
   // Reset state when conversation changes and restore actual running status

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
+import { useApi } from '@renderer/api';
 import type { TMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
 import { emitter } from '@/renderer/utils/emitter';
@@ -29,6 +29,7 @@ export const useAcpInitialMessage = ({
   checkAndUpdateTitle,
   addOrUpdateMessage,
 }: UseAcpInitialMessageParams): void => {
+  const api = useApi();
   useEffect(() => {
     const storageKey = `acp_initial_message_${conversationId}`;
     const storedMessage = sessionStorage.getItem(storageKey);
@@ -53,7 +54,7 @@ export const useAcpInitialMessage = ({
 
         // Send the message
         void checkAndUpdateTitle(conversationId, input);
-        const result = await ipcBridge.acpConversation.sendMessage.invoke({
+        const result = await api.request('chat.send.message', {
           input,
           msg_id,
           conversation_id: conversationId,

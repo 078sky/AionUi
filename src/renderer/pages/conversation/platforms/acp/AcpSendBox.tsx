@@ -155,7 +155,7 @@ const AcpSendBox: React.FC<{
 
       try {
         void checkAndUpdateTitle(conversation_id, input);
-        const result = await ipcBridge.acpConversation.sendMessage.invoke({
+        const result = await api.request('chat.send.message', {
           input,
           msg_id,
           conversation_id,
