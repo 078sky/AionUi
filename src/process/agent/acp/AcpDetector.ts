@@ -4,251 +4,276 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync } from 'child_process';
 import type { AcpBackendAll, PresetAgentType } from '@/common/types/acpTypes';
 import { POTENTIAL_ACP_CLIS } from '@/common/types/acpTypes';
-import { ProcessConfig } from '@process/utils/initStorage';
 import { ExtensionRegistry } from '@process/extensions';
+import { ProcessConfig } from '@process/utils/initStorage';
 import { getEnhancedEnv } from '@process/utils/shellEnv';
+import { execSync } from 'child_process';
 
 interface DetectedAgent {
   backend: AcpBackendAll;
   name: string;
   cliPath?: string;
   acpArgs?: string[];
-  customAgentId?: string; // UUID for custom agents
+  customAgentId?: string;
   isPreset?: boolean;
   context?: string;
   avatar?: string;
-  // Allow extension-contributed adapter IDs (e.g. 'ext-buddy') in addition to built-in PresetAgentType values
   presetAgentType?: PresetAgentType | string;
   isExtension?: boolean;
   extensionName?: string;
 }
 
 /**
- * 全局ACP检测器 - 启动时检测一次，全局共享结果
+ * Global ACP detector — detects available agents from three sources:
+ *   1. POTENTIAL_ACP_CLIS (built-in CLI list, real backendId)
+ *   2. Extension-contributed ACP adapters (from ExtensionRegistry)
+ *   3. User-configured custom agents (from config store)
+ *
+ * All three run in parallel, then results are deduplicated by cliPath.
+ * Priority: POTENTIAL_ACP_CLIS > Extension > Custom (first wins on conflict).
+ * Gemini is always prepended as a built-in (no CLI detection needed).
  */
 class AcpDetector {
   private detectedAgents: DetectedAgent[] = [];
   private isDetected = false;
+  private enhancedEnv: NodeJS.ProcessEnv | undefined;
 
   /**
-   * 将扩展贡献的 ACP adapter 添加到检测列表（即开即用，不落盘）
-   * Add extension-contributed ACP adapters to detected list (hot-load, no persistence).
+   * Check if a CLI command is available on the system PATH.
    */
-  private addExtensionAgentsToList(detected: DetectedAgent[]): void {
-    try {
-      const registry = ExtensionRegistry.getInstance();
-      const adapters = registry.getAcpAdapters();
-      if (!adapters || adapters.length === 0) return;
+  private isCliAvailable(cliCommand: string): boolean {
+    const isWindows = process.platform === 'win32';
+    const whichCommand = isWindows ? 'where' : 'which';
 
-      const extensionAgents: DetectedAgent[] = [];
+    if (!this.enhancedEnv) {
+      this.enhancedEnv = getEnhancedEnv();
+    }
+
+    try {
+      execSync(`${whichCommand} ${cliCommand}`, {
+        encoding: 'utf-8',
+        stdio: 'pipe',
+        timeout: 1000,
+        env: this.enhancedEnv,
+      });
+      return true;
+    } catch {
+      if (!isWindows) return false;
+    }
+
+    if (isWindows) {
+      try {
+        execSync(
+          `powershell -NoProfile -NonInteractive -Command "Get-Command -All ${cliCommand} | Select-Object -First 1 | Out-Null"`,
+          {
+            encoding: 'utf-8',
+            stdio: 'pipe',
+            timeout: 1000,
+            env: this.enhancedEnv,
+          }
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Three detection sources — each returns an array of DetectedAgent candidates
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Source 1: Built-in POTENTIAL_ACP_CLIS — parallel CLI availability check.
+   */
+  private async detectBuiltinAgents(): Promise<DetectedAgent[]> {
+    const promises = POTENTIAL_ACP_CLIS.map((cli) =>
+      Promise.resolve().then((): DetectedAgent | null =>
+        this.isCliAvailable(cli.cmd)
+          ? { backend: cli.backendId, name: cli.name, cliPath: cli.cmd, acpArgs: cli.args }
+          : null
+      )
+    );
+
+    const results = await Promise.allSettled(promises);
+    return results
+      .filter((r): r is PromiseFulfilledResult<DetectedAgent> => r.status === 'fulfilled' && r.value !== null)
+      .map((r) => r.value);
+  }
+
+  /**
+   * Source 2: Extension-contributed ACP adapters — parallel CLI availability check.
+   */
+  private async detectExtensionAgents(): Promise<DetectedAgent[]> {
+    try {
+      const adapters = ExtensionRegistry.getInstance().getAcpAdapters();
+      if (!adapters || adapters.length === 0) return [];
+
+      const candidates: Array<{ agent: DetectedAgent; cliCommand: string }> = [];
+
       for (const item of adapters) {
         const adapter = item as Record<string, unknown>;
         const id = typeof adapter.id === 'string' ? adapter.id : '';
         const name = typeof adapter.name === 'string' ? adapter.name : id;
-        const defaultCliPath = typeof adapter.defaultCliPath === 'string' ? adapter.defaultCliPath : undefined;
+        const cliCommand = typeof adapter.cliCommand === 'string' ? adapter.cliCommand : undefined;
         const acpArgs = Array.isArray(adapter.acpArgs)
           ? adapter.acpArgs.filter((v): v is string => typeof v === 'string')
           : undefined;
         const avatar = typeof adapter.avatar === 'string' ? adapter.avatar : undefined;
         const extensionName = typeof adapter._extensionName === 'string' ? adapter._extensionName : 'unknown-extension';
+        const connectionType = typeof adapter.connectionType === 'string' ? adapter.connectionType : 'unknown';
 
-        // 当前 ACP 运行时仅支持 CLI adapter；HTTP/WebSocket adapter 先跳过
-        if (!defaultCliPath) {
-          const connectionType = typeof adapter.connectionType === 'string' ? adapter.connectionType : 'unknown';
-          console.warn(
-            `[AcpDetector] Skipping adapter "${name}" (${connectionType}): only CLI/stdio adapters are supported at runtime`
-          );
-          continue;
-        }
+        if (connectionType !== 'cli' && connectionType !== 'stdio') continue;
+        if (!cliCommand) continue;
 
-        extensionAgents.push({
-          backend: 'custom',
-          name,
-          cliPath: defaultCliPath,
-          acpArgs,
-          avatar,
-          customAgentId: `ext:${extensionName}:${id}`,
-          isExtension: true,
-          extensionName,
+        candidates.push({
+          cliCommand,
+          agent: {
+            backend: 'custom' as const,
+            name,
+            cliPath: cliCommand,
+            acpArgs,
+            avatar,
+            customAgentId: id,
+            isExtension: true,
+            extensionName,
+          },
         });
       }
 
-      if (extensionAgents.length > 0) {
-        detected.push(...extensionAgents);
-      }
+      const promises = candidates.map((c) =>
+        Promise.resolve().then((): DetectedAgent | null => (this.isCliAvailable(c.cliCommand) ? c.agent : null))
+      );
+
+      const results = await Promise.allSettled(promises);
+      return results
+        .filter((r): r is PromiseFulfilledResult<DetectedAgent> => r.status === 'fulfilled' && r.value !== null)
+        .map((r) => r.value);
     } catch (error) {
       console.warn('[AcpDetector] Failed to load extension ACP adapters:', error);
+      return [];
     }
   }
 
   /**
-   * 将自定义代理添加到检测列表（追加到末尾）
-   * Add custom agents to detected list if configured and enabled (appends to end).
+   * Source 3: User-configured custom agents (no CLI check — user is responsible).
    */
-  private async addCustomAgentsToList(detected: DetectedAgent[]): Promise<void> {
+  private async detectCustomAgents(): Promise<DetectedAgent[]> {
     try {
       const customAgents = await ProcessConfig.get('acp.customAgents');
-      if (!customAgents || !Array.isArray(customAgents) || customAgents.length === 0) return;
+      if (!customAgents || !Array.isArray(customAgents) || customAgents.length === 0) return [];
 
-      // 过滤出已启用且有有效 CLI 路径或标记为预设的代理 / Filter enabled agents with valid CLI path or marked as preset
       const enabledAgents = customAgents.filter((agent) => agent.enabled && (agent.defaultCliPath || agent.isPreset));
-      if (enabledAgents.length === 0) return;
+      if (enabledAgents.length === 0) return [];
 
-      // 将所有自定义代理追加到列表末尾 / Append all custom agents to the end
-      const customDetectedAgents: DetectedAgent[] = enabledAgents.map((agent) => ({
-        backend: 'custom',
+      return enabledAgents.map((agent) => ({
+        backend: 'custom' as const,
         name: agent.name || 'Custom Agent',
         cliPath: agent.defaultCliPath,
         acpArgs: agent.acpArgs,
-        customAgentId: agent.id, // 存储 UUID 用于标识 / Store the UUID for identification
+        customAgentId: agent.id,
         isPreset: agent.isPreset,
         context: agent.context,
         avatar: agent.avatar,
-        presetAgentType: agent.presetAgentType, // 主 Agent 类型 / Primary agent type
+        presetAgentType: agent.presetAgentType,
       }));
-
-      detected.push(...customDetectedAgents);
     } catch (error) {
-      // 配置读取失败时区分预期错误和非预期错误
-      // Distinguish expected vs unexpected errors when reading config
       if (error instanceof Error && (error.message.includes('ENOENT') || error.message.includes('not found'))) {
-        // 未配置自定义代理 - 这是正常情况 / No custom agents configured - this is normal
-        return;
+        return [];
       }
       console.warn('[AcpDetector] Unexpected error loading custom agents:', error);
+      return [];
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Deduplication
+  // ---------------------------------------------------------------------------
+
   /**
-   * 启动时执行检测 - 使用 POTENTIAL_ACP_CLIS 列表检测已安装的 CLI
+   * Deduplicate agents by cliPath. First occurrence wins (so ordering of the
+   * input arrays determines priority: builtin > extension > custom).
+   * Agents without cliPath (e.g. Gemini, presets) are always kept.
    */
+  private deduplicate(agents: DetectedAgent[]): DetectedAgent[] {
+    const seen = new Set<string>();
+    const result: DetectedAgent[] = [];
+
+    for (const agent of agents) {
+      if (agent.cliPath) {
+        if (seen.has(agent.cliPath)) continue;
+        seen.add(agent.cliPath);
+      }
+      result.push(agent);
+    }
+
+    return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
+
   async initialize(): Promise<void> {
     if (this.isDetected) return;
 
     console.log('[ACP] Starting agent detection...');
     const startTime = Date.now();
 
-    const isWindows = process.platform === 'win32';
-    const whichCommand = isWindows ? 'where' : 'which';
+    // Run all three sources in parallel
+    const [builtinAgents, extensionAgents, customAgents] = await Promise.all([
+      this.detectBuiltinAgents(),
+      this.detectExtensionAgents(),
+      this.detectCustomAgents(),
+    ]);
 
-    // Get enhanced environment with user's shell PATH (includes ~/.local/bin, etc.)
-    // 获取增强的环境变量，包含用户 shell 的 PATH（如 ~/.local/bin 等）
-    const enhancedEnv = getEnhancedEnv();
-
-    const isCliAvailable = (cliCommand: string): boolean => {
-      // Keep original behavior: prefer where/which, then fallback on Windows to Get-Command.
-      // 保持原逻辑：优先使用 where/which，Windows 下失败再回退到 Get-Command。
-      try {
-        execSync(`${whichCommand} ${cliCommand}`, {
-          encoding: 'utf-8',
-          stdio: 'pipe',
-          timeout: 1000,
-          env: enhancedEnv,
-        });
-        return true;
-      } catch {
-        if (!isWindows) return false;
-      }
-
-      if (isWindows) {
-        try {
-          // PowerShell fallback for shim scripts like claude.ps1 (vfox)
-          // PowerShell 回退，支持 claude.ps1 这类 shim（例如 vfox）
-          execSync(
-            `powershell -NoProfile -NonInteractive -Command "Get-Command -All ${cliCommand} | Select-Object -First 1 | Out-Null"`,
-            {
-              encoding: 'utf-8',
-              stdio: 'pipe',
-              timeout: 1000,
-              env: enhancedEnv,
-            }
-          );
-          return true;
-        } catch {
-          return false;
-        }
-      }
-
-      return false;
-    };
-
-    const detected: DetectedAgent[] = [];
-
-    // 并行检测所有潜在的 ACP CLI
-    const detectionPromises = POTENTIAL_ACP_CLIS.map((cli) => {
-      return Promise.resolve().then(() => {
-        if (!isCliAvailable(cli.cmd)) {
-          return null;
-        }
-
-        return {
-          backend: cli.backendId,
-          name: cli.name,
-          cliPath: cli.cmd,
-          acpArgs: cli.args,
-        };
-      });
-    });
-
-    const results = await Promise.allSettled(detectionPromises);
-
-    // 收集检测结果
-    for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        detected.push(result.value);
-      }
-    }
-
-    // 始终添加内置 Gemini 作为默认选项（无需检测其他 CLI）
-    // Always add built-in Gemini as default option (no CLI detection needed)
-    detected.unshift({
+    // Merge with priority: Gemini (always first) > builtin > extension > custom
+    const gemini: DetectedAgent = {
       backend: 'gemini',
       name: 'Gemini CLI',
       cliPath: undefined,
       acpArgs: undefined,
-    });
+    };
 
-    // Add extension-contributed agents (hot-load, no persistence)
-    this.addExtensionAgentsToList(detected);
-
-    // Check for custom agents configuration
-    await this.addCustomAgentsToList(detected);
-
-    this.detectedAgents = detected;
+    this.detectedAgents = this.deduplicate([gemini, ...builtinAgents, ...extensionAgents, ...customAgents]);
     this.isDetected = true;
-
     const elapsed = Date.now() - startTime;
-    console.log(`[ACP] Detection completed in ${elapsed}ms, found ${detected.length} agents`);
+    console.log(`[ACP] Detection completed in ${elapsed}ms, found ${this.detectedAgents.length} agents`);
   }
 
-  /**
-   * 获取检测结果
-   */
   getDetectedAgents(): DetectedAgent[] {
     return this.detectedAgents;
   }
 
-  /**
-   * 是否有可用的ACP工具
-   */
   hasAgents(): boolean {
     return this.detectedAgents.length > 0;
   }
 
   /**
-   * Refresh custom agents detection only (called when config changes)
+   * Refresh custom agents detection only (called when config changes).
    */
   async refreshCustomAgents(): Promise<void> {
-    // Remove existing non-extension custom agents if present
     this.detectedAgents = this.detectedAgents.filter((agent) => !(agent.backend === 'custom' && !agent.isExtension));
+    const customAgents = await this.detectCustomAgents();
+    this.detectedAgents.push(...customAgents);
+    this.detectedAgents = this.deduplicate(this.detectedAgents);
+  }
 
-    // Re-add custom agents with current config
-    await this.addCustomAgentsToList(this.detectedAgents);
+  /**
+   * Refresh extension-contributed agents (called after ExtensionRegistry.hotReload).
+   * Clears cached env so newly installed CLIs are discoverable.
+   */
+  async refreshExtensionAgents(): Promise<void> {
+    this.enhancedEnv = undefined;
+    this.detectedAgents = this.detectedAgents.filter((agent) => !agent.isExtension);
+    const extensionAgents = await this.detectExtensionAgents();
+    this.detectedAgents.push(...extensionAgents);
+    this.detectedAgents = this.deduplicate(this.detectedAgents);
   }
 }
 
-// 单例实例
 export const acpDetector = new AcpDetector();

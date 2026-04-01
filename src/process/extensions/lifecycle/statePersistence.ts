@@ -41,6 +41,8 @@ interface PersistedStates {
       installed?: boolean;
       /** Last known version — used for migration detection */
       lastVersion?: string;
+      /** Install error message for Agent Hub tracking */
+      installError?: string;
     }
   >;
 }
@@ -49,8 +51,8 @@ interface PersistedStates {
  * Load persisted extension states from disk.
  * Returns an empty map if the file doesn't exist or is invalid.
  */
-export function loadPersistedStates(): Map<string, ExtensionState & { installed?: boolean; lastVersion?: string }> {
-  const result = new Map<string, ExtensionState & { installed?: boolean; lastVersion?: string }>();
+export function loadPersistedStates(): Map<string, ExtensionState> {
+  const result = new Map<string, ExtensionState>();
   const statesFile = resolveStatesFile();
 
   try {
@@ -72,6 +74,7 @@ export function loadPersistedStates(): Map<string, ExtensionState & { installed?
         disabledReason: state.disabledReason,
         installed: state.installed,
         lastVersion: state.lastVersion,
+        installError: state.installError,
       });
     }
   } catch (error) {
@@ -85,9 +88,7 @@ export function loadPersistedStates(): Map<string, ExtensionState & { installed?
  * Save extension states to disk.
  * Creates the target directory if it doesn't exist.
  */
-export function savePersistedStates(
-  states: Map<string, ExtensionState & { installed?: boolean; lastVersion?: string }>
-): void {
+export function savePersistedStates(states: Map<string, ExtensionState>): void {
   const statesFile = resolveStatesFile();
   const statesDir = path.dirname(statesFile);
 
@@ -108,6 +109,7 @@ export function savePersistedStates(
         disabledReason: state.disabledReason,
         installed: (state as any).installed,
         lastVersion: (state as any).lastVersion,
+        installError: (state as any).installError,
       };
     }
 
@@ -135,7 +137,7 @@ export function savePersistedStates(
 export function needsInstallHook(
   extensionName: string,
   currentVersion: string,
-  persistedStates: Map<string, ExtensionState & { installed?: boolean; lastVersion?: string }>
+  persistedStates: Map<string, ExtensionState>
 ): { isFirstInstall: boolean; isUpgrade: boolean } {
   const persisted = persistedStates.get(extensionName);
 

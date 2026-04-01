@@ -72,46 +72,60 @@ stateDiagram-v2
 
 ### 3.1 Hub Index (index.json)
 
-由 CI 从 `aionui/hub` 仓库自动生成，客户端拉取此文件获取可用 extension 列表。
+由 CI 从 `iOfficeAI/AionHub` 仓库自动生成，客户端拉取此文件获取可用 extension 列表。
 
-```jsonc
+```json
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-03-30T12:00:00Z",
-  "extensions": [
-    {
-      // === 身份 ===
-      "name": "ext-claude-code", // kebab-case, 全局唯一 ID (即 aion-extension.json 的 name)
-      "displayName": "Claude Code", // UI 展示名 (可变)
-      "description": "Anthropic Claude Code agent",
-      "author": "aionui",
-      "icon": "icon.png", // 相对于 extension 目录的路径
-
-      // === 分发 ===
-      "dist": {
-        "tarball": "extensions/ext-claude-code/ext-claude-code.tgz",
-        "integrity": "sha512-abc123...", // SRI hash，防传输损坏
-        "unpackedSize": 12480, // bytes
-      },
-
-      // === 兼容性 ===
+  "generatedAt": "2026-04-01T13:20:39.067Z",
+  "extensions": {
+    "aionext-auggie": {
+      "name": "aionext-auggie",
+      "displayName": "Augment Code",
+      "version": "1.0.0",
+      "description": "Integrates Augment Code as an ACP adapter in AionUi.",
+      "author": "Aionui Official",
       "engines": {
-        "aionui": ">=2.0.0", // 最低 APP 版本要求
+        "aionui": "^1.0.0"
       },
-
-      // === Hub 分类 ===
-      "hubs": ["agent"], // 从 contributes 自动推导
-      "tags": ["anthropic", "claude", "coding"],
-
-      // === 权限摘要 ===
-      "riskLevel": "moderate",
-
-      // === 内置标记 ===
-      "bundled": true, // 是否打包在 APP 内
+      "hubs": ["acpAdapters"],
+      "dist": {
+        "tarball": "dist/aionext-auggie.zip",
+        "integrity": "sha512-F7Lyl3J3T/e4kkOoADUxw9YPuI5ljeIGiJOb1RQOvm4KztCgpB+hUyBECan+1T4exikU5F9ry9wEssJUGvW/nw==",
+        "unpackedSize": 549
+      }
     },
-  ],
+    "aionext-claude": {
+      "name": "aionext-claude",
+      "displayName": "Claude Code",
+      "version": "1.0.0",
+      "description": "Integrates Anthropic's Claude Code CLI as an ACP adapter in AionUi.",
+      "author": "Aionui Official",
+      "engines": {
+        "aionui": "^1.0.0"
+      },
+      "hubs": ["acpAdapters"],
+      "dist": {
+        "tarball": "dist/aionext-claude.zip",
+        "integrity": "sha512-7QLD1yaIrvBrYRvPNliUQW+kY8cBYMz5lkIvpMUeO4gduJ1Zj7b4KxmPkHifwMLvNCXkkBV1iZYDTyOFOiWp5A==",
+        "unpackedSize": 571
+      }
+    }
+  },
+  "metadata": {
+    "totalExtensions": 2,
+    "generatedBy": "Aion Extension Builder v1.0.0",
+    "repository": "https://github.com/iOfficeAI/AionHub/"
+  }
 }
 ```
+
+extension 的唯一标识由 `name` 字段定义.
+`displayName` 是 UI 展示名称，
+`description` 是简短描述，
+`dist` 包含安装包的路径和完整性校验信息，
+`engines.aionui` 定义了兼容的 AionUI 版本范围，
+`hubs` 定义了 extension 的分类标签（本期筛选包含 "acpAdapters" 的项）。
 
 ### 3.2 安装状态推导
 
@@ -120,7 +134,7 @@ stateDiagram-v2
 ```
 判断 Hub extension 的展示状态:
 
-  extension 目录不存在 (~/.aionui/extensions/ext-xxx/)
+  extension 目录不存在 (~/.aionui/extensions/aionext-xxx/)
     → not_installed (显示 Install)
 
   extension 目录存在 + CLI 已检测到 (AcpDetector)
@@ -194,7 +208,7 @@ stateDiagram-v2
 │  │ [icon] Opencode                       [更新]   │ │
 │  │        Open source coding agent                │ │
 │  ├────────────────────────────────────────────────┤ │
-│  │ [icon] iflow                         [重试]    │ │
+│  │ [icon] iflow                          [重试]   │ │
 │  │        iflow agent                             │ │
 │  └────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────┘
@@ -272,13 +286,13 @@ APP 启动
   │      └── 失败 → 状态 → install_failed, 记录错误
   │
   ├── 4. 解压到临时目录
-  │      └── ~/.aionui/extensions/.tmp/ext-xxx/
+  │      └── ~/.aionui/extensions/.tmp/aionext-xxx/
   │
   ├── 5. 校验 aion-extension.json 合法性
   │      └── 失败 → 清理临时目录, 状态 → install_failed
   │
   ├── 6. 原子移动到正式目录
-  │      └── .tmp/ext-xxx/ → ~/.aionui/extensions/ext-xxx/
+  │      └── .tmp/aionext-xxx/ → ~/.aionui/extensions/aionext-xxx/
   │
   ├── 7. 执行 onInstall 钩子 (如 bun add -g @anthropic-ai/claude-code)
   │      ├── 成功 → 继续
@@ -310,7 +324,7 @@ APP 启动
   ├── 4. 执行 onUninstall 钩子 (如 bun remove -g @anthropic-ai/claude-code)
   │      └── 失败 → 仅 warn 日志, 不阻塞卸载
   │
-  ├── 5. 删除 ~/.aionui/extensions/ext-xxx/ 目录
+  ├── 5. 删除 ~/.aionui/extensions/aionext-xxx/ 目录
   │
   ├── 6. 触发 ExtensionRegistry 热重载
   │
@@ -338,7 +352,7 @@ APP 更新后首次启动
 ```
 用户点击 Retry (在 install_failed 状态)
   │
-  ├── 检查 ~/.aionui/extensions/ext-xxx/ 是否已存在
+  ├── 检查 ~/.aionui/extensions/aionext-xxx/ 是否已存在
   │   ├── 存在 → 跳过解压, 直接从步骤 7 (onInstall) 开始
   │   └── 不存在 → 从步骤 2 开始完整安装
   │
@@ -356,17 +370,17 @@ APP 更新后首次启动
 ```
 AionHub/
 ├── extensions/
-│   ├── ext-claude-code/
+│   ├── aionext-claude/
 │   │   ├── aion-extension.json
 │   │   ├── icon.png
 │   │   └── README.md
-│   ├── ext-opencode/
-│   ├── ext-kimi/
+│   ├── aionext-opencode/
+│   ├── aionext-kimi/
 │   └── ...
 ├── dist/                            ← CI 自动生成
 │   ├── index.json                   ← 客户端拉取的远程索引
-│   ├── ext-claude-code.tgz          ← 打包后的 extension
-│   ├── ext-opencode.tgz
+│   ├── aionext-claude.tgz      ← 打包后的 extension
+│   ├── aionext-opencode.tgz
 │   └── ...
 ├── scripts/
 │   └── build.ts                     ← 扫描 extensions/ → 打包 .tgz → 生成 index.json
@@ -381,9 +395,9 @@ AionHub/
 AionUI.app/Contents/Resources/
 └── hub/
     ├── index.json                   ← 构建 APP 时从 aionui/hub 的 dist/ 复制
-    ├── ext-claude-code.tgz          ← 内置 extension (bundled: true)
-    ├── ext-kimi.tgz
-    └── ext-opencode.tgz
+    ├── aionext-claude.tgz           ← 内置 extension (bundled: true)
+    ├── aionext-kimi.tgz
+    └── aionext-opencode.tgz
 ```
 
 ### 6.3 用户数据目录
@@ -391,13 +405,13 @@ AionUI.app/Contents/Resources/
 ```
 ~/.aionui/
 ├── extensions/                      ← 已安装的 extension
-│   ├── ext-claude-code/
+│   ├── aionext-claude/
 │   │   ├── aion-extension.json
 │   │   └── ...
-│   ├── ext-kimi/
+│   ├── aionext-kimi/
 │   └── .tmp/                        ← 安装过程的临时目录
 ├── cache/                           ← 下载缓存 (非内置 extension)
-│   └── ext-qwen-code.tgz
+│   └── aionext-qwen.tgz
 └── extension-states.json            ← 已有文件, 新增 installError 字段
 ```
 
@@ -466,10 +480,7 @@ for (const hubAgent of hubAgents) {
   }
 
   // 更新检查 (对比 integrity)
-  if (
-    hubAgent.status === 'installed' &&
-    hubAgent.dist.integrity !== localManifest.integrity
-  ) {
+  if (hubAgent.status === 'installed' && hubAgent.dist.integrity !== localManifest.integrity) {
     hubAgent.status = 'update_available';
   }
 }

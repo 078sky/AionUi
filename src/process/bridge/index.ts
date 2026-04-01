@@ -41,6 +41,7 @@ import { initExtensionsBridge } from './extensionsBridge';
 import { initWeixinLoginBridge } from './weixinLoginBridge';
 import { initWorkspaceSnapshotBridge } from './workspaceSnapshotBridge';
 import { initRemoteAgentBridge } from './remoteAgentBridge';
+import { initHubBridge } from './hubBridge';
 
 export interface BridgeDependencies {
   conversationService: IConversationService;
@@ -86,6 +87,7 @@ export function initAllBridges(deps: BridgeDependencies): void {
   initWeixinLoginBridge();
   initWorkspaceSnapshotBridge();
   initRemoteAgentBridge();
+  initHubBridge();
 }
 
 /**
@@ -130,6 +132,7 @@ export {
   initUpdateBridge,
   initWebuiBridge,
   initRemoteAgentBridge,
+  initHubBridge,
   initWindowControlsBridge,
   initWeixinLoginBridge,
   initWorkspaceSnapshotBridge,

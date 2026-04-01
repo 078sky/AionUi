@@ -537,4 +537,6 @@ export type ExtensionState = {
   installed?: boolean;
   /** Last known version — used for upgrade detection */
   lastVersion?: string;
+  /** Install error message for Agent Hub tracking */
+  installError?: string;
 };
