@@ -4,24 +4,134 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IConfirmation } from '@/common/chat/chatLib';
 import { bridge } from '@office-ai/platform';
 import type { OpenDialogOptions } from 'electron';
 import type { McpSource } from '../../process/services/mcpServices/McpProtocol';
-import type { AcpBackend, AcpBackendAll, AcpModelInfo, PresetAgentType } from '../types/acpTypes';
-import type { SlashCommandItem } from '../chat/slash/types';
-import type { IMcpServer, IProvider, TChatConversation, TProviderWithModel, ICssTheme } from '../config/storage';
-import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '../types/preview';
-import type {
+// Re-export all protocol types so existing consumers (`import { X } from 'ipcBridge'`) keep working
+export type {
+  IConfirmation,
+  IMcpServer,
+  IProvider,
+  TChatConversation,
+  TProviderWithModel,
+  ICssTheme,
+  AcpBackend,
+  AcpBackendAll,
+  AcpModelInfo,
+  AcpSessionConfigOption,
+  PresetAgentType,
+  PreviewHistoryTarget,
+  PreviewSnapshotInfo,
+  PreviewContentType,
   UpdateCheckRequest,
   UpdateCheckResult,
   UpdateDownloadProgressEvent,
   UpdateDownloadRequest,
   UpdateDownloadResult,
   AutoUpdateStatus,
-} from '../update/updateTypes';
-import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '../utils/protocolDetector';
-import type { SpeechToTextRequest, SpeechToTextResult } from '../types/speech';
+  ProtocolDetectionRequest,
+  ProtocolDetectionResponse,
+  SpeechToTextRequest,
+  SpeechToTextResult,
+  SnapshotInfo,
+  CompareResult,
+  FileChangeOperation,
+  DocumentConversionRequest,
+  DocumentConversionResponse,
+  RemoteAgentConfig,
+  RemoteAgentInput,
+  IChannelPairingRequest,
+  IChannelPluginStatus,
+  IChannelSession,
+  IChannelUser,
+  IMessageSearchResponse,
+  IBridgeResponse,
+  ISendMessageParams,
+  IConfirmMessageParams,
+  ICreateConversationParams,
+  IResetConversationParams,
+  IResponseMessage,
+  IConversationTurnCompletedEvent,
+  IConversationListChangedEvent,
+  ConversationSideQuestionResult,
+  ICdpStatus,
+  ICdpConfig,
+  IDirOrFile,
+  IFileMetadata,
+  IExtensionInfo,
+  IExtensionPermissionSummary,
+  IExtensionSettingsTab,
+  IExtensionWebuiContribution,
+  IExtensionAgentActivitySnapshot,
+  AgentActivityState,
+  IExtensionAgentActivityEvent,
+  IExtensionAgentActivityItem,
+  INotificationOptions,
+  IWebUIStatus,
+  ICronSchedule,
+  ICronJob,
+  ICreateCronJobParams,
+  SlashCommandItem,
+} from '@aionui/protocol';
+
+import type {
+  IConfirmation,
+  IMcpServer,
+  IProvider,
+  TChatConversation,
+  TProviderWithModel,
+  ICssTheme,
+  AcpBackend,
+  AcpBackendAll,
+  AcpModelInfo,
+  AcpSessionConfigOption,
+  PresetAgentType,
+  PreviewHistoryTarget,
+  PreviewSnapshotInfo,
+  UpdateCheckRequest,
+  UpdateCheckResult,
+  UpdateDownloadProgressEvent,
+  UpdateDownloadRequest,
+  UpdateDownloadResult,
+  AutoUpdateStatus,
+  ProtocolDetectionRequest,
+  ProtocolDetectionResponse,
+  SpeechToTextRequest,
+  SpeechToTextResult,
+  SnapshotInfo,
+  CompareResult,
+  FileChangeOperation,
+  IBridgeResponse,
+  ISendMessageParams,
+  IConfirmMessageParams,
+  ICreateConversationParams,
+  IResetConversationParams,
+  IResponseMessage,
+  IConversationTurnCompletedEvent,
+  IConversationListChangedEvent,
+  ConversationSideQuestionResult,
+  ICdpStatus,
+  ICdpConfig,
+  IDirOrFile,
+  IFileMetadata,
+  IExtensionInfo,
+  IExtensionPermissionSummary,
+  IExtensionSettingsTab,
+  IExtensionWebuiContribution,
+  IExtensionAgentActivitySnapshot,
+  AgentActivityState,
+  INotificationOptions,
+  IWebUIStatus,
+  ICronSchedule,
+  ICronJob,
+  ICreateCronJobParams,
+  SlashCommandItem,
+  IChannelPairingRequest,
+  IChannelPluginStatus,
+  IChannelSession,
+  IChannelUser,
+  IMessageSearchResponse,
+} from '@aionui/protocol';
 
 export const shell = {
   openFile: bridge.buildProvider<void, string>('open-file'), // 使用系统默认程序打开文件
@@ -95,35 +205,6 @@ export const geminiConversation = {
   confirmMessage: bridge.buildProvider<IBridgeResponse, IConfirmMessageParams>('input.confirm.message'),
   responseStream: conversation.responseStream,
 };
-
-// CDP status interface
-export interface ICdpStatus {
-  /** Whether CDP is currently enabled */
-  enabled: boolean;
-  /** Current CDP port (null if disabled or not started) */
-  port: number | null;
-  /** Whether CDP was enabled at startup (requires restart to change) */
-  startupEnabled: boolean;
-  /** All active CDP instances from registry */
-  instances: Array<{
-    pid: number;
-    port: number;
-    cwd: string;
-    startTime: number;
-  }>;
-  /** Whether CDP is enabled in the persisted config file (may differ from runtime) */
-  configEnabled: boolean;
-  /** Whether the app is running in development mode */
-  isDevMode: boolean;
-}
-
-// CDP config interface
-export interface ICdpConfig {
-  /** Whether CDP is enabled */
-  enabled?: boolean;
-  /** Preferred port number */
-  port?: number;
-}
 
 export const application = {
   restart: bridge.buildProvider<void, void>('restart-app'), // 重启应用
@@ -692,14 +773,6 @@ export const systemSettings = {
   languageChanged: bridge.buildEmitter<{ language: string }>('system-settings:language-changed'),
 };
 
-// 系统通知接口 / System notification API
-export type INotificationOptions = {
-  title: string;
-  body: string;
-  icon?: string;
-  conversationId?: string;
-};
-
 export const notification = {
   show: bridge.buildProvider<void, INotificationOptions>('notification.show'),
   clicked: bridge.buildEmitter<{ conversationId?: string }>('notification.clicked'),
@@ -710,18 +783,6 @@ export const task = {
   stopAll: bridge.buildProvider<{ success: boolean; count: number }, void>('task.stop-all'),
   getRunningCount: bridge.buildProvider<{ success: boolean; count: number }, void>('task.get-running-count'),
 };
-
-// WebUI 服务管理接口 / WebUI service management API
-export interface IWebUIStatus {
-  running: boolean;
-  port: number;
-  allowRemote: boolean;
-  localUrl: string;
-  networkUrl?: string;
-  lanIP?: string; // 局域网 IP，用于构建远程访问 URL / LAN IP for building remote access URL
-  adminUsername: string;
-  initialPassword?: string;
-}
 
 export const webui = {
   // 获取 WebUI 状态 / Get WebUI status
@@ -779,291 +840,7 @@ export const cron = {
   ),
 };
 
-// Cron job types for IPC
-export type ICronSchedule =
-  | { kind: 'at'; atMs: number; description: string }
-  | { kind: 'every'; everyMs: number; description: string }
-  | { kind: 'cron'; expr: string; tz?: string; description: string };
-
-export interface ICronJob {
-  id: string;
-  name: string;
-  enabled: boolean;
-  schedule: ICronSchedule;
-  target: { payload: { kind: 'message'; text: string } };
-  metadata: {
-    conversationId: string;
-    conversationTitle?: string;
-    agentType: AcpBackendAll;
-    createdBy: 'user' | 'agent';
-    createdAt: number;
-    updatedAt: number;
-  };
-  state: {
-    nextRunAtMs?: number;
-    lastRunAtMs?: number;
-    lastStatus?: 'ok' | 'error' | 'skipped' | 'missed';
-    lastError?: string;
-    runCount: number;
-    retryCount: number;
-    maxRetries: number;
-  };
-}
-
-export interface ICreateCronJobParams {
-  name: string;
-  schedule: ICronSchedule;
-  message: string;
-  conversationId: string;
-  conversationTitle?: string;
-  agentType: AcpBackendAll;
-  createdBy: 'user' | 'agent';
-}
-
-interface ISendMessageParams {
-  input: string;
-  msg_id: string;
-  conversation_id: string;
-  files?: string[];
-  loading_id?: string;
-  /** Skill names to inject into the message (used by agents with file-reading ability) */
-  injectSkills?: string[];
-}
-
-// Unified confirm message params for all agents (Gemini, ACP, Codex)
-export interface IConfirmMessageParams {
-  confirmKey: string;
-  msg_id: string;
-  conversation_id: string;
-  callId: string;
-}
-
-export interface ICreateConversationParams {
-  type: 'gemini' | 'acp' | 'codex' | 'openclaw-gateway' | 'nanobot' | 'remote';
-  id?: string;
-  name?: string;
-  model: TProviderWithModel;
-  extra: {
-    workspace?: string;
-    customWorkspace?: boolean;
-    defaultFiles?: string[];
-    backend?: AcpBackendAll;
-    cliPath?: string;
-    webSearchEngine?: 'google' | 'default';
-    agentName?: string;
-    customAgentId?: string;
-    context?: string;
-    contextFileName?: string; // For gemini preset agents
-    // System rules for smart assistants
-    presetRules?: string; // system rules injected at initialization
-    /** Enabled skills list for filtering SkillManager skills */
-    enabledSkills?: string[];
-    /**
-     * Preset context/rules to inject into the first message.
-     * Used by smart assistants to provide custom prompts/rules.
-     * For Gemini: injected via contextContent
-     * For ACP/Codex: injected via <system_instruction> tag in first message
-     */
-    presetContext?: string;
-    /** 预设助手 ID，用于在会话面板显示助手名称和头像 / Preset assistant ID for displaying name and avatar in conversation panel */
-    presetAssistantId?: string;
-    /** Initial session mode selected on Guid page (from AgentModeSelector) */
-    sessionMode?: string;
-    /** User-selected Codex model from Guid page */
-    codexModel?: string;
-    /** Pre-selected ACP model from Guid page (cached model list) */
-    currentModelId?: string;
-    /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
-    runtimeValidation?: {
-      expectedWorkspace?: string;
-      expectedBackend?: string;
-      expectedAgentName?: string;
-      expectedCliPath?: string;
-      expectedModel?: string;
-      expectedIdentityHash?: string | null;
-      switchedAt?: number;
-    };
-    /** Explicit marker for temporary health-check conversations */
-    isHealthCheck?: boolean;
-    /** Remote agent config ID (FK to remote_agents table) — required when type='remote' */
-    remoteAgentId?: string;
-  };
-}
-interface IResetConversationParams {
-  id?: string;
-  gemini?: {
-    clearCachedCredentialFile?: boolean;
-  };
-}
-
-// 获取文件夹或文件列表
-export interface IDirOrFile {
-  name: string;
-  fullPath: string;
-  relativePath: string;
-  isDir: boolean;
-  isFile: boolean;
-  children?: Array<IDirOrFile>;
-}
-
-// 文件元数据接口
-export interface IFileMetadata {
-  name: string;
-  path: string;
-  size: number;
-  type: string;
-  lastModified: number;
-  isDirectory?: boolean;
-}
-
-export interface IResponseMessage {
-  type: string;
-  data: unknown;
-  msg_id: string;
-  conversation_id: string;
-}
-
-export interface IConversationTurnCompletedEvent {
-  sessionId: string;
-  status: 'pending' | 'running' | 'finished';
-  state:
-    | 'ai_generating'
-    | 'ai_waiting_input'
-    | 'ai_waiting_confirmation'
-    | 'initializing'
-    | 'stopped'
-    | 'error'
-    | 'unknown';
-  detail: string;
-  canSendMessage: boolean;
-  runtime: {
-    hasTask: boolean;
-    taskStatus?: 'pending' | 'running' | 'finished';
-    isProcessing: boolean;
-    pendingConfirmations: number;
-    dbStatus?: 'pending' | 'running' | 'finished';
-  };
-  workspace: string;
-  model: {
-    platform: string;
-    name: string;
-    useModel: string;
-  };
-  lastMessage: {
-    id?: string;
-    type?: string;
-    content: unknown;
-    status?: string | null;
-    createdAt: number;
-  };
-}
-
-export interface IConversationListChangedEvent {
-  conversationId: string;
-  action: 'created' | 'updated' | 'deleted';
-  source?: string;
-}
-
-export type ConversationSideQuestionResult =
-  | {
-      status: 'ok';
-      answer: string;
-    }
-  | {
-      status: 'noAnswer';
-    }
-  | {
-      status: 'unsupported';
-    }
-  | {
-      status: 'invalid';
-      reason: 'emptyQuestion';
-    }
-  | {
-      status: 'toolsRequired';
-    };
-
-interface IBridgeResponse<D = {}> {
-  success: boolean;
-  data?: D;
-  msg?: string;
-}
-
 // ==================== Extensions API ====================
-
-export interface IExtensionInfo {
-  name: string;
-  displayName: string;
-  version: string;
-  description?: string;
-  source: string;
-  directory: string;
-  /** Whether the extension is currently enabled */
-  enabled: boolean;
-  /** Overall permission risk level */
-  riskLevel: 'safe' | 'moderate' | 'dangerous';
-  /** Whether the extension has lifecycle hooks */
-  hasLifecycle: boolean;
-}
-
-/** Permission summary for extension management UI (Figma-inspired) */
-export interface IExtensionPermissionSummary {
-  name: string;
-  description: string;
-  level: 'safe' | 'moderate' | 'dangerous';
-  granted: boolean;
-}
-
-/** Settings tab contributed by an extension, consumed by settings UI */
-export interface IExtensionSettingsTab {
-  id: string;
-  name: string;
-  icon?: string;
-  /** aion-asset:// local page or external https:// URL */
-  entryUrl: string;
-  /** Position anchor relative to a built-in or other extension tab */
-  position?: { anchor: string; placement: 'before' | 'after' };
-  /** Fallback numeric order when multiple tabs share the same anchor+placement. Lower = first */
-  order: number;
-  _extensionName: string;
-}
-
-/** WebUI contributions exposed for diagnostics/e2e validation */
-export interface IExtensionWebuiContribution {
-  extensionName: string;
-  apiRoutes: Array<{ path: string; auth: boolean }>;
-  staticAssets: Array<{ urlPrefix: string; directory: string }>;
-}
-
-export type AgentActivityState = 'idle' | 'writing' | 'researching' | 'executing' | 'syncing' | 'error';
-
-export interface IExtensionAgentActivityEvent {
-  conversationId: string;
-  at: number;
-  kind: 'status' | 'tool' | 'message';
-  text: string;
-}
-
-export interface IExtensionAgentActivityItem {
-  id: string;
-  backend: string;
-  agentName: string;
-  state: AgentActivityState;
-  runtimeStatus: 'pending' | 'running' | 'finished' | 'unknown';
-  conversations: number;
-  activeConversations: number;
-  lastActiveAt: number;
-  lastStatus?: string;
-  currentTask?: string;
-  recentEvents: IExtensionAgentActivityEvent[];
-}
-
-export interface IExtensionAgentActivitySnapshot {
-  generatedAt: number;
-  totalConversations: number;
-  runningConversations: number;
-  agents: IExtensionAgentActivityItem[];
-}
 
 export const extensions = {
   /** Get all extension-contributed CSS themes */
@@ -1111,13 +888,6 @@ export const extensions = {
 };
 
 // ==================== Channel API ====================
-
-import type {
-  IChannelPairingRequest,
-  IChannelPluginStatus,
-  IChannelSession,
-  IChannelUser,
-} from '@process/channels/types';
 
 export const channel = {
   // Plugin Management
