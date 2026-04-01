@@ -263,14 +263,21 @@ All three deployment modes use the same protocol:
 
 ## Implementation Phases
 
-Each phase is designed to be completed in a single session.
+Phase 2-4 工作量较大，每个 Phase 拆为多个独立会话。每个会话有专属的实施文档，
+新会话只需阅读对应的 md 文件即可获得完整上下文。
 
-| Phase | Document                                       | Description                                               | Dependency  |
-| ----- | ---------------------------------------------- | --------------------------------------------------------- | ----------- |
-| 1     | [phase-1-protocol.md](phase-1-protocol.md)     | Create `packages/protocol` — wire protocol + shared types | None        |
-| 2     | [phase-2-api-client.md](phase-2-api-client.md) | Frontend ApiClient — replace bridge library calls         | Phase 1     |
-| 3     | [phase-3-server.md](phase-3-server.md)         | Backend restructure — `src/process` → `src/server`        | Phase 1     |
-| 4     | [phase-4-electron.md](phase-4-electron.md)     | Electron shell refactor — thin launcher                   | Phase 2 + 3 |
+| Phase | Session | Document                                             | Description                                          | Dependency | Status |
+| ----- | ------- | ---------------------------------------------------- | ---------------------------------------------------- | ---------- | ------ |
+| 1     | —       | [phase-1-protocol.md](phase-1-protocol.md)           | `packages/protocol` — wire protocol + shared types   | None       | Done   |
+| 2     | 2a      | [phase-2a-api-client-core.md](phase-2a-api-client-core.md) | ApiClient + React hooks + platformAdapter       | Phase 1    |        |
+| 2     | 2b      | [phase-2b-bridge-migration.md](phase-2b-bridge-migration.md) | Migrate 46 ipcBridge + 9 electronAPI consumers | 2a         |        |
+| 2     | 2c      | [phase-2c-type-imports.md](phase-2c-type-imports.md) | Migrate 183 type imports + cleanup                   | 2b         |        |
+| 3     | 3a      | [phase-3a-ws-router.md](phase-3a-ws-router.md)       | WsRouter + migrate small bridges                     | Phase 1    |        |
+| 3     | 3b      | [phase-3b-large-bridges.md](phase-3b-large-bridges.md) | Migrate large bridges (fs, model, conversation)    | 3a         |        |
+| 3     | 3c      | [phase-3c-directory-restructure.md](phase-3c-directory-restructure.md) | process → server + path aliases        | 3b         |        |
+| 3     | 3d      | [phase-3d-electron-isolation.md](phase-3d-electron-isolation.md) | Electron code isolation + data directory       | 3c         |        |
+| 4     | 4a      | [phase-4a-electron-shell.md](phase-4a-electron-shell.md) | Electron thin shell (main.ts, preload.ts)        | 2c + 3d    |        |
+| 4     | 4b      | [phase-4b-build-cleanup.md](phase-4b-build-cleanup.md) | Build config + scripts cleanup + verification      | 4a         |        |
 
 Phase 2 and Phase 3 can be worked on **in parallel** after Phase 1 is complete.
 
