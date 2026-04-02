@@ -86,14 +86,24 @@ Log format (all roles use this):
 [YYYY-MM-DD HH:MM:SS] [role] [level] message
 ```
 
-### 1d. Agent Lifecycle
+### 1d. Create Team and Agent Lifecycle
 
-**Do NOT pre-spawn Reviewer or Fixer at startup.** Agents are spawned on-demand per PR and destroyed after use:
+**Create the team at startup** using `TeamCreate`. Only the Leader exists initially — no teammates are pre-spawned:
 
-- **Reviewer**: Spawn a fresh `pr-reviewer` agent (model: sonnet) when a PR needs review. The agent completes its review, replies to Leader, and is not reused.
-- **Fixer**: Spawn a fresh `pr-fixer` agent (model: sonnet) only when a review concludes CONDITIONAL. The agent completes its fix, replies to Leader, and is not reused.
+```
+TeamCreate(
+  team_name: "pr-review-team",
+  description: "PR Review Team: Leader coordinates, Reviewer reviews, Fixer fixes",
+  agent_type: "leader"
+)
+```
 
-This ensures each PR gets a **clean context window** — no residual state from previously processed PRs.
+**Reviewer and Fixer are spawned on-demand per PR as teammates**, then shut down after use:
+
+- **Reviewer**: Spawn a fresh `pr-reviewer` teammate when a PR needs review. After the reviewer finishes and reports back, send a `shutdown_request` to destroy it.
+- **Fixer**: Spawn a fresh `pr-fixer` teammate only when a review concludes CONDITIONAL. After the fixer finishes and reports back, send a `shutdown_request` to destroy it.
+
+This ensures each PR gets a **clean context window** — no residual state from previously processed PRs — while still using the team infrastructure for task tracking and coordination.
 
 Agent naming convention: `reviewer-<PR_NUMBER>` / `fixer-<PR_NUMBER>` (e.g., `reviewer-1997`, `fixer-1997`).
 
@@ -130,10 +140,11 @@ overrides = {
 ### 1f. Announce
 
 ```
-🚀 PR Review Team 启动（按需模式）
+🚀 PR Review Team 启动
+  👥 团队: pr-review-team (Leader ready)
   📋 配置: REPO=<repo>, PR_DAYS_LOOKBACK=<N>, THRESHOLD=<N>
   📝 日志: <LOG_FILE>
-  🔄 Reviewer / Fixer 按需创建，每个 PR 独立上下文
+  🔄 Reviewer / Fixer 按需创建，用完即删，每个 PR 独立上下文
 
 💬 你可以随时跟我说话:
   "跳过 #N"    — 不处理该 PR
@@ -406,32 +417,33 @@ LATEST_COMMIT_TIME=$(gh pr view <PR_NUMBER> --json commits | \
 
 If cached review valid (no new commits since review): parse `<!-- automation-result -->` block, skip to Step 6.
 
-### 5b. Claim and Spawn Reviewer
+### 5b. Claim and Spawn Reviewer Teammate
 
 ```bash
 gh pr edit <PR_NUMBER> --add-label "bot:reviewing"
 ```
 
-Spawn a **new** Reviewer agent for this PR (clean context):
+Spawn a **new** Reviewer as a teammate in the team (clean context):
 
 ```
 Agent(
   name: "reviewer-<PR_NUMBER>",
+  team_name: "pr-review-team",
   subagent_type: "pr-reviewer",
   model: sonnet,
   prompt: "REVIEW PR #<PR_NUMBER>"
 )
 ```
 
-**Do NOT run in background** — Leader waits for the Reviewer to complete and return its result.
+**Run in background** — the reviewer teammate will send a message back to Leader when done.
 
 Log: `[leader] [info] PR #N: spawned reviewer-<PR_NUMBER>`
 
 Update board: `status = reviewing`
 
-### 5c. Parse Reviewer Result
+### 5c. Receive Reviewer Result and Shutdown
 
-The Reviewer agent returns its result directly (not via SendMessage). Parse the response for:
+The Reviewer teammate sends its result via message. Parse the response for:
 
 ```
 REVIEW_COMPLETE PR #<number>
@@ -441,9 +453,16 @@ CRITICAL_PATH_FILES: (none) | file1, file2
 SUMMARY: <one-line summary>
 ```
 
-The reviewer agent is automatically destroyed after returning.
+After parsing, **shut down the reviewer** to free resources:
 
-Log: `[leader] [info] PR #N: review complete — <CONCLUSION>`
+```
+SendMessage(
+  to: "reviewer-<PR_NUMBER>",
+  message: { type: "shutdown_request" }
+)
+```
+
+Log: `[leader] [info] PR #N: review complete — <CONCLUSION>, reviewer shut down`
 
 ---
 
@@ -591,28 +610,29 @@ gh pr view <PR_NUMBER> --json statusCheckRollup \
 | Any QUEUED/IN_PROGRESS | Remove `bot:fixing`, log "CI still running", skip |
 | Any failure | Remove `bot:fixing`, log "CI failed", skip |
 
-**Spawn Fixer:**
+**Spawn Fixer Teammate:**
 
-Spawn a **new** Fixer agent for this PR (clean context):
+Spawn a **new** Fixer as a teammate in the team (clean context):
 
 ```
 Agent(
   name: "fixer-<PR_NUMBER>",
+  team_name: "pr-review-team",
   subagent_type: "pr-fixer",
   model: sonnet,
   prompt: "FIX PR #<PR_NUMBER>"
 )
 ```
 
-**Do NOT run in background** — Leader waits for the Fixer to complete and return its result.
+**Run in background** — the fixer teammate will send a message back to Leader when done.
 
 Log: `[leader] [info] PR #N: spawned fixer-<PR_NUMBER>`
 
 Update board: `status = fixing`
 
-**Parse Fixer result:**
+**Receive Fixer Result and Shutdown:**
 
-The Fixer agent returns its result directly. Parse the response for:
+The Fixer teammate sends its result via message. Parse the response for:
 
 ```
 FIX_COMPLETE PR #<number>
@@ -623,7 +643,14 @@ ISSUES_TOTAL: M
 SUMMARY: <one-line summary>
 ```
 
-The fixer agent is automatically destroyed after returning.
+After parsing, **shut down the fixer** to free resources:
+
+```
+SendMessage(
+  to: "fixer-<PR_NUMBER>",
+  message: { type: "shutdown_request" }
+)
+```
 
 **After fix:**
 
@@ -761,6 +788,7 @@ After processing all eligible PRs in a round, output a brief summary:
 - **Clean up on error** — always remove mutex labels (`bot:reviewing`, `bot:fixing`) if aborting
 - **Worktree cleanup** — always remove worktrees after use
 - **Log everything** — every action, every decision, every error
-- **Spawn per PR, clean context** — spawn a fresh Reviewer/Fixer agent for each PR, never reuse agents across PRs
+- **TeamCreate at startup** — create the team with TeamCreate, Reviewer/Fixer join as on-demand teammates
+- **Spawn per PR, clean context** — spawn a fresh Reviewer/Fixer teammate for each PR, shutdown after use, never reuse across PRs
 - **Sequential pipeline** — process one PR at a time through the full pipeline (review → decision → fix → merge) before starting the next
 - **Leader never reads/modifies code** — delegate to Reviewer or Fixer
