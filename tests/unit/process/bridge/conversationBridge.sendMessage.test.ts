@@ -51,7 +51,7 @@ vi.mock('@/common', () => ({
 }));
 
 // Mock all external dependencies
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   getSkillsDir: vi.fn(() => '/mock/skills'),
   getBuiltinSkillsCopyDir: vi.fn(() => '/mock/builtin-skills'),
   getSystemDir: vi.fn(() => ({ cacheDir: '/mock/cache' })),
@@ -67,7 +67,7 @@ vi.mock('@process/utils', () => ({
   readDirectoryRecursive: vi.fn(async () => []),
 }));
 
-vi.mock('@process/utils/openclawUtils', () => ({
+vi.mock('@server/utils/openclawUtils', () => ({
   computeOpenClawIdentityHash: vi.fn(() => 'mock-hash'),
 }));
 

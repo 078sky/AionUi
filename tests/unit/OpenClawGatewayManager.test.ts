@@ -49,7 +49,7 @@ vi.mock('node:fs', () => ({
   constants: { X_OK: 1 },
 }));
 
-vi.mock('@process/utils/shellEnv', () => ({
+vi.mock('@server/utils/shellEnv', () => ({
   getEnhancedEnv: vi.fn((customEnv?: Record<string, string>) => ({
     PATH: mockPath,
     ...customEnv,

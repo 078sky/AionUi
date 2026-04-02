@@ -13,7 +13,7 @@ import type { WsRouter } from '../../router/WsRouter';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { getSystemDir, getSkillsDir, getBuiltinSkillsCopyDir } from '@process/utils/initStorage';
+import { getSystemDir, getSkillsDir, getBuiltinSkillsCopyDir } from '@server/utils/initStorage';
 
 export type ResourceType = 'rules' | 'skills' | 'assistant';
 
@@ -659,7 +659,7 @@ export function registerSkillOpsHandlers(router: WsRouter): void {
 
   router.handle('enable-skills-market', async () => {
     try {
-      const { getAutoSkillsDir } = await import('@process/utils/initStorage');
+      const { getAutoSkillsDir } = await import('@server/utils/initStorage');
       const skillDir = path.join(getAutoSkillsDir(), 'aionui-skills');
       await fs.mkdir(skillDir, { recursive: true });
 
@@ -681,7 +681,7 @@ export function registerSkillOpsHandlers(router: WsRouter): void {
 
   router.handle('disable-skills-market', async () => {
     try {
-      const { getAutoSkillsDir } = await import('@process/utils/initStorage');
+      const { getAutoSkillsDir } = await import('@server/utils/initStorage');
       const skillDir = path.join(getAutoSkillsDir(), 'aionui-skills');
       await fs.rm(skillDir, { recursive: true, force: true });
 

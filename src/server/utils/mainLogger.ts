@@ -5,7 +5,7 @@
  * so that logs from the invisible Main Process are visible in DevTools.
  *
  * Usage:
- *   import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+ *   import { mainLog, mainWarn, mainError } from '@server/utils/mainLogger';
  *   mainLog('[AcpAgentManager]', 'session started', { sessionId });
  */
 

@@ -56,14 +56,14 @@ vi.mock('fs', () => ({
   existsSync: vi.fn((p: string) => existsSyncResults[norm(p)] ?? false),
 }));
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   getSkillsDir: vi.fn(() => '/mock/user/skills'),
   getBuiltinSkillsCopyDir: vi.fn(() => '/mock/builtin-skills'),
   getAutoSkillsDir: vi.fn(() => '/mock/auto-skills'),
   getSystemDir: vi.fn(() => '/mock/system'),
 }));
 
-vi.mock('@process/utils/openclawUtils', () => ({
+vi.mock('@server/utils/openclawUtils', () => ({
   computeOpenClawIdentityHash: vi.fn(() => 'mock-hash'),
 }));
 
@@ -82,7 +82,7 @@ describe('initAgent — skill support', () => {
     vi.clearAllMocks();
     resetAll();
 
-    const mod = await import('@process/utils/initAgent');
+    const mod = await import('@server/utils/initAgent');
     hasNativeSkillSupport = mod.hasNativeSkillSupport;
     setupAssistantWorkspace = mod.setupAssistantWorkspace;
   });

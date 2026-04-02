@@ -16,7 +16,7 @@ import { ipcBridge } from '@/common';
 import { spawn, execSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
+import { getEnhancedEnv } from '@server/utils/shellEnv';
 
 type OfficeDocType = 'word' | 'excel';
 

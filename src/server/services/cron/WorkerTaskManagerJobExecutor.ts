@@ -8,7 +8,7 @@ import type { CronMessageMeta } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
 import type BaseAgentManager from '@server/task/BaseAgentManager';
 import type { IWorkerTaskManager } from '@server/task/IWorkerTaskManager';
-import { copyFilesToDirectory } from '@process/utils';
+import { copyFilesToDirectory } from '@server/utils';
 import type { CronBusyGuard } from './CronBusyGuard';
 import type { CronJob } from './CronStore';
 import type { ICronJobExecutor } from './ICronJobExecutor';

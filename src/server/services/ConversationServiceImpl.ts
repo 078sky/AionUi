@@ -16,7 +16,7 @@ import {
   createOpenClawAgent,
   createNanobotAgent,
   createRemoteAgent,
-} from '@process/utils/initAgent';
+} from '@server/utils/initAgent';
 
 /**
  * Concrete implementation of IConversationService.

@@ -113,7 +113,7 @@ vi.mock('node:net', () => ({
   },
 }));
 
-vi.mock('@process/utils/shellEnv', () => ({
+vi.mock('@server/utils/shellEnv', () => ({
   getEnhancedEnv: vi.fn(() => ({ PATH: '/usr/bin' })),
 }));
 

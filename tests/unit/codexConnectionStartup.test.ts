@@ -17,7 +17,7 @@ vi.mock('fs', () => ({
 }));
 
 // Mock shellEnv utilities
-vi.mock('@process/utils/shellEnv', () => ({
+vi.mock('@server/utils/shellEnv', () => ({
   loadFullShellEnvironment: vi.fn(() => ({ PATH: '/usr/bin' })),
   mergePaths: vi.fn((a: string, b: string) => `${a || ''}:${b || ''}`),
 }));

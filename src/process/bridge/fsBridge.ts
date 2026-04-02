@@ -12,8 +12,8 @@ import https from 'node:https';
 import http from 'node:http';
 import JSZip from 'jszip';
 import { ipcBridge } from '@/common';
-import { getSystemDir, getAssistantsDir, getSkillsDir, getBuiltinSkillsCopyDir } from '@process/utils/initStorage';
-import { readDirectoryRecursive } from '@process/utils';
+import { getSystemDir, getAssistantsDir, getSkillsDir, getBuiltinSkillsCopyDir } from '@server/utils/initStorage';
+import { readDirectoryRecursive } from '@server/utils';
 
 // ============================================================================
 // Helper functions for builtin resource directory resolution
@@ -1453,7 +1453,7 @@ export function initFsBridge(): void {
   // Skills Market: inject the aionui-skills builtin skill
   ipcBridge.fs.enableSkillsMarket.provider(async () => {
     try {
-      const { getAutoSkillsDir } = await import('@process/utils/initStorage');
+      const { getAutoSkillsDir } = await import('@server/utils/initStorage');
       const skillDir = path.join(getAutoSkillsDir(), 'aionui-skills');
       await fs.mkdir(skillDir, { recursive: true });
 
@@ -1479,7 +1479,7 @@ export function initFsBridge(): void {
   // Skills Market: remove the aionui-skills builtin skill
   ipcBridge.fs.disableSkillsMarket.provider(async () => {
     try {
-      const { getAutoSkillsDir } = await import('@process/utils/initStorage');
+      const { getAutoSkillsDir } = await import('@server/utils/initStorage');
       const skillDir = path.join(getAutoSkillsDir(), 'aionui-skills');
       await fs.rm(skillDir, { recursive: true, force: true });
 

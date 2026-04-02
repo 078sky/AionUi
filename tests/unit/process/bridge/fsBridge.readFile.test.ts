@@ -16,7 +16,7 @@ vi.mock('@office-ai/platform', () => ({
   },
 }));
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   getSkillsDir: () => '/mock/skills',
   getBuiltinSkillsCopyDir: () => '/mock/skills/_builtin',
   getSystemDir: () => ({

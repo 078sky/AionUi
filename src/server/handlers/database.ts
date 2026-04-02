@@ -6,7 +6,7 @@
 
 import type { WsRouter } from '../router/WsRouter';
 import type { TChatConversation } from '@aionui/protocol/config/storage';
-import { ProcessChat } from '@process/utils/initStorage';
+import { ProcessChat } from '@server/utils/initStorage';
 import { migrateConversationToDatabase } from '@process/bridge/migrationUtils';
 import type { IConversationRepository } from '@server/services/database/IConversationRepository';
 

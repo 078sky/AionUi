@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { ExtensionState } from '../types';
 import { extensionEventBus, ExtensionSystemEvents } from './ExtensionEventBus';
-import { getDataPath } from '@process/utils';
+import { getDataPath } from '@server/utils';
 
 const EXTENSION_STATES_FILE_ENV = 'AIONUI_EXTENSION_STATES_FILE';
 const DEFAULT_STATES_FILE = 'extension-states.json';

@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 import { getPlatformServices } from '@/common/platform';
-import { getDataPath } from '@process/utils';
+import { getDataPath } from '@server/utils';
 
 export const AIONUI_EXTENSIONS_PATH_ENV = 'AIONUI_EXTENSIONS_PATH';
 export const AIONUI_STRICT_ENV_ENV = 'AIONUI_STRICT_ENV';

@@ -61,7 +61,7 @@ describe('getNpxCacheDir', () => {
       execFile: vi.fn(),
     }));
 
-    const { getNpxCacheDir } = await import('@process/utils/shellEnv');
+    const { getNpxCacheDir } = await import('@server/utils/shellEnv');
 
     const result = getNpxCacheDir();
     expect(result).toBe(path.join('/tmp', 'custom-npm-cache', '_npx'));
@@ -88,7 +88,7 @@ describe('getNpxCacheDir', () => {
         };
       });
 
-      const { getNpxCacheDir } = await import('@process/utils/shellEnv');
+      const { getNpxCacheDir } = await import('@server/utils/shellEnv');
 
       const result = getNpxCacheDir();
       expect(result).toBe(path.join(tempHome, '.npm-cache', '_npx'));
@@ -118,7 +118,7 @@ describe('getNpxCacheDir', () => {
         };
       });
 
-      const { getNpxCacheDir } = await import('@process/utils/shellEnv');
+      const { getNpxCacheDir } = await import('@server/utils/shellEnv');
 
       const result = getNpxCacheDir();
       expect(result).toBe(path.join(tempHome, '.npm', '_npx'));
@@ -138,7 +138,7 @@ describe('getNpxCacheDir', () => {
       execFile: vi.fn(),
     }));
 
-    const { getNpxCacheDir } = await import('@process/utils/shellEnv');
+    const { getNpxCacheDir } = await import('@server/utils/shellEnv');
 
     const result = getNpxCacheDir();
     expect(result).toBe(path.join('C:\\Users\\test\\AppData\\Local', 'npm-cache', '_npx'));
@@ -156,7 +156,7 @@ describe('getNpxCacheDir', () => {
     }));
 
     const os = await import('os');
-    const { getNpxCacheDir } = await import('@process/utils/shellEnv');
+    const { getNpxCacheDir } = await import('@server/utils/shellEnv');
 
     const result = getNpxCacheDir();
     expect(result).toBe(path.join(os.homedir(), 'AppData', 'Local', 'npm-cache', '_npx'));

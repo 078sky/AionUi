@@ -14,7 +14,7 @@ import './common/adapter/standalone';
 
 import { initBridgeStandalone } from './process/utils/initBridgeStandalone';
 import { startWebServerWithInstance } from './server/http';
-import initStorage from './process/utils/initStorage';
+import initStorage from '@server/utils/initStorage';
 import { ExtensionRegistry } from '@server/extensions';
 import { getChannelManager } from '@server/channels';
 import { closeDatabase } from '@server/services/database/export';

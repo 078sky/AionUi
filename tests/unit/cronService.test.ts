@@ -24,13 +24,13 @@ vi.mock('@server/services/i18n', () => ({
   default: { t: vi.fn((key: string) => key) },
   i18nReady: Promise.resolve(),
 }));
-vi.mock('@process/utils/message', () => ({ addMessage: vi.fn() }));
+vi.mock('@server/utils/message', () => ({ addMessage: vi.fn() }));
 vi.mock('@/common', () => ({
   ipcBridge: {
     conversation: { responseStream: { emit: vi.fn() } },
   },
 }));
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: { get: vi.fn(async () => false) },
 }));
 
@@ -351,7 +351,7 @@ describe('CronService', () => {
       })
     );
     expect(emitter.emitJobUpdated).toHaveBeenCalledWith(job);
-    const { addMessage } = await import('@process/utils/message');
+    const { addMessage } = await import('@server/utils/message');
     expect(addMessage).toHaveBeenCalledWith('conv-1', expect.objectContaining({ type: 'tips' }));
   });
 

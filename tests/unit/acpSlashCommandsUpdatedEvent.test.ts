@@ -25,7 +25,7 @@ vi.mock('@/common/platform', () => ({
   }),
 }));
 
-vi.mock('@process/utils/shellEnv', () => ({
+vi.mock('@server/utils/shellEnv', () => ({
   getEnhancedEnv: vi.fn(() => ({})),
 }));
 
@@ -51,17 +51,17 @@ vi.mock('@server/services/database', () => ({
   getDatabase: vi.fn(async () => ({ updateConversation: vi.fn() })),
 }));
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: { get: vi.fn(async () => null), set: vi.fn(async () => {}) },
 }));
 
-vi.mock('@process/utils/message', () => ({
+vi.mock('@server/utils/message', () => ({
   addMessage: vi.fn(),
   addOrUpdateMessage: vi.fn(),
   nextTickToLocalFinish: vi.fn(),
 }));
 
-vi.mock('@process/utils/previewUtils', () => ({
+vi.mock('@server/utils/previewUtils', () => ({
   handlePreviewOpenEvent: vi.fn(),
 }));
 
@@ -69,7 +69,7 @@ vi.mock('@server/services/cron/CronBusyGuard', () => ({
   cronBusyGuard: { setProcessing: vi.fn() },
 }));
 
-vi.mock('@process/utils/mainLogger', () => ({
+vi.mock('@server/utils/mainLogger', () => ({
   mainLog: vi.fn(),
   mainWarn: vi.fn(),
   mainError: vi.fn(),
@@ -97,7 +97,7 @@ vi.mock('@server/task/CronCommandDetector', () => ({
   hasCronCommands: vi.fn(() => false),
 }));
 
-vi.mock('@process/utils/initAgent', () => ({
+vi.mock('@server/utils/initAgent', () => ({
   hasNativeSkillSupport: vi.fn(() => true),
   setupAssistantWorkspace: vi.fn(),
 }));

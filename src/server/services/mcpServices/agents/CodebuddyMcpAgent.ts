@@ -10,7 +10,7 @@ import * as path from 'path';
 import type { IMcpServer } from '@/common/config/storage';
 import type { McpOperationResult } from '../McpProtocol';
 import { AbstractMcpAgent } from '../McpProtocol';
-import { safeExecFile } from '@process/utils/safeExec';
+import { safeExecFile } from '@server/utils/safeExec';
 
 /**
  * CodeBuddy MCP server entry in ~/.codebuddy/mcp.json

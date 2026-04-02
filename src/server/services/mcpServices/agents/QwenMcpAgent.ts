@@ -10,8 +10,8 @@ import { homedir } from 'os';
 import type { McpOperationResult } from '../McpProtocol';
 import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '@/common/config/storage';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
-import { safeExec } from '@process/utils/safeExec';
+import { getEnhancedEnv } from '@server/utils/shellEnv';
+import { safeExec } from '@server/utils/safeExec';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({

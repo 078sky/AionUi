@@ -24,7 +24,7 @@ describe('mergePaths', () => {
   // Dynamic import after resetModules is NOT needed for this pure function
   // but we still import lazily so module cache is shared within this describe
   it('merges two PATH strings deduplicating common entries', async () => {
-    const { mergePaths } = await import('@process/utils/shellEnv');
+    const { mergePaths } = await import('@server/utils/shellEnv');
     const sep = process.platform === 'win32' ? ';' : ':';
     const p1 = ['/usr/bin', '/usr/local/bin'].join(sep);
     const p2 = ['/usr/local/bin', '/opt/homebrew/bin'].join(sep);
@@ -38,25 +38,25 @@ describe('mergePaths', () => {
   });
 
   it('handles undefined first arg', async () => {
-    const { mergePaths } = await import('@process/utils/shellEnv');
+    const { mergePaths } = await import('@server/utils/shellEnv');
     const result = mergePaths(undefined, '/usr/bin');
     expect(result).toBe('/usr/bin');
   });
 
   it('handles undefined second arg', async () => {
-    const { mergePaths } = await import('@process/utils/shellEnv');
+    const { mergePaths } = await import('@server/utils/shellEnv');
     const result = mergePaths('/usr/bin', undefined);
     expect(result).toBe('/usr/bin');
   });
 
   it('handles both args undefined', async () => {
-    const { mergePaths } = await import('@process/utils/shellEnv');
+    const { mergePaths } = await import('@server/utils/shellEnv');
     expect(mergePaths(undefined, undefined)).toBe('');
   });
 
   it('preserves Windows semicolon separator', async () => {
     if (process.platform !== 'win32') return;
-    const { mergePaths } = await import('@process/utils/shellEnv');
+    const { mergePaths } = await import('@server/utils/shellEnv');
     const result = mergePaths('C:\\Windows\\System32', 'C:\\Users\\test\\AppData\\Roaming\\npm');
     // Entries must be separated by ; on Windows
     const parts = result.split(';');
@@ -89,7 +89,7 @@ describe('getEnhancedEnv', () => {
     const originalPath = process.env.PATH;
     process.env.PATH = SENTINEL_PATH;
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
 
     expect(result.PATH).toContain(SENTINEL_PATH);
@@ -110,7 +110,7 @@ describe('getEnhancedEnv', () => {
     process.env.PATH = '/usr/local/bin';
     process.env.SHELL = '/bin/bash';
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
 
     // Must contain both the process PATH and the shell PATH
@@ -136,7 +136,7 @@ describe('getEnhancedEnv', () => {
     const originalPath = process.env.PATH;
     process.env.PATH = '/usr/bin';
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv({ PATH: '/custom/tools/bin' });
 
     expect(result.PATH).toContain('/usr/bin');
@@ -152,7 +152,7 @@ describe('getEnhancedEnv', () => {
       execFile: vi.fn(),
     }));
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
     expect(typeof result.PATH).toBe('string');
     // Spot-check: no undefined string values were injected
@@ -192,7 +192,7 @@ describe('getEnhancedEnv Windows extra paths', () => {
     process.env.PATH = 'C:\\Windows\\System32'; // Does NOT contain npm global
     process.env.APPDATA = 'C:\\Users\\test\\AppData\\Roaming';
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
 
     expect(result.PATH).toContain(NPM_GLOBAL);
@@ -222,7 +222,7 @@ describe('getEnhancedEnv Windows extra paths', () => {
     process.env.PATH = `C:\\Windows\\System32;${NPM_GLOBAL}`;
     process.env.APPDATA = 'C:\\Users\\test\\AppData\\Roaming';
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
 
     const occurrences = result.PATH.split(';').filter((p) => p === NPM_GLOBAL).length;
@@ -286,7 +286,7 @@ describe('getEnhancedEnv Windows extra paths (cross-platform mock)', () => {
       execFile: vi.fn(),
     }));
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
 
     // PATH must include Git usr/bin (where cygpath lives) and Git cmd
@@ -320,7 +320,7 @@ describe('getEnhancedEnv Windows extra paths (cross-platform mock)', () => {
       execFile: vi.fn(),
     }));
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
 
     expect(result.PATH).toContain(CHOCO_BIN);
@@ -353,7 +353,7 @@ describe('getEnhancedEnv Windows extra paths (cross-platform mock)', () => {
       execFile: vi.fn(),
     }));
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const result = getEnhancedEnv();
 
     // Should appear exactly once (from process.env.PATH), not duplicated
@@ -385,7 +385,7 @@ describe('getEnhancedEnv Windows extra paths (cross-platform mock)', () => {
       execFile: vi.fn(),
     }));
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     getEnhancedEnv();
 
     // execFileSync should NOT be called on Windows (shell env loading is skipped)
@@ -425,7 +425,7 @@ describe('resolveNpxPath', () => {
       execFile: vi.fn(),
     }));
 
-    const { resolveNpxPath } = await import('@process/utils/shellEnv');
+    const { resolveNpxPath } = await import('@server/utils/shellEnv');
     const result = resolveNpxPath({ PATH: '/tooling' });
     const npxCandidate = path.join('/tooling', 'npx.cmd');
     const npxCliJs = path.join('/tooling', 'node_modules', 'npm', 'bin', 'npx-cli.js');
@@ -460,7 +460,7 @@ describe('resolveNpxPath', () => {
       execFile: vi.fn(),
     }));
 
-    const { resolveNpxPath } = await import('@process/utils/shellEnv');
+    const { resolveNpxPath } = await import('@server/utils/shellEnv');
 
     expect(resolveNpxPath({ PATH: '/tooling' })).toBe('npx.cmd');
   });
@@ -487,7 +487,7 @@ describe('ForkTask environment propagation (regression)', () => {
     const GLOBAL_BIN = '/home/user/.npm-global/bin'; // typical npm global bin on Linux
     process.env.PATH = `/usr/bin:/usr/local/bin:${GLOBAL_BIN}`;
 
-    const { getEnhancedEnv } = await import('@process/utils/shellEnv');
+    const { getEnhancedEnv } = await import('@server/utils/shellEnv');
     const workerEnv = getEnhancedEnv();
 
     // Worker process will have this PATH — tools like `openclaw`, `node`, `npm`

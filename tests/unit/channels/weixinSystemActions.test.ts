@@ -14,7 +14,7 @@ vi.mock('electron', () => ({
 }));
 
 const mockGet = vi.fn();
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: { get: mockGet },
 }));
 

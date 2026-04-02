@@ -88,7 +88,7 @@ describe('safeExec', () => {
       execFile: vi.fn(),
     }));
 
-    const { safeExec } = await import('@process/utils/safeExec');
+    const { safeExec } = await import('@server/utils/safeExec');
     await safeExec('echo hello');
 
     expect(mockSpawn).toHaveBeenCalledWith('sh', ['-c', 'echo hello'], expect.objectContaining({ detached: true }));
@@ -105,7 +105,7 @@ describe('safeExec', () => {
       execFile: vi.fn(),
     }));
 
-    const { safeExec } = await import('@process/utils/safeExec');
+    const { safeExec } = await import('@server/utils/safeExec');
     await safeExec('echo hello');
 
     expect(mockSpawn).toHaveBeenCalledWith(
@@ -127,7 +127,7 @@ describe('safeExec', () => {
       execFile: vi.fn(),
     }));
 
-    const { safeExec } = await import('@process/utils/safeExec');
+    const { safeExec } = await import('@server/utils/safeExec');
     await expect(safeExec('failing-cmd')).rejects.toThrow('Command failed with exit code 1');
   });
 });
@@ -156,7 +156,7 @@ describe('safeExecFile', () => {
       execFile: vi.fn(),
     }));
 
-    const { safeExecFile } = await import('@process/utils/safeExec');
+    const { safeExecFile } = await import('@server/utils/safeExec');
     await safeExecFile('node', ['--version']);
 
     expect(mockSpawn).toHaveBeenCalledWith(
@@ -180,7 +180,7 @@ describe('safeExecFile', () => {
       execFile: vi.fn(),
     }));
 
-    const { safeExecFile } = await import('@process/utils/safeExec');
+    const { safeExecFile } = await import('@server/utils/safeExec');
     await safeExecFile('node', ['--version']);
 
     expect(mockSpawn).toHaveBeenCalledWith('node', ['--version'], expect.objectContaining({ detached: true }));

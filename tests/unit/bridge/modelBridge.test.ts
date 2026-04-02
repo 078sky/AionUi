@@ -67,7 +67,7 @@ vi.mock('openai', () => ({
   },
 }));
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: {
     set: vi.fn(async () => undefined),
     get: vi.fn(async () => []),

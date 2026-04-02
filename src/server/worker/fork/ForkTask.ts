@@ -13,7 +13,7 @@
 import { uuid } from '@/renderer/utils/common';
 import { getPlatformServices } from '@/common/platform';
 import type { IWorkerProcess } from '@/common/platform';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
+import { getEnhancedEnv } from '@server/utils/shellEnv';
 import type { MainToWorkerMessage } from '../WorkerProtocol';
 import { Pipe } from './pipe';
 

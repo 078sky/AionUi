@@ -13,8 +13,8 @@ import {
   isBuiltinImageGenName,
   isBuiltinImageGenTransport,
 } from '@server/resources/builtinMcp/constants';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
-import { safeExec, safeExecFile } from '@process/utils/safeExec';
+import { getEnhancedEnv } from '@server/utils/shellEnv';
+import { safeExec, safeExecFile } from '@server/utils/safeExec';
 
 /** Env options for exec calls — ensures CLI is found from Finder/launchd launches */
 const getExecEnv = () => ({

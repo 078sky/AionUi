@@ -9,8 +9,8 @@ import { AcpConnection } from '@server/agent/acp/AcpConnection';
 import { AcpAgent } from '@server/agent/acp/index';
 import type { AcpSessionConfigOption, AcpSessionModels } from '../../src/types/acpTypes';
 
-vi.mock('@process/utils/initStorage', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@process/utils/initStorage')>();
+vi.mock('@server/utils/initStorage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@server/utils/initStorage')>();
   return {
     ...actual,
     ProcessConfig: {

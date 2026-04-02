@@ -12,8 +12,8 @@
 import os from 'os';
 import path from 'path';
 import { ipcBridge } from '@/common';
-import { getSystemDir, ProcessEnv } from '@process/utils/initStorage';
-import { copyDirectoryRecursively } from '@process/utils';
+import { getSystemDir, ProcessEnv } from '@server/utils/initStorage';
+import { copyDirectoryRecursively } from '@server/utils';
 
 export function initApplicationBridgeCore(): void {
   ipcBridge.application.systemInfo.provider(() => {

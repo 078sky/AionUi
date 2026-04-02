@@ -12,7 +12,7 @@
 import type { WsRouter } from '../../router/WsRouter';
 import fs from 'fs/promises';
 import path from 'path';
-import { getAssistantsDir } from '@process/utils/initStorage';
+import { getAssistantsDir } from '@server/utils/initStorage';
 import { findBuiltinResourceDirNode, type ResourceType } from './skillOps';
 
 /**

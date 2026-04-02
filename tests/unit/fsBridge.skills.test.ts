@@ -151,7 +151,7 @@ describe('fsBridge skills functionality', () => {
     });
 
     // Mock initStorage
-    vi.doMock('@process/utils/initStorage', () => ({
+    vi.doMock('@server/utils/initStorage', () => ({
       getSystemDir: vi.fn(() => ({
         cacheDir: '/mock/cache',
         workDir: '/mock/work',

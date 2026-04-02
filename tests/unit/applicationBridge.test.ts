@@ -73,7 +73,7 @@ describe('applicationBridge CDP functionality', () => {
     }));
 
     // Mock initStorage
-    vi.doMock('@process/utils/initStorage', () => ({
+    vi.doMock('@server/utils/initStorage', () => ({
       getSystemDir: vi.fn(() => ({
         cacheDir: '/mock/cache',
         workDir: '/mock/work',
@@ -99,7 +99,7 @@ describe('applicationBridge CDP functionality', () => {
     vi.doUnmock('http');
     vi.doUnmock('@/process/WorkerManage');
     vi.doUnmock('@/process/utils/zoom');
-    vi.doUnmock('@process/utils/initStorage');
+    vi.doUnmock('@server/utils/initStorage');
     vi.doUnmock('@/process/utils');
   });
 
@@ -245,7 +245,7 @@ describe('CDP configuration functions', () => {
       },
     }));
 
-    vi.doMock('@process/utils/initStorage', () => ({
+    vi.doMock('@server/utils/initStorage', () => ({
       getSystemDir: vi.fn(() => ({
         cacheDir: '/mock/cache',
         workDir: '/mock/work',

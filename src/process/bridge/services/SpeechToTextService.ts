@@ -11,8 +11,8 @@ import type {
   SpeechToTextRequest,
   SpeechToTextResult,
 } from '@/common/types/speech';
-import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { mainError, mainLog, mainWarn } from '@server/utils/mainLogger';
+import { ProcessConfig } from '@server/utils/initStorage';
 
 type OpenAITranscriptionResponse = {
   language?: string;

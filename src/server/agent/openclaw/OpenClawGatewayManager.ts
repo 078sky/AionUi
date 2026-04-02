@@ -6,7 +6,7 @@
 
 import { spawn, type ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
+import { getEnhancedEnv } from '@server/utils/shellEnv';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';

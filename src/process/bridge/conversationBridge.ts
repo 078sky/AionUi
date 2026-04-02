@@ -11,14 +11,14 @@ import type { IAgentManager } from '@server/task/IAgentManager';
 import type { IConversationService } from '@server/services/IConversationService';
 import type { IWorkerTaskManager } from '@server/task/IWorkerTaskManager';
 import { ipcBridge } from '@/common';
-import { getSkillsDir, getBuiltinSkillsCopyDir, getSystemDir, ProcessChat } from '@process/utils/initStorage';
+import { getSkillsDir, getBuiltinSkillsCopyDir, getSystemDir, ProcessChat } from '@server/utils/initStorage';
 import type AcpAgentManager from '@server/task/AcpAgentManager';
 import type { GeminiAgentManager } from '@server/task/GeminiAgentManager';
 import type OpenClawAgentManager from '@server/task/OpenClawAgentManager';
 import { prepareFirstMessage } from '@server/task/agentUtils';
 import { refreshTrayMenu } from '@electron/lifecycle/tray';
-import { copyFilesToDirectory, readDirectoryRecursive } from '@process/utils';
-import { computeOpenClawIdentityHash } from '@process/utils/openclawUtils';
+import { copyFilesToDirectory, readDirectoryRecursive } from '@server/utils';
+import { computeOpenClawIdentityHash } from '@server/utils/openclawUtils';
 import { migrateConversationToDatabase } from './migrationUtils';
 import { ConversationSideQuestionService } from './services/ConversationSideQuestionService';
 

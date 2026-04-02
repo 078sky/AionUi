@@ -9,7 +9,7 @@
 
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import { getDataPath } from '@process/utils';
+import { getDataPath } from '@server/utils';
 import { closeDatabase, getDatabase } from '@server/services/database/export';
 import path from 'path';
 

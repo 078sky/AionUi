@@ -10,7 +10,7 @@ import type { CronMessageMeta, IMessageText, IMessageToolGroup, TMessage } from 
 import { transformMessage } from '@/common/chat/chatLib';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
-import { ProcessConfig, getSkillsDir } from '@process/utils/initStorage';
+import { ProcessConfig, getSkillsDir } from '@server/utils/initStorage';
 import { ExtensionRegistry } from '@server/extensions';
 import { buildSystemInstructionsWithSkillsIndex } from './agentUtils';
 import { detectSkillLoadRequest, AcpSkillManager, buildSkillContentText } from './AcpSkillManager';
@@ -20,12 +20,12 @@ import { AuthType, getOauthInfoWithCache, Storage } from '@office-ai/aioncli-cor
 import { GeminiApprovalStore } from '../agent/gemini/GeminiApprovalStore';
 import { ToolConfirmationOutcome } from '../agent/gemini/cli/tools/tools';
 import { getDatabase } from '@server/services/database';
-import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '@process/utils/message';
+import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '@server/utils/message';
 import { cronBusyGuard } from '@server/services/cron/CronBusyGuard';
-import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
+import { handlePreviewOpenEvent } from '@server/utils/previewUtils';
 import BaseAgentManager from './BaseAgentManager';
 import { IpcAgentEventEmitter } from './IpcAgentEventEmitter';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainWarn, mainError } from '@server/utils/mainLogger';
 import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags } from './ThinkTagDetector';

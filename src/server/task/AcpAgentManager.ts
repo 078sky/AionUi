@@ -18,11 +18,11 @@ import type {
 import { ACP_BACKENDS_ALL } from '@/common/types/acpTypes';
 import { ExtensionRegistry } from '@server/extensions';
 import { getDatabase } from '@server/services/database';
-import { ProcessConfig } from '@process/utils/initStorage';
-import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '@process/utils/message';
-import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
+import { ProcessConfig } from '@server/utils/initStorage';
+import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '@server/utils/message';
+import { handlePreviewOpenEvent } from '@server/utils/previewUtils';
 import { cronBusyGuard } from '@server/services/cron/CronBusyGuard';
-import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { mainLog, mainWarn, mainError } from '@server/utils/mainLogger';
 import {
   getCodexSandboxModeForSessionMode,
   type CodexSandboxMode,

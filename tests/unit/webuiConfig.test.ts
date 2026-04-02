@@ -34,7 +34,7 @@ describe('webuiConfig module', () => {
       setWebServerInstance: vi.fn(),
     }));
 
-    vi.doMock('@process/utils/initStorage', () => ({
+    vi.doMock('@server/utils/initStorage', () => ({
       ProcessConfig: {
         get: vi.fn(() => Promise.resolve(undefined)),
       },

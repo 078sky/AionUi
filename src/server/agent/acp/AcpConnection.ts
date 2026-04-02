@@ -23,11 +23,11 @@ import { execFile as execFileCb } from 'child_process';
 import { promisify } from 'util';
 import { buildAcpModelInfo, summarizeAcpModelInfo } from './modelInfo';
 import type { AcpSessionMcpServer } from './mcpSessionConfig';
-import { mainLog } from '@process/utils/mainLogger';
+import { mainLog } from '@server/utils/mainLogger';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
-import { getNpxCacheDir, getWindowsShellExecutionOptions, resolveNpxPath } from '@process/utils/shellEnv';
+import { getNpxCacheDir, getWindowsShellExecutionOptions, resolveNpxPath } from '@server/utils/shellEnv';
 import {
   ACP_PERF_LOG,
   connectClaude,

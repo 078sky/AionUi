@@ -7,7 +7,7 @@
 import type { McpOperationResult } from '../McpProtocol';
 import { AbstractMcpAgent } from '../McpProtocol';
 import type { IMcpServer } from '@/common/config/storage';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 
 /**
  * AionUi 本地 MCP 代理实现

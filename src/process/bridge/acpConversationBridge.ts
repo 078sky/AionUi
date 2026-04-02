@@ -13,7 +13,7 @@ import AcpAgentManager from '@server/task/AcpAgentManager';
 import CodexAgentManager from '@server/task/CodexAgentManager';
 import { GeminiAgentManager } from '@server/task/GeminiAgentManager';
 import { mcpService } from '@server/services/mcpServices/McpService';
-import { mainLog, mainWarn } from '@/process/utils/mainLogger';
+import { mainLog, mainWarn } from '@server/utils/mainLogger';
 import { ipcBridge } from '@/common';
 import * as os from 'os';
 

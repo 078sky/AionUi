@@ -9,7 +9,7 @@ import os from 'os';
 import path from 'path';
 import { acpDetector } from '@server/agent/acp/AcpDetector';
 import type { TChatConversation, TProviderWithModel } from '@/common/config/storage';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import { conversationServiceSingleton } from '@server/services/conversationServiceSingleton';
 import { workerTaskManager } from '@server/task/workerTaskManagerSingleton';
 import { getChannelMessageService } from '../agent/ChannelMessageService';

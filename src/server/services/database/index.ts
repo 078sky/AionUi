@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ensureDirectory, getDataPath } from '@process/utils';
+import { ensureDirectory, getDataPath } from '@server/utils';
 import type { ISqliteDriver } from './drivers/ISqliteDriver';
 import { createDriver } from './drivers/createDriver';
 import fs from 'fs';

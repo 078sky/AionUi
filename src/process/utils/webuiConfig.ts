@@ -8,7 +8,7 @@ import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { setWebServerInstance } from '../bridge/webuiBridge';
-import { ProcessConfig } from './initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import { startWebServerWithInstance } from '@server/http';
 import { SERVER_CONFIG } from '@server/http/config/constants';
 

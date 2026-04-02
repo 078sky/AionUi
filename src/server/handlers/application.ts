@@ -20,8 +20,8 @@
 
 import os from 'os';
 import path from 'path';
-import { getSystemDir, ProcessEnv } from '@process/utils/initStorage';
-import { copyDirectoryRecursively } from '@process/utils';
+import { getSystemDir, ProcessEnv } from '@server/utils/initStorage';
+import { copyDirectoryRecursively } from '@server/utils';
 import type { WsRouter } from '../router/WsRouter';
 
 /**

@@ -7,7 +7,7 @@
 import type { TMessage } from '@/common/chat/chatLib';
 import type { TChatConversation } from '@/common/config/storage';
 import { getDatabase } from '@server/services/database';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import { conversationServiceSingleton } from '@server/services/conversationServiceSingleton';
 import { buildChatErrorResponse, chatActions } from '../actions/ChatActions';
 import { handlePairingShow, platformActions } from '../actions/PlatformActions';

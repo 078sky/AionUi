@@ -7,12 +7,12 @@
 import { ipcBridge } from '@/common';
 import type { CronMessageMeta, TMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
-import { addMessage } from '@process/utils/message';
+import { addMessage } from '@server/utils/message';
 import { getPlatformServices } from '@/common/platform';
 import { Cron } from 'croner';
 import i18n, { i18nReady } from '@server/services/i18n';
 import type { IConversationRepository } from '@server/services/database/IConversationRepository';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import type { CronJob, CronSchedule } from './CronStore';
 import type { ICronRepository } from './ICronRepository';
 import type { ICronEventEmitter } from './ICronEventEmitter';

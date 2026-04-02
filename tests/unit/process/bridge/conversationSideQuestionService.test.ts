@@ -33,7 +33,7 @@ const {
   mockProcessConfigGet: vi.fn(),
 }));
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: {
     get: (...args: unknown[]) => mockProcessConfigGet(...args),
   },

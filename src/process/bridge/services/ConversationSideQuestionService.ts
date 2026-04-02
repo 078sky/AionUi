@@ -10,7 +10,7 @@ import type { TChatConversation } from '@/common/config/storage';
 import type { AcpBackend, AcpPermissionRequest, AcpSessionUpdate } from '@/common/types/acpTypes';
 import { AcpConnection } from '@server/agent/acp/AcpConnection';
 import type { IConversationService } from '@server/services/IConversationService';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import { ACP_BACKENDS_ALL } from '@/common/types/acpTypes';
 const ACP_SIDE_QUESTION_TIMEOUT_MS = 30_000;
 const ACP_SIDE_QUESTION_PROMPT_TIMEOUT_SECONDS = 30;

@@ -14,12 +14,12 @@ vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
-vi.mock('@process/utils/mainLogger', () => ({
+vi.mock('@server/utils/mainLogger', () => ({
   mainLog: vi.fn(),
   mainWarn: vi.fn(),
 }));
 
-vi.mock('@process/utils/shellEnv', () => ({
+vi.mock('@server/utils/shellEnv', () => ({
   getNpxCacheDir: vi.fn(() => '/tmp/npx'),
   getWindowsShellExecutionOptions: vi.fn(() => ({})),
   resolveNpxPath: vi.fn(() => 'npx'),

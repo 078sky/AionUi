@@ -7,9 +7,9 @@
 import { execSync } from 'child_process';
 import type { AcpBackendAll, PresetAgentType } from '@/common/types/acpTypes';
 import { POTENTIAL_ACP_CLIS } from '@/common/types/acpTypes';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import { ExtensionRegistry } from '@server/extensions';
-import { getEnhancedEnv } from '@process/utils/shellEnv';
+import { getEnhancedEnv } from '@server/utils/shellEnv';
 
 interface DetectedAgent {
   backend: AcpBackendAll;

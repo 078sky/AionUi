@@ -27,9 +27,9 @@ import { AcpErrorType, createAcpError } from '@/common/types/acpTypes';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { ProcessConfig } from '@process/utils/initStorage';
-import { mainLog } from '@process/utils/mainLogger';
-import { getEnhancedEnv, resolveNpxPath } from '@process/utils/shellEnv';
+import { ProcessConfig } from '@server/utils/initStorage';
+import { mainLog } from '@server/utils/mainLogger';
+import { getEnhancedEnv, resolveNpxPath } from '@server/utils/shellEnv';
 import { AcpConnection } from './AcpConnection';
 import { AcpApprovalStore, createAcpApprovalKey } from './ApprovalStore';
 import {

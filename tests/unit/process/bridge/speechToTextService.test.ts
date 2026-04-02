@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: {
     get: vi.fn(),
   },
 }));
 
-vi.mock('@process/utils/mainLogger', () => ({
+vi.mock('@server/utils/mainLogger', () => ({
   mainError: vi.fn(),
   mainLog: vi.fn(),
   mainWarn: vi.fn(),
 }));
 
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import { SpeechToTextService } from '@process/bridge/services/SpeechToTextService';
-import { mainError, mainLog, mainWarn } from '@process/utils/mainLogger';
+import { mainError, mainLog, mainWarn } from '@server/utils/mainLogger';
 
 describe('SpeechToTextService', () => {
   beforeEach(() => {

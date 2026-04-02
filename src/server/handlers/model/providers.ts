@@ -9,7 +9,7 @@ import type { IProvider } from '@/common/config/storage';
 import { isNewApiPlatform } from '@/common/utils/platformConstants';
 import { isGoogleApisHost } from '@/common/utils/urlValidation';
 import { uuid } from '@/common/utils';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import OpenAI from 'openai';
 import { BedrockClient, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock';
 

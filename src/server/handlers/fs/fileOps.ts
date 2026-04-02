@@ -16,8 +16,8 @@ import path from 'path';
 import https from 'node:https';
 import http from 'node:http';
 import JSZip from 'jszip';
-import { getSystemDir } from '@process/utils/initStorage';
-import { readDirectoryRecursive } from '@process/utils';
+import { getSystemDir } from '@server/utils/initStorage';
+import { readDirectoryRecursive } from '@server/utils';
 
 // V8 string length limit is ~512MB; guard against RangeError on oversized files
 const MAX_READ_FILE_SIZE = 256 * 1024 * 1024; // 256 MB

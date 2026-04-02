@@ -34,7 +34,7 @@ vi.mock('@/common', () => {
   return { ipcBridge: { mode } };
 });
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: { get: vi.fn(() => ({})), set: vi.fn() },
 }));
 

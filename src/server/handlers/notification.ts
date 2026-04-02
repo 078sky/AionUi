@@ -12,7 +12,7 @@
  */
 
 import { getPlatformServices } from '@/common/platform';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import path from 'path';
 import fs from 'fs';
 import type { WsRouter } from '../router/WsRouter';

@@ -7,18 +7,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock all dependencies before importing AcpAgent
-vi.mock('@process/utils/mainLogger', () => ({
+vi.mock('@server/utils/mainLogger', () => ({
   mainLog: vi.fn(),
   mainWarn: vi.fn(),
   mainError: vi.fn(),
 }));
 
-vi.mock('@process/utils/shellEnv', () => ({
+vi.mock('@server/utils/shellEnv', () => ({
   getEnhancedEnv: vi.fn().mockResolvedValue({}),
   resolveNpxPath: vi.fn().mockResolvedValue('/usr/local/bin/npx'),
 }));
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: { get: vi.fn().mockResolvedValue(null) },
 }));
 

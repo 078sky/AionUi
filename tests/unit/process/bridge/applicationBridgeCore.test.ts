@@ -19,7 +19,7 @@ vi.mock('@/common', () => ({
   },
 }));
 
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   getSystemDir: () => ({
     cacheDir: '/mock/cache',
     workDir: '/mock/work',

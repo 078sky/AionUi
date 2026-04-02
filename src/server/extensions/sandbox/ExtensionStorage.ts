@@ -43,7 +43,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { getDataPath } from '@process/utils';
+import { getDataPath } from '@server/utils';
 import { isPathWithinDirectory } from './pathSafety';
 
 const STORAGE_DIR_NAME = 'extension-storage';

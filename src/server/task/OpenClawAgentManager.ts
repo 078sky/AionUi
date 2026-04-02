@@ -13,7 +13,7 @@ import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import { uuid } from '@/common/utils';
 import type { AcpBackendAll } from '@/common/types/acpTypes';
 import { getDatabase } from '@server/services/database';
-import { addMessage, addOrUpdateMessage } from '@process/utils/message';
+import { addMessage, addOrUpdateMessage } from '@server/utils/message';
 import { cronBusyGuard } from '@server/services/cron/CronBusyGuard';
 import BaseAgentManager from '@server/task/BaseAgentManager';
 import { IpcAgentEventEmitter } from '@server/task/IpcAgentEventEmitter';

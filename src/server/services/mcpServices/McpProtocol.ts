@@ -6,7 +6,7 @@
 
 import { getPlatformServices } from '@/common/platform';
 import { promises as fs } from 'fs';
-import { safeExec } from '@process/utils/safeExec';
+import { safeExec } from '@server/utils/safeExec';
 import type { AcpBackendAll } from '@/common/types/acpTypes';
 import { JSONRPC_VERSION } from '@/common/types/acpTypes';
 import type { IMcpServer } from '@/common/config/storage';
@@ -14,7 +14,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { getEnhancedEnv, getNpxCacheDir, resolveNpxPath } from '@/process/utils/shellEnv';
+import { getEnhancedEnv, getNpxCacheDir, resolveNpxPath } from '@server/utils/shellEnv';
 
 /**
  * MCP源类型 - 包括所有ACP后端和AionUi内置

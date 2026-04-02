@@ -28,8 +28,8 @@ import {
   getNpxCacheDir,
   getWindowsShellExecutionOptions,
   resolveNpxPath,
-} from '@process/utils/shellEnv';
-import { mainLog, mainWarn } from '@process/utils/mainLogger';
+} from '@server/utils/shellEnv';
+import { mainLog, mainWarn } from '@server/utils/mainLogger';
 
 const execFile = promisify(execFileCb);
 

@@ -9,7 +9,7 @@ import { spawn, execSync } from 'child_process';
 import { accessSync } from 'fs';
 import { join } from 'path';
 import type { CodexEventParams } from '@/common/types/codex/types';
-import { loadFullShellEnvironment, mergePaths } from '@process/utils/shellEnv';
+import { loadFullShellEnvironment, mergePaths } from '@server/utils/shellEnv';
 import { globalErrorService, fromNetworkError } from '../core/ErrorService';
 import { JSONRPC_VERSION } from '@/common/types/acpTypes';
 import { applyCodexLaunchOptions, readUserApprovalPolicyConfig } from './codexLaunchConfig';

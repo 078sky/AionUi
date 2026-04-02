@@ -8,7 +8,7 @@ import type { BrowserWindow } from 'electron';
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
 import type { IWorkerTaskManager } from '@server/task/IWorkerTaskManager';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import { getZoomFactor, setZoomFactor } from '@electron/utils/zoom';
 import { getCdpStatus, updateCdpConfig } from '@electron/utils/chromiumConfig';
 import { initApplicationBridgeCore } from './applicationBridgeCore';

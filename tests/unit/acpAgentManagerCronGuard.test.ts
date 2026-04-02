@@ -19,12 +19,12 @@ const { mockSetProcessing } = vi.hoisted(() => ({ mockSetProcessing: vi.fn() }))
 vi.mock('@server/services/cron/CronBusyGuard', () => ({
   cronBusyGuard: { setProcessing: mockSetProcessing },
 }));
-vi.mock('@process/utils/mainLogger', () => ({
+vi.mock('@server/utils/mainLogger', () => ({
   mainLog: vi.fn(),
   mainWarn: vi.fn(),
   mainError: vi.fn(),
 }));
-vi.mock('@process/utils/initStorage', () => ({
+vi.mock('@server/utils/initStorage', () => ({
   ProcessConfig: { getConfig: vi.fn(() => ({})), get: vi.fn() },
 }));
 vi.mock('@/common', () => ({
@@ -33,7 +33,7 @@ vi.mock('@/common', () => ({
 vi.mock('@server/services/database', () => ({
   getDatabase: vi.fn(() => Promise.resolve({ updateConversation: vi.fn() })),
 }));
-vi.mock('@process/utils/message', () => ({
+vi.mock('@server/utils/message', () => ({
   addMessage: vi.fn(),
   addOrUpdateMessage: vi.fn(),
   nextTickToLocalFinish: vi.fn((cb: () => void) => cb()),
@@ -46,7 +46,7 @@ vi.mock('@server/channels/agent/ChannelEventBus', () => ({
     emitAgentMessage: vi.fn(),
   },
 }));
-vi.mock('@process/utils/previewUtils', () => ({ handlePreviewOpenEvent: vi.fn() }));
+vi.mock('@server/utils/previewUtils', () => ({ handlePreviewOpenEvent: vi.fn() }));
 vi.mock('@server/extensions', () => ({
   ExtensionRegistry: {
     getInstance: vi.fn(() => ({ getAll: vi.fn(() => []), getAcpAdapters: vi.fn(() => []) })),
@@ -87,7 +87,7 @@ vi.mock('@server/task/MessageMiddleware', () => ({
   processCronInMessage: vi.fn((x: unknown) => x),
 }));
 vi.mock('@server/task/ThinkTagDetector', () => ({ stripThinkTags: vi.fn((x: unknown) => x) }));
-vi.mock('@process/utils/initAgent', () => ({ hasNativeSkillSupport: vi.fn(() => false) }));
+vi.mock('@server/utils/initAgent', () => ({ hasNativeSkillSupport: vi.fn(() => false) }));
 vi.mock('@server/task/agentUtils', () => ({
   prepareFirstMessageWithSkillsIndex: vi.fn((x: string) => Promise.resolve(x)),
 }));

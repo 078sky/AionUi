@@ -23,14 +23,14 @@ import { mapPermissionDecision } from '@/common/types/codex/utils';
 import { AIONUI_FILES_MARKER } from '@/common/config/constants';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import { uuid } from '@/common/utils';
-import { addMessage, addOrUpdateMessage } from '@process/utils/message';
+import { addMessage, addOrUpdateMessage } from '@server/utils/message';
 import { cronBusyGuard } from '@server/services/cron/CronBusyGuard';
 import { getDatabase } from '@server/services/database';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import BaseAgentManager from '@server/task/BaseAgentManager';
 import { IpcAgentEventEmitter } from '@server/task/IpcAgentEventEmitter';
 import { prepareFirstMessageWithSkillsIndex } from '@server/task/agentUtils';
-import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
+import { handlePreviewOpenEvent } from '@server/utils/previewUtils';
 import {
   getCodexSandboxModeForSessionMode as resolveCodexSandboxMode,
   type CodexSandboxMode,

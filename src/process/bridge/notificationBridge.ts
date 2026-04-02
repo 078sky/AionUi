@@ -13,7 +13,7 @@
 
 import { getPlatformServices } from '@/common/platform';
 import { ipcBridge } from '@/common';
-import { ProcessConfig } from '@process/utils/initStorage';
+import { ProcessConfig } from '@server/utils/initStorage';
 import path from 'path';
 import fs from 'fs';
 

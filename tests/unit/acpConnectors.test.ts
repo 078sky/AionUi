@@ -35,7 +35,7 @@ vi.mock('child_process', () => ({
   execFileSync: vi.fn(() => 'v20.10.0\n'),
 }));
 
-vi.mock('@process/utils/shellEnv', () => ({
+vi.mock('@server/utils/shellEnv', () => ({
   findSuitableNodeBin: vi.fn(() => null),
   getEnhancedEnv: vi.fn(() => ({ PATH: '/usr/bin' })),
   getNpxCacheDir: vi.fn(() => '/mock-npm-cache/_npx'),
@@ -45,7 +45,7 @@ vi.mock('@process/utils/shellEnv', () => ({
   resolveNpxPath: vi.fn(() => 'npx'),
 }));
 
-vi.mock('@process/utils/mainLogger', () => ({
+vi.mock('@server/utils/mainLogger', () => ({
   mainLog: vi.fn(),
   mainWarn: vi.fn(),
 }));

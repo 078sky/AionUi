@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getEnhancedEnv } from '@process/utils/shellEnv';
+import { getEnhancedEnv } from '@server/utils/shellEnv';
 import type { ChildProcess } from 'child_process';
 import { spawn } from 'child_process';
 
