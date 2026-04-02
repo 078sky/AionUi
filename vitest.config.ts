@@ -61,7 +61,8 @@ export default defineConfig({
         'src/**/*.d.ts',
 
         // Electron entry points (require Electron runtime)
-        'src/index.ts',
+        'src/electron/main.ts',
+        'src/electron/preload.ts',
         'src/preload.ts',
 
         // Shims / polyfills

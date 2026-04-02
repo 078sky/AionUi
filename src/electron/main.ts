@@ -6,50 +6,50 @@
 
 // configureChromium sets app name (dev isolation) and Chromium flags — must run before
 // ANY module that calls app.getPath('userData'), because Electron caches the path on first call.
-import './electron/utils/chromiumConfig';
+import './utils/chromiumConfig';
 import * as Sentry from '@sentry/electron/main';
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
 });
 
-import './process/utils/configureConsoleLog';
+import '@process/utils/configureConsoleLog';
 import { app, BrowserWindow, nativeImage, net, powerMonitor, protocol, screen } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { initMainAdapterWithWindow } from './common/adapter/main';
-import { ipcBridge } from './common';
+import { initMainAdapterWithWindow } from '@/common/adapter/main';
+import { ipcBridge } from '@/common';
 import { AION_ASSET_PROTOCOL } from '@server/extensions';
-import { initializeProcess } from './process';
-import { ProcessConfig } from './process/utils/initStorage';
-import { loadShellEnvironmentAsync, logEnvironmentDiagnostics, mergePaths } from './process/utils/shellEnv';
+import { initializeProcess } from '../process';
+import { ProcessConfig } from '@process/utils/initStorage';
+import { loadShellEnvironmentAsync, logEnvironmentDiagnostics, mergePaths } from '@process/utils/shellEnv';
 import { initializeAcpDetector, registerWindowMaximizeListeners } from '@process/bridge';
-import { onCloseToTrayChanged, onLanguageChanged } from './process/bridge/systemSettingsBridge';
+import { onCloseToTrayChanged, onLanguageChanged } from '@process/bridge/systemSettingsBridge';
 import { setInitialLanguage } from '@server/services/i18n';
-import { workerTaskManager } from './server/task/workerTaskManagerSingleton';
-import { setupApplicationMenu } from './electron/lifecycle/appMenu';
-import { startWebServer } from './server/http';
-import { applyZoomToWindow, initializeZoomFactor } from './electron/utils/zoom';
+import { workerTaskManager } from '@server/task/workerTaskManagerSingleton';
+import { setupApplicationMenu } from './lifecycle/appMenu';
+import { startWebServer } from '@server/http';
+import { applyZoomToWindow, initializeZoomFactor } from './utils/zoom';
 import {
   clearPendingDeepLinkUrl,
   getPendingDeepLinkUrl,
   handleDeepLinkUrl,
   PROTOCOL_SCHEME,
-} from './electron/lifecycle/deepLink';
-import { acquireSingleInstanceLock, onSecondInstance } from './electron/lifecycle/singleInstance';
+} from './lifecycle/deepLink';
+import { acquireSingleInstanceLock, onSecondInstance } from './lifecycle/singleInstance';
 import {
   bindMainWindowReferences,
   showAndFocusMainWindow,
   showOrCreateMainWindow,
-} from './process/utils/mainWindowLifecycle';
+} from '@process/utils/mainWindowLifecycle';
 import {
   loadUserWebUIConfig,
   resolveRemoteAccess,
   resolveWebUIPort,
   restoreDesktopWebUIFromPreferences,
-} from './process/utils/webuiConfig';
+} from '@process/utils/webuiConfig';
 import {
   createOrUpdateTray,
   destroyTray,
@@ -58,7 +58,7 @@ import {
   refreshTrayMenu,
   setCloseToTrayEnabled,
   setIsQuitting,
-} from './electron/lifecycle/tray';
+} from './lifecycle/tray';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
 
@@ -83,8 +83,7 @@ if (!acquireSingleInstanceLock()) {
   });
 }
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-// 修复 macOS 和 Linux 下 GUI 应用的 PATH 环境变量,使其与命令行一致
+// Fix PATH environment variable for macOS and Linux GUI apps
 if (process.platform === 'darwin' || process.platform === 'linux') {
   fixPath();
 
@@ -109,7 +108,6 @@ if (process.platform === 'darwin' || process.platform === 'linux') {
 }
 
 // Log environment diagnostics once at startup (persisted via electron-log).
-// Helps debug PATH / cygpath issues on Windows (#1157).
 logEnvironmentDiagnostics();
 
 // Handle Squirrel startup events (Windows installer)
@@ -119,8 +117,6 @@ if (electronSquirrelStartup) {
 
 // ============ Custom Asset Protocol ============
 // Register aion-asset:// as a privileged scheme BEFORE app.whenReady().
-// This protocol serves local extension assets (icons, covers) bypassing
-// the browser security policy that blocks file:// URLs from http://localhost.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: AION_ASSET_PROTOCOL,
@@ -176,20 +172,17 @@ let mainWindow: BrowserWindow;
 
 const createWindow = (): void => {
   console.log('[AionUi] Creating main window...');
-  // Get primary display size
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  // Set window size to 80% (4/5) of screen size for better visibility on high-resolution displays
+  // Set window size to 80% of screen size for better visibility on high-resolution displays
   const windowWidth = Math.floor(screenWidth * 0.8);
   const windowHeight = Math.floor(screenHeight * 0.8);
 
   // Get app icon for development mode (Windows/Linux need icon in BrowserWindow)
-  // In production, icons are set via forge.config.ts packagerConfig
   let devIcon: Electron.NativeImage | undefined;
   if (!app.isPackaged) {
     try {
-      // Windows: app.ico (no dev version), Linux: app_dev.png (with padding)
       const iconFile = process.platform === 'win32' ? 'app.ico' : 'app_dev.png';
       const iconPath = path.join(process.cwd(), 'resources', iconFile);
       if (fs.existsSync(iconPath)) {
@@ -201,16 +194,13 @@ const createWindow = (): void => {
     }
   }
 
-  // Create the browser window.
   mainWindow = new BrowserWindow({
     width: windowWidth,
     height: windowHeight,
-    show: false, // Hide until CSS is loaded to prevent FOUC
+    show: false,
     backgroundColor: '#ffffff',
     autoHideMenuBar: true,
-    // Set icon for Windows/Linux in development mode
     ...(devIcon && process.platform !== 'darwin' ? { icon: devIcon } : {}),
-    // Custom titlebar configuration / 自定义标题栏配置
     ...(process.platform === 'darwin'
       ? {
           titleBarStyle: 'hidden',
@@ -219,14 +209,12 @@ const createWindow = (): void => {
       : { frame: false }),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
-      webviewTag: true, // 启用 webview 标签用于 HTML 预览 / Enable webview tag for HTML preview
+      webviewTag: true,
     },
   });
   console.log(`[AionUi] Main window created (id=${mainWindow.id})`);
 
-  // Show window after content is ready to prevent FOUC (Flash of Unstyled Content)
-  // Use 'ready-to-show' which fires when renderer has painted first frame,
-  // combined with 'did-finish-load' as belt-and-suspenders approach.
+  // Show window after content is ready to prevent FOUC
   const showWindow = () => {
     if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) {
       console.log('[AionUi] Showing main window');
@@ -238,12 +226,11 @@ const createWindow = (): void => {
     console.log('[AionUi] Window ready-to-show');
     showWindow();
   });
-  // Belt-and-suspenders: also show on did-finish-load in case ready-to-show already fired
   mainWindow.webContents.once('did-finish-load', () => {
     console.log('[AionUi] Renderer did-finish-load');
     showWindow();
   });
-  // Fallback: show window after 5s even if events don't fire (e.g. loadURL failure)
+  // Fallback: show window after 5s even if events don't fire
   setTimeout(showWindow, 5000);
 
   initMainAdapterWithWindow(mainWindow);
@@ -254,18 +241,14 @@ const createWindow = (): void => {
   registerWindowMaximizeListeners(mainWindow);
 
   // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI)
-  // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景）
   const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
   const disableAutoUpdater =
     process.env.AIONUI_DISABLE_AUTO_UPDATE === '1' || process.env.AIONUI_E2E_TEST === '1' || isCiRuntime;
   if (!disableAutoUpdater) {
-    Promise.all([import('./server/services/autoUpdaterService'), import('./electron/handlers/update')])
+    Promise.all([import('@server/services/autoUpdaterService'), import('./handlers/update')])
       .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }]) => {
-        // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
         autoUpdaterService.initialize(statusBroadcast);
-        // Check for updates after 3 seconds delay
-        // 3秒后检查更新
         setTimeout(() => {
           void autoUpdaterService.checkForUpdatesAndNotify();
         }, 3000);
@@ -303,9 +286,6 @@ const createWindow = (): void => {
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[AionUi] render-process-gone:', details);
 
-    // Reload the renderer to recover from the crash.
-    // The isDestroyed() guard in adapter/main.ts prevents further sends
-    // to the dead webContents while the reload is in progress.
     if (!mainWindow.isDestroyed()) {
       console.log('[AionUi] Attempting to recover from renderer crash by reloading...');
 
@@ -329,10 +309,6 @@ const createWindow = (): void => {
     console.log('[AionUi] Main window closed');
   });
 
-  // DevTools is no longer auto-opened at startup.
-  // Use the DevTools toggle in Settings > System (dev mode only) to open it.
-
-  // Listen to DevTools state changes and notify Renderer
   mainWindow.webContents.on('devtools-opened', () => {
     ipcBridge.application.devToolsStateChanged.emit({ isOpen: true });
   });
@@ -341,7 +317,6 @@ const createWindow = (): void => {
     ipcBridge.application.devToolsStateChanged.emit({ isOpen: false });
   });
 
-  // 关闭拦截：当启用"关闭到托盘"时，隐藏窗口而非关闭
   // Close interception: hide window instead of closing when "close to tray" is enabled
   mainWindow.on('close', (event) => {
     if (mainWindow.isDestroyed()) return;
@@ -364,12 +339,9 @@ const handleAppReady = async (): Promise<void> => {
     return;
   }
 
-  // Register aion-asset:// protocol handler.
-  // Converts aion-asset://asset/C:/path/to/file.svg → file:///C:/path/to/file.svg
-  // and serves the local file through Electron's net module.
+  // Register aion-asset:// protocol handler
   protocol.handle(AION_ASSET_PROTOCOL, (request) => {
     const url = new URL(request.url);
-    // pathname is /C:/path/to/file.svg — strip leading slash on Windows
     let filePath = decodeURIComponent(url.pathname);
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);
@@ -381,7 +353,6 @@ const handleAppReady = async (): Promise<void> => {
   });
 
   // Set dock icon in development mode on macOS
-  // In production, the icon is set via forge.config.ts packagerConfig.icon
   if (process.platform === 'darwin' && !app.isPackaged && app.dock) {
     try {
       const iconPath = path.join(process.cwd(), 'resources', 'app_dev.png');
@@ -414,13 +385,10 @@ const handleAppReady = async (): Promise<void> => {
   }
 
   if (isResetPasswordMode) {
-    // Handle password reset without creating window
     try {
-      const { resetPasswordCLI, resolveResetPasswordUsername } = await import('./process/utils/resetPasswordCLI');
+      const { resetPasswordCLI, resolveResetPasswordUsername } = await import('@process/utils/resetPasswordCLI');
       const username = resolveResetPasswordUsername(process.argv);
-
       await resetPasswordCLI(username);
-
       app.quit();
     } catch {
       app.exit(1);
@@ -440,11 +408,8 @@ const handleAppReady = async (): Promise<void> => {
       return;
     }
 
-    // Keep the process alive in WebUI mode by preventing default quit behavior.
-    // On Linux headless (systemd), Electron may attempt to quit when no windows exist.
+    // Keep the process alive in WebUI mode
     app.on('will-quit', (event) => {
-      // Only prevent quit if this is an unexpected exit (server still running).
-      // Explicit app.exit() calls bypass will-quit, so they are unaffected.
       if (!isExplicitQuit) {
         event.preventDefault();
         console.warn('[WebUI] Prevented unexpected quit — server is still running');
@@ -454,25 +419,20 @@ const handleAppReady = async (): Promise<void> => {
     createWindow();
     mark('createWindow');
 
-    // Run ACP detection in parallel with renderer loading.
-    // By the time React mounts and calls getAvailableAgents (~300ms+),
-    // detection (~700ms) is usually already done.
     initializeAcpDetector()
       .then(() => mark('initializeAcpDetector'))
       .catch((error) => console.error('[ACP] Detection failed:', error));
 
-    // 读取语言设置并初始化主进程 i18n，然后刷新托盘菜单
     // Read language setting and initialize main process i18n, then refresh tray menu
     try {
       const savedLanguage = await ProcessConfig.get('language');
       await setInitialLanguage(savedLanguage);
-      // After language is set, refresh tray menu if it exists
       await refreshTrayMenu();
     } catch (error) {
-      console.error('[index] Failed to initialize i18n language:', error);
+      console.error('[main] Failed to initialize i18n language:', error);
     }
 
-    // 初始化关闭到托盘设置 / Initialize close-to-tray setting
+    // Initialize close-to-tray setting
     if (isE2ETestMode) {
       setCloseToTrayEnabled(false);
       destroyTray();
@@ -497,13 +457,11 @@ const handleAppReady = async (): Promise<void> => {
       });
     }
 
-    // 监听语言变更，刷新托盘菜单文案 / Listen for language changes to refresh tray menu labels
     onLanguageChanged(() => {
       void refreshTrayMenu();
     });
 
     if (!isE2ETestMode) {
-      // 窗口创建后异步恢复 WebUI，不阻塞 UI / Restore WebUI async after window creation, non-blocking
       restoreDesktopWebUIFromPreferences().catch((error) => {
         console.error('[WebUI] Failed to auto-restore:', error);
       });
@@ -525,14 +483,10 @@ const handleAppReady = async (): Promise<void> => {
   }
 
   if (!isResetPasswordMode) {
-    // Preload shell environment and apply it to process.env so workers forked
-    // later inherit the complete PATH (nvm, npm globals, .zshrc paths, etc.)
-    // This ensures custom skills that depend on globally installed tools work correctly.
     void loadShellEnvironmentAsync().then((shellEnv) => {
       if (shellEnv.PATH) {
         process.env.PATH = mergePaths(process.env.PATH, shellEnv.PATH);
       }
-      // Apply other shell env vars (SSL certs, auth tokens) that may be missing
       for (const [key, value] of Object.entries(shellEnv)) {
         if (key !== 'PATH' && !process.env[key]) {
           process.env[key] = value;
@@ -542,7 +496,7 @@ const handleAppReady = async (): Promise<void> => {
   }
 
   // Verify CDP is ready and log status
-  const { cdpPort, verifyCdpReady } = await import('./electron/utils/chromiumConfig');
+  const { cdpPort, verifyCdpReady } = await import('./utils/chromiumConfig');
   if (cdpPort) {
     const cdpReady = await verifyCdpReady(cdpPort);
     if (cdpReady) {
@@ -573,9 +527,7 @@ const handleAppReady = async (): Promise<void> => {
 };
 
 // ============ Protocol Registration ============
-// Register aionui:// as the default protocol client
 if (process.defaultApp) {
-  // Dev mode: need to pass execPath explicitly
   app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [path.resolve(process.argv[1])]);
 } else {
   app.setAsDefaultProtocolClient(PROTOCOL_SCHEME);
@@ -588,39 +540,28 @@ app.on('open-url', (event, url) => {
   if (isWebUIMode || isResetPasswordMode || !app.isReady()) {
     return;
   }
-  // Focus existing window so user sees the result
   showOrCreateMainWindow({ mainWindow, createWindow });
 });
 
-// Ensure we don't miss the ready event when running in CLI/WebUI mode
 void app
   .whenReady()
   .then(handleAppReady)
   .catch((_error) => {
-    // App initialization failed
     app.quit();
   });
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  // 当关闭到托盘启用时，不退出应用 / Don't quit when close-to-tray is enabled
   if (getCloseToTrayEnabled()) {
     return;
   }
-  // In WebUI mode, don't quit when windows are closed since we're running a web server
   if (!isWebUIMode && process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
   if (!isWebUIMode && app.isReady()) {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      // 从托盘恢复隐藏的窗口 / Restore hidden window from tray
       showAndFocusMainWindow(mainWindow);
       if (process.platform === 'darwin' && app.dock) {
         void app.dock.show();
@@ -636,10 +577,8 @@ app.on('before-quit', async () => {
   setIsQuitting(true);
   isExplicitQuit = true;
   destroyTray();
-  // 在应用退出前清理工作进程
   workerTaskManager.clear();
 
-  // Shutdown Channel subsystem
   try {
     const { getChannelManager } = await import('@server/channels');
     await getChannelManager().shutdown();
@@ -655,6 +594,3 @@ app.on('will-quit', () => {
 app.on('quit', (_event, exitCode) => {
   console.log(`[AionUi] quit (exitCode=${exitCode})`);
 });
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
