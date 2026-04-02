@@ -6,12 +6,12 @@
 
 import { ipcMain } from 'electron';
 import { webui } from '@/common/adapter/ipcBridge';
-import { SERVER_CONFIG } from '@process/webserver/config/constants';
+import { SERVER_CONFIG } from '@server/http/config/constants';
 import { WebuiService } from './services/WebuiService';
 import { generateQRLoginUrlDirect, verifyQRTokenDirect } from './webuiQR';
 // 预加载 webserver 模块避免启动时延迟 / Preload webserver module to avoid startup delay
-import { startWebServerWithInstance } from '@process/webserver/index';
-import { cleanupWebAdapter } from '@process/webserver/adapter';
+import { startWebServerWithInstance } from '@server/http/index';
+import { cleanupWebAdapter } from '@server/http/adapter';
 
 export { generateQRLoginUrlDirect, verifyQRTokenDirect };
 

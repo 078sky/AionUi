@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AuthUser } from '@process/webserver/auth/repository/UserRepository';
+import type { AuthUser } from '@server/http/auth/repository/UserRepository';
 
 declare global {
   namespace Express {

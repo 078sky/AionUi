@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { generateQRLoginUrlDirect, verifyQRTokenDirect } from '@process/bridge/webuiQR';
 
-vi.mock('@process/webserver/auth/repository/UserRepository', () => ({
+vi.mock('@server/http/auth/repository/UserRepository', () => ({
   UserRepository: {
     getSystemUser: vi.fn().mockResolvedValue({
       id: 'test-user-id',

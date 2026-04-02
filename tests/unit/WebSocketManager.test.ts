@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WebSocket } from 'ws';
 
 // Mock TokenMiddleware before importing WebSocketManager
-vi.mock('@process/webserver/auth/middleware/TokenMiddleware', () => ({
+vi.mock('@server/http/auth/middleware/TokenMiddleware', () => ({
   TokenMiddleware: {
     extractWebSocketToken: vi.fn(),
     validateWebSocketToken: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock('@/common/adapter/constant', () => ({
   SHOW_OPEN_REQUEST_EVENT: 'show-open-request',
 }));
 
-import { WebSocketManager } from '@process/webserver/websocket/WebSocketManager';
+import { WebSocketManager } from '@server/http/websocket/WebSocketManager';
 
 function createMockWss() {
   return {
@@ -46,7 +46,7 @@ describe('WebSocketManager', () => {
 
   describe('checkClients - EPIPE resilience', () => {
     it('should catch EPIPE when sending auth-expired to a broken socket', async () => {
-      const { TokenMiddleware } = await import('@process/webserver/auth/middleware/TokenMiddleware');
+      const { TokenMiddleware } = await import('@server/http/auth/middleware/TokenMiddleware');
 
       // Initialize to start heartbeat
       manager.initialize();
@@ -96,7 +96,7 @@ describe('WebSocketManager', () => {
     });
 
     it('should skip send when readyState is not OPEN for expired token', async () => {
-      const { TokenMiddleware } = await import('@process/webserver/auth/middleware/TokenMiddleware');
+      const { TokenMiddleware } = await import('@server/http/auth/middleware/TokenMiddleware');
 
       manager.initialize();
 

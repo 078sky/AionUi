@@ -5,7 +5,7 @@
  */
 
 import { parse as parseCookie } from 'cookie';
-import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from '@process/webserver/config/constants';
+import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from '@server/http/config/constants';
 
 // Read cookie by name in browser environment with error handling
 // 在浏览器环境中根据名称读取指定 Cookie，带错误处理

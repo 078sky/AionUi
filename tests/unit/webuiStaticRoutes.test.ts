@@ -43,17 +43,17 @@ describe('registerStaticRoutes', () => {
         getAppPath: () => packagedRoot,
       },
     }));
-    vi.doMock('@process/webserver/auth/middleware/TokenMiddleware', () => ({
+    vi.doMock('@server/http/auth/middleware/TokenMiddleware', () => ({
       TokenMiddleware: {
         extractToken: () => null,
         isTokenValid: () => true,
       },
     }));
-    vi.doMock('@process/webserver/middleware/security', () => ({
+    vi.doMock('@server/http/middleware/security', () => ({
       createRateLimiter: () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
     }));
 
-    const { registerStaticRoutes } = await import('@process/webserver/routes/staticRoutes');
+    const { registerStaticRoutes } = await import('@server/http/routes/staticRoutes');
     const app = express();
 
     registerStaticRoutes(app);

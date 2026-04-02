@@ -5,11 +5,11 @@
  */
 
 import type { WsRouter } from '../router/WsRouter';
-import { SERVER_CONFIG } from '@process/webserver/config/constants';
+import { SERVER_CONFIG } from '@server/http/config/constants';
 import { WebuiService } from '@process/bridge/services/WebuiService';
 import { generateQRLoginUrlDirect, verifyQRTokenDirect } from '@process/bridge/webuiQR';
-import { startWebServerWithInstance } from '@process/webserver/index';
-import { cleanupWebAdapter } from '@process/webserver/adapter';
+import { startWebServerWithInstance } from '@server/http/index';
+import { cleanupWebAdapter } from '@server/http/adapter';
 
 // WebUI server instance reference
 let webServerInstance: {

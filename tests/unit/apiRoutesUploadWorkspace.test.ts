@@ -18,7 +18,7 @@ vi.mock('@process/initStorage', () => ({
   })),
 }));
 
-import { resolveUploadWorkspace } from '@process/webserver/routes/apiRoutes';
+import { resolveUploadWorkspace } from '@server/http/routes/apiRoutes';
 
 describe('resolveUploadWorkspace', () => {
   const getConversation = vi.fn();

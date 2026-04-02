@@ -40,12 +40,12 @@ describe('webuiConfig module', () => {
       },
     }));
 
-    vi.doMock('@process/webserver', () => ({
+    vi.doMock('@server/http', () => ({
       startWebServerWithInstance: vi.fn(() => Promise.resolve({ port: 3000 })),
     }));
 
-    vi.doMock('@process/webserver/config/constants', async (importOriginal) => {
-      const actual = await importOriginal<typeof import('@process/webserver/config/constants')>();
+    vi.doMock('@server/http/config/constants', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('@server/http/config/constants')>();
       return {
         ...actual,
         SERVER_CONFIG: { ...actual.SERVER_CONFIG, DEFAULT_PORT: 3000 },

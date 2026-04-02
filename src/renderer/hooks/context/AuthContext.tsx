@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { withCsrfToken, hasValidCsrfToken, clearCookie } from '@process/webserver/middleware/csrfClient';
-import { CSRF_COOKIE_NAME } from '@process/webserver/config/constants';
+import { withCsrfToken, hasValidCsrfToken, clearCookie } from '@server/http/middleware/csrfClient';
+import { CSRF_COOKIE_NAME } from '@server/http/config/constants';
 import { isElectronDesktop } from '@renderer/utils/platform';
 
 type AuthStatus = 'checking' | 'authenticated' | 'unauthenticated';

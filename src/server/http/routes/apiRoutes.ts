@@ -12,7 +12,7 @@ import path from 'path';
 import multer from 'multer';
 import { getDatabase } from '@server/services/database';
 import { getSystemDir } from '@process/utils/initStorage';
-import { TokenMiddleware } from '@process/webserver/auth/middleware/TokenMiddleware';
+import { TokenMiddleware } from '@server/http/auth/middleware/TokenMiddleware';
 import { ExtensionRegistry } from '@server/extensions';
 import { SpeechToTextService } from '@process/bridge/services/SpeechToTextService';
 import { isActivePreviewPort } from '@process/bridge/pptPreviewBridge';

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { AuthService } from '@process/webserver/auth/service/AuthService';
+import { AuthService } from '@server/http/auth/service/AuthService';
 
 describe('AuthService.validatePasswordStrength', () => {
   it('should return PASSWORD_TOO_SHORT for passwords under 8 characters', () => {

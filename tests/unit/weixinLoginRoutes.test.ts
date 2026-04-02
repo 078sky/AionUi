@@ -26,7 +26,7 @@ describe('registerWeixinLoginRoutes', () => {
   });
 
   it('streams qr, scanned, done, and aborts on client close', async () => {
-    const { registerWeixinLoginRoutes } = await import('@process/webserver/routes/weixinLoginRoutes');
+    const { registerWeixinLoginRoutes } = await import('@server/http/routes/weixinLoginRoutes');
     const app = express();
     registerWeixinLoginRoutes(app, (_req, _res, next) => next());
 

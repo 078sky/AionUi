@@ -6,9 +6,9 @@
 
 import { networkInterfaces } from 'os';
 import type { IWebUIStatus } from '@/common/adapter/ipcBridge';
-import { AuthService } from '@process/webserver/auth/service/AuthService';
-import { UserRepository } from '@process/webserver/auth/repository/UserRepository';
-import { AUTH_CONFIG, SERVER_CONFIG } from '@process/webserver/config/constants';
+import { AuthService } from '@server/http/auth/service/AuthService';
+import { UserRepository } from '@server/http/auth/repository/UserRepository';
+import { AUTH_CONFIG, SERVER_CONFIG } from '@server/http/config/constants';
 
 /**
  * WebUI 服务层 - 封装所有 WebUI 相关的业务逻辑
@@ -26,7 +26,7 @@ export class WebuiService {
   private static async loadWebServerFunctions(): Promise<void> {
     if (this.webServerFunctionsLoaded) return;
 
-    const webServer = await import('@process/webserver/index');
+    const webServer = await import('@server/http/index');
     this._getInitialAdminPassword = webServer.getInitialAdminPassword;
     this._clearInitialAdminPassword = webServer.clearInitialAdminPassword;
     this.webServerFunctionsLoaded = true;
