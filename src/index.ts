@@ -38,6 +38,7 @@ import {
   handleDeepLinkUrl,
   PROTOCOL_SCHEME,
 } from './electron/lifecycle/deepLink';
+import { acquireSingleInstanceLock, onSecondInstance } from './electron/lifecycle/singleInstance';
 import {
   bindMainWindowReferences,
   showAndFocusMainWindow,
@@ -62,29 +63,14 @@ import {
 import electronSquirrelStartup from 'electron-squirrel-startup';
 
 // ============ Single Instance Lock ============
-// Acquire lock early so the second instance quits before doing unnecessary work.
-// When a second instance starts (e.g. from protocol URL), it sends its data
-// to the first instance via second-instance event, then quits.
 const isE2ETestMode = process.env.AIONUI_E2E_TEST === '1';
-const deepLinkFromArgv = process.argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
-const gotTheLock = isE2ETestMode ? true : app.requestSingleInstanceLock({ deepLinkUrl: deepLinkFromArgv });
-if (!gotTheLock) {
-  console.warn('[AionUi] Another instance is already running; current process will exit.');
+if (!acquireSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', (_event, argv, _workingDirectory, additionalData) => {
-    // Prefer additionalData (reliable on all platforms), fallback to argv scan
-    const deepLinkUrl =
-      (additionalData as { deepLinkUrl?: string })?.deepLinkUrl ||
-      argv.find((arg) => arg.startsWith(`${PROTOCOL_SCHEME}://`));
-    if (deepLinkUrl) {
-      handleDeepLinkUrl(deepLinkUrl);
-    }
-    // Focus existing window or recreate one if needed.
+  onSecondInstance(() => {
     if (isWebUIMode || isResetPasswordMode) {
       return;
     }
-
     if (app.isReady()) {
       showOrCreateMainWindow({
         mainWindow,
