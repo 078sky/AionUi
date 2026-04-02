@@ -4,88 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * Channel Handler
- *
- * Replaces initChannelBridge() from src/process/bridge/channelBridge.ts.
- * Handles plugin management, pairing, user management, sessions, and settings sync.
- */
-
 import type { WsRouter } from '../router/WsRouter';
-import type { IChannelPluginStatus } from '@process/channels/types';
-import { hasPluginCredentials } from '@process/channels/types';
-import type { IChannelRepository } from '@process/services/database/IChannelRepository';
 import { getChannelManager } from '@process/channels/core/ChannelManager';
 import { getPairingService } from '@process/channels/pairing/PairingService';
 import { ExtensionRegistry } from '@process/extensions';
 import { toAssetUrl } from '@process/extensions/protocol/assetProtocol';
 import * as path from 'path';
-
-const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'slack', 'discord', 'weixin']);
-
-const BUILTIN_NAMES: Record<string, string> = {
-  telegram: 'Telegram',
-  lark: 'Lark',
-  dingtalk: 'DingTalk',
-  slack: 'Slack',
-  discord: 'Discord',
-  weixin: 'WeChat',
-};
+import type { IChannelPluginStatus } from '@process/channels/types';
+import { hasPluginCredentials } from '@process/channels/types';
+import type { IChannelRepository } from '@process/services/database/IChannelRepository';
 
 /**
- * Resolve extension metadata for a channel plugin type.
- */
-function resolveExtensionMeta(
-  registry: ReturnType<typeof ExtensionRegistry.getInstance>,
-  extensions: ReturnType<ReturnType<typeof ExtensionRegistry.getInstance>['getLoadedExtensions']>,
-  pluginType: string,
-): IChannelPluginStatus['extensionMeta'] | undefined {
-  try {
-    const meta = registry.getChannelPluginMeta(pluginType);
-    if (!meta || typeof meta !== 'object') return undefined;
-    const m = meta as Record<string, unknown>;
-    const extensionMeta: NonNullable<IChannelPluginStatus['extensionMeta']> = {
-      credentialFields: Array.isArray(m.credentialFields) ? m.credentialFields : undefined,
-      configFields: Array.isArray(m.configFields) ? m.configFields : undefined,
-      description: typeof m.description === 'string' ? m.description : undefined,
-    };
-
-    const ext = extensions.find((e) =>
-      e.manifest.contributes.channelPlugins?.some((cp) => cp.type === pluginType),
-    );
-    if (ext) {
-      extensionMeta.extensionName = ext.manifest.displayName || ext.manifest.name;
-      const iconField = typeof m.icon === 'string' ? m.icon : undefined;
-      if (iconField) {
-        if (
-          iconField.startsWith('http://') ||
-          iconField.startsWith('https://') ||
-          iconField.startsWith('data:') ||
-          iconField.startsWith('file://') ||
-          iconField.startsWith('aion-asset://')
-        ) {
-          extensionMeta.icon = iconField;
-        } else {
-          const absPath = path.isAbsolute(iconField) ? iconField : path.resolve(ext.directory, iconField);
-          extensionMeta.icon = toAssetUrl(absPath);
-        }
-      }
-    }
-
-    return extensionMeta;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Register all channel-related endpoint handlers on the WsRouter.
+ * Register channel endpoint handlers on the WsRouter.
+ * Replaces initChannelBridge() from src/process/bridge/channelBridge.ts.
  */
 export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelRepository): void {
+  console.log('[ChannelHandler] Initializing...');
+
   // ==================== Plugin Management ====================
 
+  /**
+   * Get status of all plugins (including extension plugin metadata)
+   */
   router.handle('channel.get-plugin-status', async () => {
     try {
+      const BUILTIN_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'slack', 'discord', 'weixin']);
+
       let dbPlugins: import('@process/channels/types').IChannelPluginConfig[] = [];
       try {
         dbPlugins = await channelRepo.getChannelPlugins();
@@ -93,8 +37,48 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
         console.warn('[ChannelHandler] getChannelPlugins failed, proceeding with builtin-only list:', dbError);
       }
 
+      // Pre-fetch extension plugin metadata (lazy, cached by registry)
       const registry = ExtensionRegistry.getInstance();
+
       const extensions = registry.getLoadedExtensions();
+      const resolveExtensionMeta = (pluginType: string): IChannelPluginStatus['extensionMeta'] | undefined => {
+        try {
+          const meta = registry.getChannelPluginMeta(pluginType);
+          if (!meta || typeof meta !== 'object') return undefined;
+          const m = meta as Record<string, unknown>;
+          const extensionMeta: NonNullable<IChannelPluginStatus['extensionMeta']> = {
+            credentialFields: Array.isArray(m.credentialFields) ? m.credentialFields : undefined,
+            configFields: Array.isArray(m.configFields) ? m.configFields : undefined,
+            description: typeof m.description === 'string' ? m.description : undefined,
+          };
+
+          const ext = extensions.find((e) =>
+            e.manifest.contributes.channelPlugins?.some((cp) => cp.type === pluginType),
+          );
+          if (ext) {
+            extensionMeta.extensionName = ext.manifest.displayName || ext.manifest.name;
+            const iconField = typeof m.icon === 'string' ? m.icon : undefined;
+            if (iconField) {
+              if (
+                iconField.startsWith('http://') ||
+                iconField.startsWith('https://') ||
+                iconField.startsWith('data:') ||
+                iconField.startsWith('file://') ||
+                iconField.startsWith('aion-asset://')
+              ) {
+                extensionMeta.icon = iconField;
+              } else {
+                const absPath = path.isAbsolute(iconField) ? iconField : path.resolve(ext.directory, iconField);
+                extensionMeta.icon = toAssetUrl(absPath);
+              }
+            }
+          }
+
+          return extensionMeta;
+        } catch {
+          return undefined;
+        }
+      };
 
       // Build a set of channel types whose parent extension is currently enabled
       const enabledExtChannelTypes = new Set<string>();
@@ -123,14 +107,15 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
           activeUsers: 0,
           hasToken: hasPluginCredentials(plugin.type, plugin.credentials),
           isExtension,
-          extensionMeta: isExtension ? resolveExtensionMeta(registry, extensions, plugin.type) : undefined,
+          extensionMeta: isExtension ? resolveExtensionMeta(plugin.type) : undefined,
         });
       }
 
-      // Ensure extension-contributed channel plugins are always visible
+      // Ensure extension-contributed channel plugins are always visible in settings
+      // even before first enable (i.e. not yet persisted in DB).
       for (const [pluginType, entry] of registry.getChannelPlugins()) {
         if (statusMap.has(pluginType)) continue;
-        const extensionMeta = resolveExtensionMeta(registry, extensions, pluginType);
+        const extensionMeta = resolveExtensionMeta(pluginType);
         const meta = entry.meta as { name?: string } | undefined;
         statusMap.set(pluginType, {
           id: pluginType,
@@ -146,7 +131,16 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
         });
       }
 
-      // Ensure builtin channel types are always visible
+      // Ensure builtin channel types are always visible in settings
+      // even before user configures them (i.e. not yet persisted in DB).
+      const BUILTIN_NAMES: Record<string, string> = {
+        telegram: 'Telegram',
+        lark: 'Lark',
+        dingtalk: 'DingTalk',
+        slack: 'Slack',
+        discord: 'Discord',
+        weixin: 'WeChat',
+      };
       for (const builtinType of BUILTIN_TYPES) {
         if (statusMap.has(builtinType)) continue;
         statusMap.set(builtinType, {
@@ -170,13 +164,18 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
     }
   });
 
+  /**
+   * Enable a plugin
+   */
   router.handle('channel.enable-plugin', async ({ pluginId, config }) => {
     try {
       const manager = getChannelManager();
       const result = await manager.enablePlugin(pluginId, config);
+
       if (!result.success) {
         return { success: false, msg: result.error };
       }
+
       return { success: true };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -185,13 +184,18 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
     }
   });
 
+  /**
+   * Disable a plugin
+   */
   router.handle('channel.disable-plugin', async ({ pluginId }) => {
     try {
       const manager = getChannelManager();
       const result = await manager.disablePlugin(pluginId);
+
       if (!result.success) {
         return { success: false, msg: result.error };
       }
+
       return { success: true };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -200,20 +204,26 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
     }
   });
 
+  /**
+   * Test plugin connection (validate token)
+   */
   router.handle('channel.test-plugin', async ({ pluginId, token, extraConfig }) => {
     try {
       const manager = getChannelManager();
       const result = await manager.testPlugin(pluginId, token, extraConfig);
       return { success: true, data: result };
     } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+      const msg = error instanceof Error ? error.message : String(error);
       console.error('[ChannelHandler] testPlugin error:', error);
-      return { success: false, data: { success: false, error: errorMsg } };
+      return { success: false, data: { success: false, error: msg } };
     }
   });
 
   // ==================== Pairing Management ====================
 
+  /**
+   * Get pending pairing requests
+   */
   router.handle('channel.get-pending-pairings', async () => {
     try {
       const data = await channelRepo.getPendingPairingRequests();
@@ -225,13 +235,20 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
     }
   });
 
+  /**
+   * Approve a pairing request
+   * Delegates to PairingService to avoid duplicate logic
+   */
   router.handle('channel.approve-pairing', async ({ code }) => {
     try {
       const pairingService = getPairingService();
       const result = await pairingService.approvePairing(code);
+
       if (!result.success) {
         return { success: false, msg: result.error };
       }
+
+      console.log(`[ChannelHandler] Approved pairing for code ${code}`);
       return { success: true };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -240,13 +257,20 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
     }
   });
 
+  /**
+   * Reject a pairing request
+   * Delegates to PairingService to avoid duplicate logic
+   */
   router.handle('channel.reject-pairing', async ({ code }) => {
     try {
       const pairingService = getPairingService();
       const result = await pairingService.rejectPairing(code);
+
       if (!result.success) {
         return { success: false, msg: result.error };
       }
+
+      console.log(`[ChannelHandler] Rejected pairing code ${code}`);
       return { success: true };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -257,6 +281,9 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
 
   // ==================== User Management ====================
 
+  /**
+   * Get all authorized users
+   */
   router.handle('channel.get-authorized-users', async () => {
     try {
       const data = await channelRepo.getChannelUsers();
@@ -268,9 +295,14 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
     }
   });
 
+  /**
+   * Revoke user authorization
+   */
   router.handle('channel.revoke-user', async ({ userId }) => {
     try {
+      // Delete user (cascades to sessions)
       await channelRepo.deleteChannelUser(userId);
+      console.log(`[ChannelHandler] Revoked user ${userId}`);
       return { success: true };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -281,6 +313,9 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
 
   // ==================== Session Management ====================
 
+  /**
+   * Get active sessions
+   */
   router.handle('channel.get-active-sessions', async () => {
     try {
       const data = await channelRepo.getChannelSessions();
@@ -294,6 +329,9 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
 
   // ==================== Settings Sync ====================
 
+  /**
+   * Sync channel settings after agent or model change
+   */
   router.handle('channel.sync-channel-settings', async ({ platform, agent, model }) => {
     try {
       const manager = getChannelManager();
@@ -308,4 +346,6 @@ export function registerChannelHandlers(router: WsRouter, channelRepo: IChannelR
       return { success: false, msg };
     }
   });
+
+  console.log('[ChannelHandler] Initialized');
 }

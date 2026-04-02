@@ -25,6 +25,21 @@ import { registerModelHandlers } from './model';
 import { registerChannelHandlers } from './channel';
 import { registerExtensionsHandlers } from './extensions';
 import { registerWebuiHandlers } from './webui';
+import { registerShellHandlers } from './shell';
+import { registerWindowControlsHandlers } from './windowControls';
+import { registerDialogHandlers } from './dialog';
+import { registerWeixinLoginHandlers } from './weixinLogin';
+import { registerApplicationHandlers } from './application';
+import { registerSystemSettingsHandlers } from './systemSettings';
+import { registerWorkspaceSnapshotHandlers } from './workspaceSnapshot';
+import { registerDocumentHandlers } from './document';
+import { registerRemoteAgentHandlers } from './remoteAgent';
+import { registerMcpHandlers } from './mcp';
+import { registerGeminiHandlers } from './gemini';
+import { registerBedrockHandlers } from './bedrock';
+import { registerUpdateHandlers } from './update';
+import { registerOfficeWatchHandlers } from './officeWatch';
+import { registerFileWatchHandlers } from './fileWatch';
 
 /**
  * Dependencies required by handler registration.
@@ -60,4 +75,19 @@ export function registerAllHandlers(router: WsRouter, deps: HandlerDependencies)
   registerChannelHandlers(router, deps.channelRepo);
   registerExtensionsHandlers(router, deps.conversationRepo, deps.workerTaskManager);
   registerWebuiHandlers(router);
+  registerShellHandlers(router);
+  registerWindowControlsHandlers(router);
+  registerDialogHandlers(router);
+  registerWeixinLoginHandlers(router);
+  registerApplicationHandlers(router);
+  registerSystemSettingsHandlers(router);
+  registerWorkspaceSnapshotHandlers(router);
+  registerDocumentHandlers(router);
+  registerRemoteAgentHandlers(router);
+  registerMcpHandlers(router);
+  registerGeminiHandlers(router, deps.workerTaskManager);
+  registerBedrockHandlers(router);
+  registerUpdateHandlers(router);
+  registerOfficeWatchHandlers(router);
+  registerFileWatchHandlers(router);
 }
