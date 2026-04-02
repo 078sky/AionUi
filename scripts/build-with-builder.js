@@ -15,7 +15,6 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const prepareBundledBun = require('./prepareBundledBun');
-const { prepareHubResources } = require('./prepareHubResources');
 const prepareAionrs = require('./prepareAionrs');
 
 // DMG retry logic for macOS: detects DMG creation failures by checking artifacts
@@ -456,7 +455,7 @@ try {
   prepareBundledBun();
 
   // 5b. Prepare hub resources (index.json + extension zips for offline fallback)
-  await prepareHubResources();
+  execSync('node scripts/prepareHubResources.js', { stdio: 'inherit', env: process.env });
   // 5b. Prepare aionrs binary (Rust CLI for agent integration)
   prepareAionrs();
 
