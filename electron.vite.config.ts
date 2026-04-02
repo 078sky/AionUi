@@ -128,7 +128,7 @@ export default defineConfig(({ mode }) => {
       build: {
         sourcemap: false,
         reportCompressedSize: false,
-        rollupOptions: { input: { index: resolve('src/preload.ts') } },
+        rollupOptions: { input: { index: resolve('src/electron/preload.ts') } },
       },
     },
 
