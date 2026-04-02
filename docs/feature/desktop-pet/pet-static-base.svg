@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-18 -18 58 58" width="300" height="300">
+<!--
+  AionUi Pet — 基准造型（Static Base）
+  基于用户设计稿，viewBox 统一为 -18 -18 58 58
+  坐标直接引用用户原始 SVG (viewBox 0 0 21 21)
+-->
+
+<!-- 阴影 -->
+<ellipse cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+
+<!-- 左手 -->
+<rect x="2" y="10" width="3" height="3" rx="1.5" fill="#97A0C5" fill-opacity="0.7"/>
+
+<!-- 身体 -->
+<rect x="5" y="5" width="12" height="12" rx="6" fill="#97A0C5"/>
+
+<!-- 眼睛 -->
+<rect x="10" y="9" width="2" height="2" rx="1" fill="black"/>
+
+<!-- 嘴巴 -->
+<path d="M8 12C9.18123 14.5593 12.8188 14.5593 14 12" stroke="black" stroke-linecap="round" fill="none"/>
+
+<!-- 帽子 -->
+<path d="M14.2041 5.84961H7.7959L11 0.299805L14.2041 5.84961Z" fill="#FF5B24" stroke="#FF5B24" stroke-width="0.3"/>
+<!-- 帽子反光 -->
+<rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+
+
+<!-- 右手 -->
+<path d="M17.0582 11.0631C17.6426 10.476 18.5924 10.4738 19.1795 11.0582C19.7667 11.6426 19.7689 12.5924 19.1844 13.1795C18.6 13.7667 17.6502 13.7689 17.0631 13.1844C16.476 12.6 16.4738 11.6502 17.0582 11.0631Z" fill="#B9C3EB"/>
+</svg>

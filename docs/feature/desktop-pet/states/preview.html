@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>AionUi Pet — 独立 SVG 资产预览</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #1a1b2e;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 32px;
+    font-family: system-ui, sans-serif; color: #fff;
+  }
+  h1 { font-size: 12px; opacity: 0.4; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px; }
+  .controls {
+    display: flex; align-items: center; gap: 12px; opacity: 0.6;
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px;
+  }
+  .controls input[type=range] { width: 180px; accent-color: #FF5B24; }
+  .bg-toggle {
+    display: flex; gap: 4px; margin-bottom: 24px;
+  }
+  .bg-toggle button {
+    width: 28px; height: 28px; border: 2px solid transparent; border-radius: 6px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .bg-toggle button:hover, .bg-toggle button.active { border-color: #FF5B24; }
+  .grid {
+    display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; max-width: 1200px;
+  }
+  .item {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .item object {
+    transition: width 0.15s, height 0.15s;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.15));
+  }
+  .item span {
+    font-size: 10px; opacity: 0.4; letter-spacing: 2px; text-transform: uppercase;
+  }
+  .base-section {
+    margin-bottom: 32px; padding-bottom: 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .base-section span { font-size: 10px; opacity: 0.6; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+
+<h1>AionUi Pet — 独立 SVG 资产预览（共 20 + 1 base）</h1>
+
+<div class="controls">
+  <span>小</span>
+  <input type="range" min="80" max="400" value="200" step="10" id="sizeSlider"
+    oninput="setSize(this.value)"/>
+  <span>大</span>
+  <span id="sizeLabel">200px</span>
+</div>
+
+<div class="bg-toggle">
+  <button style="background:#ffffff" onclick="setBg('#ffffff')"></button>
+  <button style="background:#f0f0f0" onclick="setBg('#f0f0f0')"></button>
+  <button style="background:#c0c0c0" onclick="setBg('#c0c0c0')"></button>
+  <button style="background:#606060" onclick="setBg('#606060')"></button>
+  <button style="background:#1a1b2e" class="active" onclick="setBg('#1a1b2e')"></button>
+  <button style="background:#000000" onclick="setBg('#000000')"></button>
+</div>
+
+<!-- 基准造型 -->
+<div class="base-section">
+  <object type="image/svg+xml" data="../pet-static-base.svg" width="200" height="200" class="pet-obj"></object>
+  <span>static base（基准造型）</span>
+</div>
+
+<!-- 20 个状态 -->
+<div class="grid" id="grid"></div>
+
+<script>
+const STATES = [
+  'idle', 'thinking', 'working', 'happy', 'sleeping', 'error',
+  'notification', 'waking', 'sweeping', 'building', 'juggling',
+  'dragging', 'yawning', 'dozing', 'poke-left', 'poke-right',
+  'attention', 'carrying', 'random-look', 'random-read'
+];
+
+const grid = document.getElementById('grid');
+STATES.forEach(name => {
+  const item = document.createElement('div');
+  item.className = 'item';
+  item.innerHTML = `<object type="image/svg+xml" data="${name}.svg" width="200" height="200" class="pet-obj"></object><span>${name}</span>`;
+  grid.appendChild(item);
+});
+
+function setSize(v) {
+  document.querySelectorAll('.pet-obj').forEach(el => {
+    el.width = v; el.height = v;
+  });
+  document.getElementById('sizeLabel').textContent = v + 'px';
+}
+
+function setBg(color) {
+  document.body.style.background = color;
+  document.querySelectorAll('.bg-toggle button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

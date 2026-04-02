@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>AionUi Pet — animated v6</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #1a1b2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 32px;
+    font-family: system-ui, sans-serif;
+    color: #fff;
+  }
+  h1 { font-size: 12px; opacity: 0.4; letter-spacing: 3px; text-transform: uppercase; }
+  .row { display: flex; gap: 56px; align-items: flex-end; flex-wrap: wrap; justify-content: center; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .item span { font-size: 11px; opacity: 0.4; letter-spacing: 2px; text-transform: uppercase; }
+  .pet { width: 200px; height: 200px; transition: width 0.1s, height 0.1s; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.15)); }
+</style>
+</head>
+<body>
+
+<h1>AionUi Pet · animated v6</h1>
+
+<div style="display:flex;align-items:center;gap:12px;opacity:0.6;font-size:11px;letter-spacing:2px;text-transform:uppercase;">
+  <span>小</span>
+  <input type="range" min="60" max="400" value="200" step="10" id="sizeSlider"
+    style="width:180px;accent-color:#D95226;"
+    oninput="document.querySelectorAll('.pet').forEach(el=>{el.style.width=this.value+'px';el.style.height=this.value+'px'});document.getElementById('sizeLabel').textContent=this.value+'px'"/>
+  <span>大</span>
+  <span id="sizeLabel" style="min-width:40px;">200px</span>
+</div>
+
+<div class="row">
+
+  <!-- ═══════════════════════════════════════════════
+       IDLE — breathe + blink + subtle sway
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .idle-body {
+            transform-origin: 11px 18px;
+            animation: idle-breathe 3.2s ease-in-out infinite, idle-sway 6s ease-in-out infinite;
+          }
+          .idle-eye {
+            transform-origin: 11px 11px;
+            animation: idle-blink 4s ease-in-out infinite;
+          }
+          .idle-shadow {
+            transform-origin: 11px 22.5px;
+            animation: idle-shadow-pulse 3.2s ease-in-out infinite;
+          }
+          @keyframes idle-breathe {
+            0%,100% { transform: scaleY(1) translateY(0); }
+            50%     { transform: scaleY(0.97) translateY(0.3px); }
+          }
+          @keyframes idle-sway {
+            0%,100% { transform: rotate(0deg); }
+            25%     { transform: rotate(1.2deg); }
+            75%     { transform: rotate(-1.2deg); }
+          }
+          @keyframes idle-blink {
+            0%,8%,100% { transform: scaleY(1); }
+            4%          { transform: scaleY(0.08); }
+          }
+          @keyframes idle-shadow-pulse {
+            0%,100% { transform: scaleX(1); opacity: 0.35; }
+            50%     { transform: scaleX(0.96); opacity: 0.28; }
+          }
+        </style>
+      </defs>
+      <!-- shadow -->
+      <ellipse class="idle-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <!-- main body group -->
+      <g class="idle-body">
+        <!-- arms — relaxed diamonds -->
+        <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 3.5 10.5)"/>
+        <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 18.5 10.5)"/>
+        <!-- body -->
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <!-- hat -->
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <!-- hat highlight -->
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+        <!-- eye -->
+        <g class="idle-eye">
+          <rect x="10" y="10" width="2" height="2" fill="#111827"/>
+        </g>
+        <!-- smile -->
+        <path d="M8 13.5 Q11 16.5 14 13.5" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>idle</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       THINKING — 直接用设计稿坐标，scale适配
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .think-body {
+            transform-origin: 11px 12px;
+            animation: think-breathe 3.2s ease-in-out infinite;
+          }
+          .think-bubble { animation: think-bubble-float 3s ease-in-out infinite; }
+          .tpx1 { animation: think-dot 1.8s infinite 0s; }
+          .tpx2 { animation: think-dot 1.8s infinite 0.35s; }
+          .tpx3 { animation: think-dot 1.8s infinite 0.7s; }
+          .tgl1 { animation: think-glow 2.5s ease-out infinite 0s;   opacity:0; }
+          .tgl2 { animation: think-glow 2.5s ease-out infinite 0.8s; opacity:0; }
+          .tgl3 { animation: think-glow 2.5s ease-out infinite 1.6s; opacity:0; }
+          @keyframes think-breathe {
+            0%,100% { transform: translateY(0); }
+            50%     { transform: translateY(0.5px); }
+          }
+          @keyframes think-bubble-float {
+            0%,100% { transform: translateY(0); }
+            50%     { transform: translateY(-0.6px); }
+          }
+          @keyframes think-dot {
+            0%,10%  { opacity:0; transform:scale(0.5); }
+            35%,70% { opacity:1; transform:scale(1); }
+            100%    { opacity:0; transform:scale(0.5); }
+          }
+          @keyframes think-glow {
+            0%   { opacity:0;   transform:translate(0,0)    scale(1); }
+            25%  { opacity:0.9; transform:translate(0.5px,-1px) scale(1); }
+            100% { opacity:0;   transform:translate(2px,-7px)  scale(1.4); }
+          }
+        </style>
+      </defs>
+
+      <!-- 完全使用设计稿原始坐标，不做任何偏移 -->
+
+      <!-- 飘动光点动画 -->
+      <rect class="tgl1" x="21" y="12" width="1.5" height="1.5" rx="0.3" fill="#94BDFF"/>
+      <rect class="tgl2" x="20" y="8"  width="1.2" height="1.2" rx="0.2" fill="#94BDFF"/>
+      <rect class="tgl3" x="5"  y="12" width="1.2" height="1.2" rx="0.2" fill="#94BDFF"/>
+
+      <!-- shadow — 统一样式 -->
+      <ellipse cx="14" cy="26.5" rx="4" ry="0.6" fill="#c0c0c0" opacity="0.35"/>
+      <!-- 去掉设计稿里的 D9D9D9 阴影条 -->
+
+      <g class="think-body">
+        <!-- 左手：设计稿原始 ellipse path -->
+        <path d="M8.9418 18.0631C8.35737 17.476 7.40762 17.4738 6.82048 18.0582C6.23334 18.6426 6.23115 19.5924 6.81558 20.1795C7.40001 20.7667 8.34975 20.7689 8.93689 20.1844C9.52403 19.6 9.52623 18.6502 8.9418 18.0631Z" fill="#97A0C5" fill-opacity="0.7"/>
+        <!-- 身体：设计稿原始 rect -->
+        <rect width="12" height="12" rx="6" transform="matrix(-1 0 0 1 20 11)" fill="#97A0C5"/>
+        <!-- 右手：设计稿原始 rect -->
+        <rect width="3" height="3" rx="1.5" transform="matrix(4.37114e-08 1 1 -4.37114e-08 18 19)" fill="#B6BDD6"/>
+        <!-- 帽子：设计稿原始三角 -->
+        <path d="M13.0713 11.6884L18.9585 14.2193L18.2068 7.85522L13.0713 11.6884Z" fill="#FF6B35"/>
+        <!-- 白色眼睛块 -->
+        <rect x="8" y="8" width="2" height="3" fill="white"/>
+        <!-- 嘟嘴圆点 -->
+        <rect x="13" y="15" width="2" height="2" rx="1" fill="black"/>
+        <!-- 嘴弧 -->
+        <path d="M13 18.5C12.1198 18.72 11.8162 19.8162 12.4577 20.4577L12.5 20.5" stroke="black" stroke-linecap="round"/>
+      </g>
+
+      <!-- 像素泡泡：设计稿原始 path，完全不改坐标 -->
+      <g class="think-bubble">
+        <path d="M12.083 2.91602H13V8.41602H12.083V9.33301H2.91699V8.41602H2V2.91602H2.91699V2H12.083V2.91602Z" fill="white"/>
+        <rect class="tpx1" x="4" y="5.33301" width="1" height="1" fill="#605AFF"/>
+        <rect class="tpx2" x="7" y="5.33301" width="1" height="1" fill="#605AFF"/>
+        <rect class="tpx3" x="10" y="5.33301" width="1" height="1" fill="#605AFF"/>
+      </g>
+    </svg>
+    <span>thinking</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       WORKING — 正面角色 + 右侧笔记本敲键盘
+       完全还原用户设计稿 working.svg
+       原始 viewBox 0 0 24 23，统一缩放至 -18 -18 58 58
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .wk-all {
+            transform-origin: 12px 15px;
+            animation: wk-bob 0.6s cubic-bezier(0.36,0.07,0.19,0.97) infinite;
+          }
+          .wk-hand-r {
+            transform-origin: 14px 22px;
+            animation: wk-tap-r 0.3s ease-in-out infinite alternate;
+          }
+          .wk-hand-l {
+            transform-origin: 7px 22px;
+            animation: wk-tap-l 0.3s ease-in-out infinite alternate;
+          }
+          .wk-shadow {
+            transform-origin: 10px 23.5px;
+            animation: wk-shadow 2.4s ease-in-out infinite;
+          }
+          .wk-hat {
+            transform-origin: 15px 8px;
+            animation: wk-hat-shake 0.3s ease-in-out infinite alternate;
+          }
+          .wk-dot1 { animation: wk-dot-flash 0.9s ease-in-out infinite; animation-delay: 0s; }
+          .wk-dot2 { animation: wk-dot-flash 0.9s ease-in-out infinite; animation-delay: 0.3s; }
+          .wk-dot3 { animation: wk-dot-flash 0.9s ease-in-out infinite; animation-delay: 0.6s; }
+          .wk-dot4 { animation: wk-dot-flash 0.9s ease-in-out infinite; animation-delay: 0.15s; }
+          @keyframes wk-bob {
+            0%,100% { transform: translateY(0) scaleY(1); }
+            30%     { transform: translateY(-2px) scaleY(1.04); }
+            60%     { transform: translateY(1px) scaleY(0.97); }
+          }
+          @keyframes wk-tap-r {
+            from { transform: translateY(0); }
+            to   { transform: translateY(-3px); }
+          }
+          @keyframes wk-tap-l {
+            from { transform: translateY(-3px); }
+            to   { transform: translateY(0); }
+          }
+          @keyframes wk-shadow {
+            0%,100% { transform: scaleX(1); opacity: 0.32; }
+            50%     { transform: scaleX(0.9); opacity: 0.2; }
+          }
+          @keyframes wk-hat-shake {
+            from { transform: rotate(-6deg) translateY(0); }
+            to   { transform: rotate(4deg) translateY(-0.5px); }
+          }
+          @keyframes wk-dot-flash {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50%     { opacity: 0.1; transform: scale(0.6); }
+          }
+        </style>
+      </defs>
+
+      <!-- 阴影 -->
+      <ellipse class="wk-shadow" cx="10" cy="23.5" rx="7" ry="0.75" fill="#c0c0c0"/>
+
+      <g class="wk-all">
+        <!-- ── 绿色装饰光点（最底层，身体后面） ── -->
+        <rect class="wk-dot1" x="4"  y="9"  width="1.2" height="1.2" rx="0.3" fill="#4AFF3D"/>
+        <rect class="wk-dot2" x="21" y="4"  width="1.2" height="1.2" rx="0.3" fill="#4AFF3D"/>
+        <rect class="wk-dot3" x="21" y="11" width="1.2" height="1.2" rx="0.3" fill="#4AFF3D"/>
+        <rect class="wk-dot4" x="22" y="15" width="1.2" height="1.2" rx="0.3" fill="#4AFF3D"/>
+        <rect class="wk-dot2" x="7"  y="5"  width="1"   height="1"   rx="0.2" fill="#4AFF3D"/>
+
+        <!-- ── 角色身体（先画，笔记本后画覆盖下半身） ── -->
+        <!-- 身体 -->
+        <rect x="8" y="7" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <!-- 帽子（随打字抖动） -->
+        <g class="wk-hat">
+          <path d="M16.4681 2.77162L18.7097 9.32717L11.9116 7.99068L16.4681 2.77162Z" fill="#FF6B35"/>
+        </g>
+        <!-- 眼睛 -->
+        <rect x="12" y="11" width="2" height="2" rx="1" fill="#111827"/>
+
+        <!-- ── 笔记本覆盖在身体下半部分上层 ── -->
+        <!-- 屏幕面板 -->
+        <rect x="3.5" y="15.5" width="10" height="6" rx="0.4" fill="#D9D9D9" stroke="#E5E7F0" stroke-width="0.5"/>
+        <!-- 屏幕代码行 -->
+        <rect x="4.5" y="17"   width="4" height="0.7" rx="0.25" fill="#9098b8" opacity="0.7"/>
+        <rect x="4.5" y="18.5" width="6" height="0.7" rx="0.25" fill="#9098b8" opacity="0.5"/>
+        <rect x="4.5" y="20"   width="3" height="0.7" rx="0.25" fill="#9098b8" opacity="0.6"/>
+        <!-- 白色底条 -->
+        <rect x="10" y="21" width="8" height="1" rx="0.2" fill="white"/>
+        <!-- 键盘底座 -->
+        <rect x="3" y="22" width="15" height="1" rx="0.3" fill="#D9D9D9"/>
+        <!-- 触控板 -->
+        <rect x="8" y="22.1" width="1" height="0.7" rx="0.2" fill="#736B6B" opacity="0.7"/>
+
+        <!-- ── 两手在键盘上（笔记本上层，交替弹跳） ── -->
+        <g class="wk-hand-l">
+          <circle cx="7" cy="22" r="1.6" fill="#97A0C5" fill-opacity="0.9"/>
+        </g>
+        <g class="wk-hand-r">
+          <circle cx="14" cy="22" r="1.6" fill="#B9C3EB"/>
+        </g>
+      </g>
+    </svg>
+    <span>working</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       HAPPY — big jump + ^^ eyes + blush + sparkles
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .happy-body {
+            transform-origin: 11px 18px;
+            animation: happy-jump 1s ease-in-out infinite;
+          }
+          .happy-shadow {
+            transform-origin: 11px 22.5px;
+            animation: happy-shadow 1s ease-in-out infinite;
+          }
+          .happy-arm-l {
+            transform-origin: 3.5px 10.5px;
+            animation: happy-arm-l 0.5s ease-in-out infinite alternate;
+          }
+          .happy-arm-r {
+            transform-origin: 18.5px 10.5px;
+            animation: happy-arm-r 0.5s ease-in-out infinite alternate;
+          }
+          .happy-spark { opacity: 0; }
+          .happy-sp1 { animation: happy-spark-flash 1.5s step-end infinite; animation-delay: 0s; }
+          .happy-sp2 { animation: happy-spark-flash 1.5s step-end infinite; animation-delay: 0.5s; }
+          .happy-sp3 { animation: happy-spark-flash 1.5s step-end infinite; animation-delay: 1s; }
+          .happy-sp4 { animation: happy-spark-flash 1.5s step-end infinite; animation-delay: 0.75s; }
+          @keyframes happy-jump {
+            0%,100% { transform: translateY(0) scaleY(1); }
+            12%     { transform: translateY(0) scaleY(0.86); }
+            30%     { transform: translateY(-7px) scaleY(1.07); }
+            50%     { transform: translateY(-8px) scaleY(1); }
+            70%     { transform: translateY(-7px) scaleY(1.07); }
+            88%     { transform: translateY(0) scaleY(0.86); }
+          }
+          @keyframes happy-shadow {
+            0%,100% { transform: scaleX(1); opacity: 0.35; }
+            30%,70% { transform: scaleX(0.4); opacity: 0.07; }
+          }
+          @keyframes happy-arm-l {
+            from { transform: rotate(-55deg); }
+            to   { transform: rotate(-65deg); }
+          }
+          @keyframes happy-arm-r {
+            from { transform: rotate(55deg); }
+            to   { transform: rotate(65deg); }
+          }
+          @keyframes happy-spark-flash {
+            0%  { opacity: 0; }
+            10% { opacity: 1; }
+            30% { opacity: 0; }
+            100%{ opacity: 0; }
+          }
+        </style>
+      </defs>
+      <!-- sparkles — pixel cross shapes -->
+      <g class="happy-spark happy-sp1" fill="#FFD700">
+        <rect x="1" y="4" width="1" height="1"/>
+        <rect x="0" y="5" width="3" height="0.5"/>
+        <rect x="1" y="6" width="1" height="1"/>
+      </g>
+      <g class="happy-spark happy-sp2" fill="#FF9F3F">
+        <rect x="19" y="2" width="1" height="1"/>
+        <rect x="18" y="3" width="3" height="0.5"/>
+        <rect x="19" y="4" width="1" height="1"/>
+      </g>
+      <g class="happy-spark happy-sp3" fill="#FFF59D">
+        <rect x="20" y="11" width="1" height="1"/>
+        <rect x="19" y="12" width="3" height="0.5"/>
+        <rect x="20" y="13" width="1" height="1"/>
+      </g>
+      <g class="happy-spark happy-sp4" fill="#FFB3C6">
+        <rect x="-2" y="10" width="1" height="1"/>
+        <rect x="-3" y="11" width="3" height="0.5"/>
+        <rect x="-2" y="12" width="1" height="1"/>
+      </g>
+      <ellipse class="happy-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <g class="happy-body">
+        <!-- arms both raised high -->
+        <g class="happy-arm-l">
+          <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.8" transform="rotate(45 3.5 10.5)"/>
+        </g>
+        <g class="happy-arm-r">
+          <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.8" transform="rotate(45 18.5 10.5)"/>
+        </g>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+        <!-- ^^ arc eyes -->
+        <path d="M9 10.5 Q10 9.2 11 10.5" stroke="#111827" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+        <path d="M11 10.5 Q12 9.2 13 10.5" stroke="#111827" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+        <!-- rosy blush cheeks -->
+        <ellipse cx="8" cy="12.5" rx="1.2" ry="0.7" fill="#e08090" opacity="0.5"/>
+        <ellipse cx="14" cy="12.5" rx="1.2" ry="0.7" fill="#e08090" opacity="0.5"/>
+        <!-- wide smile -->
+        <path d="M8 13 Q11 17.5 14 13" stroke="#111827" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>happy</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       SLEEPING — 还原用户设计稿：压扁趴地+zzz飘浮+呼吸
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .sleep-body {
+            transform-origin: 11px 15px;
+            animation: sleep-breathe 4s ease-in-out infinite;
+          }
+          .sleep-z1 { animation: sleep-zzz1 5s ease-in-out infinite; animation-delay: 0s; opacity: 0; }
+          .sleep-z2 { animation: sleep-zzz2 5s ease-in-out infinite; animation-delay: 1.6s; opacity: 0; }
+          .sleep-z3 { animation: sleep-zzz3 5s ease-in-out infinite; animation-delay: 3.2s; opacity: 0; }
+          @keyframes sleep-breathe {
+            0%,100% { transform: scaleY(1) scaleX(1); }
+            40%,60% { transform: scaleY(1.14) scaleX(0.94); }
+          }
+          @keyframes sleep-zzz1 {
+            0%   { opacity:0; transform: translate(14px,4px) scale(0.5); }
+            15%  { opacity:0.9; }
+            80%  { opacity:0.5; }
+            100% { opacity:0; transform: translate(18px,-4px) scale(0.9); }
+          }
+          @keyframes sleep-zzz2 {
+            0%   { opacity:0; transform: translate(16px,2px) scale(0.4); }
+            15%  { opacity:0.85; }
+            80%  { opacity:0.45; }
+            100% { opacity:0; transform: translate(21px,-6px) scale(0.8); }
+          }
+          @keyframes sleep-zzz3 {
+            0%   { opacity:0; transform: translate(12px,6px) scale(0.35); }
+            15%  { opacity:0.8; }
+            80%  { opacity:0.4; }
+            100% { opacity:0; transform: translate(16px,-2px) scale(0.7); }
+          }
+        </style>
+        <!-- pixel Z shape -->
+        <g id="sleep-pz">
+          <rect x="0" y="0" width="3" height="0.7"/>
+          <rect x="1.6" y="0.7" width="0.8" height="0.8"/>
+          <rect x="0.7" y="1.5" width="0.8" height="0.8"/>
+          <rect x="0" y="2.3" width="3" height="0.7"/>
+        </g>
+      </defs>
+      <!-- floating zzz -->
+      <use href="#sleep-pz" class="sleep-z1" fill="#8891b8"/>
+      <use href="#sleep-pz" class="sleep-z2" fill="#a0a8c8"/>
+      <use href="#sleep-pz" class="sleep-z3" fill="#c0c8e0"/>
+
+      <g class="sleep-body">
+        <!-- 左手（大灰色，偏下） -->
+        <rect x="2" y="14" width="3" height="3" rx="1.5" fill="#97A0C5" fill-opacity="0.7"/>
+        <!-- 压扁的身体（宽扁椭圆） -->
+        <rect x="3" y="7" width="16" height="10" rx="5" fill="#97A0C5"/>
+        <!-- 帽子（正三角，不歪） -->
+        <path d="M14.2041 6.84961L7.7959 6.84961L11 1.2998L14.2041 6.84961Z" fill="#FF5B24" stroke="#FF5B24" stroke-width="0.3"/>
+        <!-- 底座 -->
+        <rect x="2" y="17" width="18" height="1" rx="0.3" fill="#D9D9D9"/>
+        <!-- 右手（浅色，偏右下） -->
+        <path d="M16.3402 14.3464C17.0804 13.6028 18.2833 13.6 19.0269 14.3402C19.7705 15.0804 19.7733 16.2833 19.0331 17.0269C18.2929 17.7705 17.0901 17.7733 16.3464 17.0331C15.6028 16.2929 15.6 15.0901 16.3402 14.3464Z" fill="#B9C3EB"/>
+        <!-- 闭眼横线 -->
+        <path d="M8 11H11" stroke="black" stroke-linecap="round"/>
+        <!-- 安详微笑 -->
+        <path d="M7 13C8.85289 15.1176 12.1471 15.1176 14 13" stroke="black" stroke-linecap="round"/>
+      </g>
+    </svg>
+    <span>sleeping</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       ERROR — shake + X eyes + hat flying + red tint
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .err-body {
+            animation: err-shake 0.38s ease-in-out infinite;
+          }
+          .err-hat {
+            transform-origin: 11px 4px;
+            animation: err-hat-fly 0.76s ease-in-out infinite;
+          }
+          .err-arm-l {
+            transform-origin: 3.5px 10.5px;
+            animation: err-arm-l 0.38s ease-in-out infinite;
+          }
+          .err-arm-r {
+            transform-origin: 18.5px 10.5px;
+            animation: err-arm-r 0.38s ease-in-out infinite;
+          }
+          .err-shadow {
+            transform-origin: 11px 22.5px;
+            animation: err-shadow-shake 0.38s ease-in-out infinite;
+          }
+          @keyframes err-shake {
+            0%,100% { transform: translateX(0) rotate(0deg); }
+            20%     { transform: translateX(-2px) rotate(-2.5deg); }
+            40%     { transform: translateX(2px) rotate(2.5deg); }
+            60%     { transform: translateX(-1.5px) rotate(-1.5deg); }
+            80%     { transform: translateX(1.5px) rotate(1.5deg); }
+          }
+          @keyframes err-hat-fly {
+            0%,100% { transform: translateX(0) translateY(0) rotate(0deg); }
+            25%     { transform: translateX(3px) translateY(-5px) rotate(20deg); }
+            50%     { transform: translateX(1px) translateY(-3px) rotate(10deg); }
+            75%     { transform: translateX(-2px) translateY(-4px) rotate(-12deg); }
+          }
+          @keyframes err-arm-l {
+            0%,100% { transform: rotate(0deg); }
+            30%     { transform: rotate(-40deg); }
+            70%     { transform: rotate(20deg); }
+          }
+          @keyframes err-arm-r {
+            0%,100% { transform: rotate(0deg); }
+            30%     { transform: rotate(40deg); }
+            70%     { transform: rotate(-20deg); }
+          }
+          @keyframes err-shadow-shake {
+            0%,100% { opacity: 0.35; }
+            50%     { opacity: 0.2; }
+          }
+        </style>
+      </defs>
+      <ellipse class="err-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <!-- hat flying separately above body -->
+      <g class="err-hat">
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+      </g>
+      <g class="err-body">
+        <!-- flailing arms -->
+        <g class="err-arm-l">
+          <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 3.5 10.5)"/>
+        </g>
+        <g class="err-arm-r">
+          <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 18.5 10.5)"/>
+        </g>
+        <!-- body with red tint hint -->
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#a090b5"/>
+        <!-- X eyes -->
+        <line x1="9" y1="9.5" x2="11" y2="11.5" stroke="#111827" stroke-width="1.1" stroke-linecap="round"/>
+        <line x1="11" y1="9.5" x2="9" y2="11.5" stroke="#111827" stroke-width="1.1" stroke-linecap="round"/>
+        <line x1="11" y1="9.5" x2="13" y2="11.5" stroke="#111827" stroke-width="1.1" stroke-linecap="round"/>
+        <line x1="13" y1="9.5" x2="11" y2="11.5" stroke="#111827" stroke-width="1.1" stroke-linecap="round"/>
+        <!-- worried inverted arc mouth -->
+        <path d="M8.5 14.5 Q11 12.5 13.5 14.5" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>error</span>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════
+       NOTIFICATION — startled jump + decaying bounces + ! alert
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .notif-body {
+            transform-origin: 11px 18px;
+            animation: notif-jump 3.5s ease-in-out infinite;
+          }
+          .notif-shadow {
+            transform-origin: 11px 22.5px;
+            animation: notif-shadow 3.5s ease-in-out infinite;
+          }
+          .notif-arm-l {
+            transform-origin: 3.5px 10.5px;
+            animation: notif-arm-l 3.5s ease-in-out infinite;
+          }
+          .notif-arm-r {
+            transform-origin: 18.5px 10.5px;
+            animation: notif-arm-r 3.5s ease-in-out infinite;
+          }
+          .notif-eye {
+            transform-origin: 11px 11px;
+            animation: notif-eye 3.5s ease-in-out infinite;
+          }
+          .notif-alert {
+            transform-origin: 18px 2px;
+            animation: notif-alert 3.5s ease-in-out infinite;
+            opacity: 0;
+          }
+          @keyframes notif-jump {
+            0%,100% { transform: translateY(0) scaleY(1); }
+            8%      { transform: translateY(0) scaleY(0.9); }
+            18%     { transform: translateY(-10px) scaleY(1.06); }
+            26%     { transform: translateY(0) scaleY(0.91); }
+            34%     { transform: translateY(-6px) scaleY(1.03); }
+            40%     { transform: translateY(0) scaleY(0.94); }
+            47%     { transform: translateY(-3px) scaleY(1.02); }
+            53%     { transform: translateY(0) scaleY(0.97); }
+            58%     { transform: translateY(-1px) scaleY(1.01); }
+            63%,100%{ transform: translateY(0) scaleY(1); }
+          }
+          @keyframes notif-shadow {
+            0%,100% { transform: scaleX(1); opacity: 0.35; }
+            18%     { transform: scaleX(0.4); opacity: 0.08; }
+            26%     { transform: scaleX(1.06); opacity: 0.42; }
+            34%     { transform: scaleX(0.58); opacity: 0.16; }
+            40%     { transform: scaleX(1); opacity: 0.35; }
+            47%     { transform: scaleX(0.75); opacity: 0.24; }
+          }
+          @keyframes notif-arm-l {
+            0%,100% { transform: rotate(0deg); }
+            18%     { transform: rotate(130deg); }
+            34%     { transform: rotate(90deg); }
+            47%     { transform: rotate(50deg); }
+            63%     { transform: rotate(0deg); }
+          }
+          @keyframes notif-arm-r {
+            0%,100% { transform: rotate(0deg); }
+            18%     { transform: rotate(-130deg); }
+            34%     { transform: rotate(-90deg); }
+            47%     { transform: rotate(-50deg); }
+            63%     { transform: rotate(0deg); }
+          }
+          @keyframes notif-eye {
+            0%,6%,100% { transform: translate(0,0) scaleY(1); }
+            3%          { transform: translate(2px,0) scaleY(0.1); }
+            9%          { transform: translate(2px,0) scaleY(1); }
+            63%         { transform: translate(0,0) scaleY(1); }
+          }
+          @keyframes notif-alert {
+            0%    { opacity: 0; transform: scale(0.2); }
+            5%    { opacity: 1; transform: scale(1.4); }
+            10%   { opacity: 1; transform: scale(1); }
+            55%   { opacity: 1; transform: scale(1); }
+            63%   { opacity: 0; transform: scale(0.4); }
+            100%  { opacity: 0; }
+          }
+        </style>
+      </defs>
+      <!-- exclamation mark pop -->
+      <g class="notif-alert" fill="#FF6B35">
+        <rect x="17" y="-9" width="2" height="5.5" rx="1"/>
+        <rect x="17" y="-2" width="2" height="2" rx="1"/>
+      </g>
+      <ellipse class="notif-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <g class="notif-body">
+        <g class="notif-arm-l">
+          <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.8" transform="rotate(45 3.5 10.5)"/>
+        </g>
+        <g class="notif-arm-r">
+          <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.8" transform="rotate(45 18.5 10.5)"/>
+        </g>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+        <g class="notif-eye">
+          <rect x="10" y="10" width="2" height="2" fill="#111827"/>
+        </g>
+        <path d="M8 13.5 Q11 16.5 14 13.5" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>notification</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       WAKING — sleeping 趴地造型 → 淡入切换到正常 → 伸懒腰 → 落回
+       两层身体交叉淡入淡出：flat body → round body
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        /* 整体上移：从趴地位置升起 */
+        .wake-all {
+          transform-origin: 11px 17px;
+          animation: wake-lift 4s ease-in-out infinite;
+        }
+        /* 扁身体：开始可见，慢慢消失 */
+        .wake-flat { animation: wake-flat-out 4s ease-in-out infinite; }
+        /* 圆身体：开始不可见，慢慢出现 + 伸懒腰 */
+        .wake-round {
+          transform-origin: 11px 12px;
+          animation: wake-round-in 4s ease-in-out infinite;
+        }
+        .wake-eye { transform-origin:11px 11px; animation:wake-eye 4s ease-in-out infinite; }
+        .wake-arm-l { transform-origin:3.5px 13px; animation:wake-arm-l 4s ease-in-out infinite; }
+        .wake-arm-r { transform-origin:18px 13px; animation:wake-arm-r 4s ease-in-out infinite; }
+        .wake-base { animation:wake-base 4s ease-in-out infinite; }
+        .wake-z1 { animation:wake-z 4s ease-in-out infinite; animation-delay:0s; }
+        .wake-z2 { animation:wake-z 4s ease-in-out infinite; animation-delay:.3s; }
+        .wake-z3 { animation:wake-z 4s ease-in-out infinite; animation-delay:.6s; }
+        .wake-star { opacity:0; }
+        .wake-star1 { animation:wake-star-pop 4s ease-out infinite; animation-delay:2.2s; }
+        .wake-star2 { animation:wake-star-pop 4s ease-out infinite; animation-delay:2.4s; }
+        .wake-star3 { animation:wake-star-pop 4s ease-out infinite; animation-delay:2.6s; }
+
+        /* 整体从下往上升 */
+        @keyframes wake-lift {
+          0%,12%  { transform: translateY(4px); }
+          35%     { transform: translateY(0); }
+          50%     { transform: translateY(-6px); }
+          65%     { transform: translateY(1px); }
+          78%     { transform: translateY(-2px); }
+          90%,100%{ transform: translateY(0); }
+        }
+        /* 扁身体淡出 */
+        @keyframes wake-flat-out {
+          0%,15%  { opacity: 1; }
+          35%,100%{ opacity: 0; }
+        }
+        /* 圆身体淡入 + 伸懒腰拉伸 */
+        @keyframes wake-round-in {
+          0%,15%  { opacity: 0; transform: scaleY(0.7) scaleX(1.2); }
+          30%     { opacity: 1; transform: scaleY(1) scaleX(1); }
+          45%     { transform: scaleY(1.2) scaleX(0.88); }
+          60%     { transform: scaleY(0.93) scaleX(1.05); }
+          75%     { transform: scaleY(1.03) scaleX(0.98); }
+          85%,100%{ transform: scaleY(1) scaleX(1); }
+        }
+        @keyframes wake-eye {
+          0%,20%  { transform: scaleY(0.05); }
+          32%     { transform: scaleY(0.4); }
+          38%     { transform: scaleY(1.4); }
+          48%,100%{ transform: scaleY(1); }
+        }
+        @keyframes wake-arm-l {
+          0%,20%  { transform: rotate(15deg) translateY(3px); }
+          45%     { transform: rotate(-140deg) translateY(-3px); }
+          58%     { transform: rotate(-150deg) translateY(-4px); }
+          75%,100%{ transform: rotate(0); }
+        }
+        @keyframes wake-arm-r {
+          0%,20%  { transform: rotate(-15deg) translateY(3px); }
+          45%     { transform: rotate(140deg) translateY(-3px); }
+          58%     { transform: rotate(150deg) translateY(-4px); }
+          75%,100%{ transform: rotate(0); }
+        }
+        @keyframes wake-base {
+          0%,18%  { opacity: 1; }
+          38%,100%{ opacity: 0; }
+        }
+        @keyframes wake-z {
+          0%,5%   { transform:translate(14px,4px) scale(.5); opacity:.9; }
+          15%     { transform:translate(18px,-4px) scale(.9); opacity:.6; }
+          25%     { transform:translate(20px,-10px) scale(.4); opacity:0; }
+          26%,100%{ opacity:0; transform:scale(0); }
+        }
+        @keyframes wake-star-pop {
+          0%    { transform:translate(0,0) scale(0); opacity:0; }
+          15%   { transform:translate(var(--tx),var(--ty)) scale(1.2); opacity:1; }
+          40%   { transform:translate(var(--tx2),var(--ty2)) scale(.8); opacity:.7; }
+          70%,100%{ opacity:0; }
+        }
+      </style>
+      <g id="wake-pz"><rect x="0" y="0" width="3" height="0.7"/><rect x="1.6" y="0.7" width="0.8" height="0.8"/><rect x="0.7" y="1.5" width="0.8" height="0.8"/><rect x="0" y="2.3" width="3" height="0.7"/></g>
+      </defs>
+
+      <!-- zzz 飘出 -->
+      <use href="#wake-pz" class="wake-z1" fill="#8891b8"/>
+      <use href="#wake-pz" class="wake-z2" fill="#a0a8c8"/>
+      <use href="#wake-pz" class="wake-z3" fill="#c0c8e0"/>
+
+      <!-- 底座（趴着时有，起来后消失） -->
+      <rect class="wake-base" x="2" y="18" width="18" height="1" rx="0.3" fill="#D9D9D9"/>
+
+      <g class="wake-all">
+        <!-- 手臂 -->
+        <g class="wake-arm-l"><rect x="1" y="12" width="3.5" height="3.5" rx="1.75" fill="#97A0C5" fill-opacity="0.7"/></g>
+        <g class="wake-arm-r"><path d="M16.34 14.35C17.08 13.6 18.28 13.6 19.03 14.34C19.77 15.08 19.77 16.28 19.03 17.03C18.29 17.77 17.09 17.77 16.35 17.03C15.6 16.29 15.6 15.09 16.34 14.35Z" fill="#B9C3EB"/></g>
+
+        <!-- 扁身体层（sleeping 造型，淡出） -->
+        <g class="wake-flat">
+          <rect x="3" y="7" width="16" height="10" rx="5" fill="#97A0C5"/>
+          <path d="M14.2041 6.85L7.7959 6.85L11 1.3L14.2041 6.85Z" fill="#FF5B24"/>
+          <path d="M8 11H11" stroke="black" stroke-linecap="round"/>
+          <path d="M7 13C8.85 15.12 12.15 15.12 14 13" stroke="black" stroke-linecap="round"/>
+        </g>
+
+        <!-- 圆身体层（idle 造型，淡入 + 伸懒腰） -->
+        <g class="wake-round">
+          <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+          <path d="M14.2041 6.85L7.7959 6.85L11 1.3L14.2041 6.85Z" fill="#FF5B24"/>
+          <g class="wake-eye"><rect x="10" y="10" width="2" height="2" rx="1" fill="#111827"/></g>
+          <path d="M8 13.5 Q11 17 14 13.5" stroke="#111827" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+        </g>
+      </g>
+
+      <!-- 星星 -->
+      <rect class="wake-star wake-star1" x="11" y="8" width="1.5" height="1.5" rx="0.4" fill="#FFD700"
+            style="--tx:-8px;--ty:-10px;--tx2:-10px;--ty2:-14px;"/>
+      <rect class="wake-star wake-star2" x="11" y="8" width="1.2" height="1.2" rx="0.3" fill="#FF5B24"
+            style="--tx:8px;--ty:-12px;--tx2:11px;--ty2:-16px;"/>
+      <rect class="wake-star wake-star3" x="11" y="8" width="1" height="1" rx="0.25" fill="#94BDFF"
+            style="--tx:-5px;--ty:-14px;--tx2:-7px;--ty2:-18px;"/>
+    </svg>
+    <span>waking</span>
+  </div>
+
+</div>
+
+<!-- ══════════ ROW 3 — new states ══════════ -->
+<div class="row">
+
+  <!-- ═══════════════════════════════════════════════
+       SWEEPING — 拿扫帚扫地，身体左右摇摆Q弹
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .sw-all {
+          transform-origin: 11px 17px;
+          animation: sw-sway 0.7s ease-in-out infinite alternate;
+        }
+        .sw-broom {
+          transform-origin: 11px 19px;
+          animation: sw-broom 0.7s ease-in-out infinite alternate;
+        }
+        .sw-dust1 { animation: sw-dust 1.4s ease-out infinite; animation-delay: 0s; }
+        .sw-dust2 { animation: sw-dust 1.4s ease-out infinite; animation-delay: 0.35s; }
+        .sw-dust3 { animation: sw-dust 1.4s ease-out infinite; animation-delay: 0.7s; }
+        .sw-shadow {
+          transform-origin: 11px 25px;
+          animation: sw-shadow 0.7s ease-in-out infinite alternate;
+        }
+        @keyframes sw-sway {
+          from { transform: rotate(-7deg) translateY(0) scaleX(1.04); }
+          to   { transform: rotate(7deg) translateY(-1px) scaleX(0.96); }
+        }
+        @keyframes sw-broom {
+          from { transform: rotate(-18deg); }
+          to   { transform: rotate(18deg); }
+        }
+        @keyframes sw-dust {
+          0%   { transform: translate(0,0) scale(1); opacity: 0.8; }
+          100% { transform: translate(-6px, -4px) scale(0.3); opacity: 0; }
+        }
+        @keyframes sw-shadow {
+          from { transform: scaleX(1.1); opacity: 0.28; }
+          to   { transform: scaleX(0.85); opacity: 0.18; }
+        }
+      </style></defs>
+
+      <ellipse class="sw-shadow" cx="11" cy="25" rx="7" ry="0.75" fill="#c0c0c0"/>
+
+      <g class="sw-all">
+        <!-- 扫帚（在身体下方斜放） -->
+        <g class="sw-broom">
+          <!-- 扫帚柄 -->
+          <rect x="9.5" y="16" width="1.2" height="9" rx="0.6" fill="#c8a96e"/>
+          <!-- 扫帚头 -->
+          <rect x="5" y="23.5" width="10" height="2.5" rx="1" fill="#e0c070"/>
+          <!-- 刷毛线条 -->
+          <line x1="6.5"  y1="24" x2="6"   y2="26.5" stroke="#b89040" stroke-width="0.5"/>
+          <line x1="8.5"  y1="24" x2="8.2" y2="26.5" stroke="#b89040" stroke-width="0.5"/>
+          <line x1="10.5" y1="24" x2="10.5" y2="26.5" stroke="#b89040" stroke-width="0.5"/>
+          <line x1="12.5" y1="24" x2="12.8" y2="26.5" stroke="#b89040" stroke-width="0.5"/>
+          <line x1="14"   y1="24" x2="14.5" y2="26.5" stroke="#b89040" stroke-width="0.5"/>
+        </g>
+        <!-- 尘土粒子 -->
+        <rect class="sw-dust1" x="4"  y="24" width="1.5" height="1.5" rx="0.5" fill="#9098b0" opacity="0.7"/>
+        <rect class="sw-dust2" x="2"  y="23" width="1"   height="1"   rx="0.3" fill="#9098b0" opacity="0.6"/>
+        <rect class="sw-dust3" x="5"  y="22" width="0.8" height="0.8" rx="0.3" fill="#9098b0" opacity="0.5"/>
+
+        <!-- 左手握扫帚 -->
+        <rect x="7" y="14" width="3" height="3" rx="1.5" fill="#97A0C5" fill-opacity="0.75"/>
+        <!-- 右手也扶着 -->
+        <rect x="13" y="16" width="3" height="3" rx="1.5" fill="#97A0C5" fill-opacity="0.75"/>
+
+        <!-- 身体 -->
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <!-- 帽子 -->
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <!-- 眼睛（专注眯眼） -->
+        <rect x="9" y="11" width="4" height="1.2" rx="0.6" fill="#111827"/>
+        <!-- 认真小嘴 -->
+        <path d="M9 14 Q11 15.5 13 14" stroke="#111827" stroke-width="0.9" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>sweeping</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       BUILDING — 拿积木/齿轮在构建，身体上下弹跳
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .bd-all {
+          transform-origin: 11px 17px;
+          animation: bd-bounce 0.55s cubic-bezier(0.36,0.07,0.19,0.97) infinite;
+        }
+        .bd-gear {
+          transform-origin: 19px 8px;
+          animation: bd-spin 2s linear infinite;
+        }
+        .bd-block-l {
+          transform-origin: 4px 16px;
+          animation: bd-wobble-l 0.55s ease-in-out infinite alternate;
+        }
+        .bd-block-r {
+          transform-origin: 18px 16px;
+          animation: bd-wobble-r 0.55s ease-in-out infinite alternate;
+        }
+        .bd-spark1 { animation: bd-spark 1s ease-out infinite; animation-delay: 0s; }
+        .bd-spark2 { animation: bd-spark 1s ease-out infinite; animation-delay: 0.33s; }
+        .bd-spark3 { animation: bd-spark 1s ease-out infinite; animation-delay: 0.66s; }
+        .bd-shadow {
+          transform-origin: 11px 25px;
+          animation: bd-shadow 0.55s cubic-bezier(0.36,0.07,0.19,0.97) infinite;
+        }
+        @keyframes bd-bounce {
+          0%,100% { transform: translateY(0) scaleY(1) scaleX(1); }
+          30%     { transform: translateY(-3px) scaleY(1.06) scaleX(0.95); }
+          60%     { transform: translateY(1.5px) scaleY(0.94) scaleX(1.05); }
+        }
+        @keyframes bd-spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        @keyframes bd-wobble-l {
+          from { transform: rotate(-10deg) translateY(0); }
+          to   { transform: rotate(5deg) translateY(-2px); }
+        }
+        @keyframes bd-wobble-r {
+          from { transform: rotate(10deg) translateY(-2px); }
+          to   { transform: rotate(-5deg) translateY(0); }
+        }
+        @keyframes bd-spark {
+          0%   { transform: translate(0,0) scale(1); opacity: 1; }
+          100% { transform: translate(3px,-6px) scale(0.2); opacity: 0; }
+        }
+        @keyframes bd-shadow {
+          0%,100% { transform: scaleX(1); opacity: 0.3; }
+          30%     { transform: scaleX(0.8); opacity: 0.15; }
+          60%     { transform: scaleX(1.1); opacity: 0.35; }
+        }
+      </style></defs>
+
+      <ellipse class="bd-shadow" cx="11" cy="25" rx="7" ry="0.75" fill="#c0c0c0"/>
+
+      <g class="bd-all">
+        <!-- 齿轮（右上角旋转） -->
+        <g class="bd-gear">
+          <circle cx="19" cy="8" r="3" fill="none" stroke="#ffc94d" stroke-width="1.2"/>
+          <circle cx="19" cy="8" r="1.2" fill="#ffc94d"/>
+          <!-- 齿 -->
+          <rect x="18.3" y="4.5" width="1.4" height="1.2" rx="0.3" fill="#ffc94d"/>
+          <rect x="18.3" y="10.3" width="1.4" height="1.2" rx="0.3" fill="#ffc94d"/>
+          <rect x="15.5" y="7.3" width="1.2" height="1.4" rx="0.3" fill="#ffc94d"/>
+          <rect x="21.3" y="7.3" width="1.2" height="1.4" rx="0.3" fill="#ffc94d"/>
+        </g>
+
+        <!-- 火花 -->
+        <rect class="bd-spark1" x="17" y="12" width="1" height="1" rx="0.3" fill="#FFD700"/>
+        <rect class="bd-spark2" x="19" y="14" width="0.8" height="0.8" rx="0.2" fill="#FF9500"/>
+        <rect class="bd-spark3" x="15" y="13" width="0.7" height="0.7" rx="0.2" fill="#FFD700"/>
+
+        <!-- 左手拿积木 -->
+        <g class="bd-block-l">
+          <rect x="1" y="13" width="4" height="4" rx="0.8" fill="#7c91e8"/>
+          <rect x="2.5" y="11.8" width="1" height="1.5" rx="0.4" fill="#7c91e8"/>
+        </g>
+        <!-- 右手拿积木 -->
+        <g class="bd-block-r">
+          <rect x="17" y="13" width="4" height="4" rx="0.8" fill="#e87c7c"/>
+          <rect x="18.5" y="11.8" width="1" height="1.5" rx="0.4" fill="#e87c7c"/>
+        </g>
+
+        <!-- 身体 -->
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <!-- 帽子 -->
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <!-- 眼睛（开心眯眼，专注状） -->
+        <path d="M9 11 Q11 9.5 13 11" stroke="#111827" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+        <!-- 嘴巴（咬牙专注） -->
+        <path d="M9 14 Q11 16 13 14" stroke="#111827" stroke-width="0.9" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>building</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       JUGGLING — 还原用户设计稿：正面笑脸+三彩球抛物线
+       球：绿(左上) 黄(左中) 粉红(右中) → cascade 轨迹
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .jg-body { transform-origin:11px 13px; animation:jg-lean .8s ease-in-out infinite; }
+        .jg-ba { animation:jg-casc 2.4s ease-in-out infinite; animation-delay:0s; }
+        .jg-bb { animation:jg-casc 2.4s ease-in-out infinite; animation-delay:-.8s; }
+        .jg-bc { animation:jg-casc 2.4s ease-in-out infinite; animation-delay:-1.6s; }
+        .jg-shadow { transform-origin:11px 22px; animation:jg-shadow .8s ease-in-out infinite; }
+        @keyframes jg-casc {
+          0%  {transform:translate(3px,18px) scale(1.1)}
+          15% {transform:translate(5px,6px) scale(.9)}
+          30% {transform:translate(8px,-4px) scale(.75)}
+          50% {transform:translate(11px,-10px) scale(.6)}
+          70% {transform:translate(15px,-2px) scale(.8)}
+          85% {transform:translate(18px,10px) scale(1)}
+          100%{transform:translate(19px,18px) scale(1.1)}
+        }
+        @keyframes jg-lean { 0%{transform:rotate(-4deg) scaleX(1.02)} 50%{transform:rotate(4deg) translateY(-1px) scaleX(.98)} 100%{transform:rotate(-4deg) scaleX(1.02)} }
+        @keyframes jg-shadow { 0%,100%{transform:scaleX(1);opacity:.3} 50%{transform:scaleX(.9);opacity:.2} }
+      </style></defs>
+
+      <!-- 底座 -->
+      <rect x="7" y="21" width="8" height="1" rx="0.3" fill="#D9D9D9"/>
+      <ellipse class="jg-shadow" cx="11" cy="22" rx="6" ry="0.6" fill="#c0c0c0"/>
+
+      <!-- 三彩球（cascade 轨迹，错开 0.8s） -->
+      <!-- 绿球 -->
+      <circle class="jg-ba" cx="0" cy="0" r="1.8" fill="#0FDC00"/>
+      <!-- 黄球 -->
+      <circle class="jg-bb" cx="0" cy="0" r="1.8" fill="#FEBE06"/>
+
+      <g class="jg-body">
+        <!-- 左手（大，偏下） -->
+        <rect x="2" y="12" width="3" height="3" rx="1.5" fill="#97A0C5" fill-opacity="0.7"/>
+        <!-- 身体 -->
+        <rect x="5" y="7" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <!-- 帽子（歪到右上） -->
+        <path d="M15.3438 9.33833L9.28918 7.49817L13.5373 4.40143L15.3438 9.33833Z" fill="#FF5B24" stroke="#FF5B24" stroke-width="0.3"/>
+        <!-- 眼睛（单圆眼） -->
+        <rect x="10" y="11" width="2" height="2" rx="1" fill="black"/>
+        <!-- 弧线笑嘴 -->
+        <path d="M9 14C9.95144 15.4272 12.0486 15.4272 13 14" stroke="black" stroke-linecap="round"/>
+        <!-- 右手（小，右侧） -->
+        <path d="M17.0582 13.0631C17.6426 12.476 18.5924 12.4738 19.1795 13.0582C19.7667 13.6426 19.7689 14.5924 19.1844 15.1795C18.6 15.7667 17.6502 15.7689 17.0631 15.1844C16.476 14.6 16.4738 13.6502 17.0582 13.0631Z" fill="#B6BDD6"/>
+      </g>
+
+      <!-- 粉红球（最上层） -->
+      <circle class="jg-bc" cx="0" cy="0" r="1.8" fill="#FE4F4F"/>
+    </svg>
+    <span>juggling</span>
+  </div>
+
+</div>
+
+<!-- ══════════ ROW 4 — new interaction states ══════════ -->
+<div class="row">
+
+  <!-- ═══════════════════════════════════════════════
+       DRAGGING — 被拖拽，>< 箭头眼，帽子歪，身体拉伸
+       完全还原用户设计稿 dragging.svg
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .drag-all { transform-origin:11px 13px; animation:drag-stretch .4s ease-in-out infinite alternate; }
+        .drag-hat { transform-origin:12px 5px; animation:drag-hat-wobble .35s ease-in-out infinite alternate; }
+        .drag-shadow { transform-origin:11px 22px; animation:drag-shadow .4s ease-in-out infinite alternate; }
+        @keyframes drag-stretch { from{transform:translateY(-2px) scaleY(1.12) scaleX(.92)} to{transform:translateY(1px) scaleY(.9) scaleX(1.05)} }
+        @keyframes drag-hat-wobble { from{transform:rotate(-18deg) translateY(-2px)} to{transform:rotate(5deg) translateY(0)} }
+        @keyframes drag-shadow { from{transform:scaleX(.5);opacity:.12} to{transform:scaleX(1.15);opacity:.3} }
+      </style></defs>
+      <ellipse class="drag-shadow" cx="11" cy="22" rx="5" ry="0.6" fill="#c0c0c0"/>
+      <g class="drag-all">
+        <!-- 左手（小，偏下） -->
+        <rect x="2" y="13" width="3" height="3" rx="1.5" fill="#BECAFF"/>
+        <!-- 身体（稍长） -->
+        <rect x="5" y="7" width="12" height="13" rx="6" fill="#97A0C5"/>
+        <!-- 帽子（歪到右上，快掉的感觉） -->
+        <g class="drag-hat">
+          <path d="M14.5148 7.50564L8.32217 5.85753L12.8458 1.31847L14.5148 7.50564Z" fill="#FF5B24" stroke="#FF5B24" stroke-width="0.3"/>
+        </g>
+        <!-- >< 箭头眼（折线样式，参照设计稿） -->
+        <!-- > 右箭头 -->
+        <path d="M13.7 13.5L12 12.3L13.7 11" stroke="black" stroke-width="0.7" stroke-linecap="round" fill="none"/>
+        <!-- < 左箭头 -->
+        <path d="M8 11L9.7 12.3L8 13.5" stroke="black" stroke-width="0.7" stroke-linecap="round" fill="none"/>
+        <!-- 右手（大圆，右侧） -->
+        <path d="M16.0582 10.0631C16.6426 9.47597 17.5924 9.47377 18.1795 10.0582C18.7667 10.6426 18.7689 11.5924 18.1844 12.1795C17.6 12.7667 16.6502 12.7689 16.0631 12.1844C15.476 11.6 15.4738 10.6502 16.0582 10.0631Z" fill="#BECAFF"/>
+      </g>
+    </svg>
+    <span>dragging</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       YAWNING — 打哈欠，眼睛半闭弧线，粉色张嘴，一只手捂嘴，身体后仰
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .yawn-body { transform-origin:11px 18px; animation:yawn-lean 3.5s ease-in-out infinite; }
+        .yawn-mouth { transform-origin:11px 14.5px; animation:yawn-open 3.5s ease-in-out infinite; }
+        .yawn-hand { transform-origin:16px 14px; animation:yawn-hand 3.5s ease-in-out infinite; }
+        .yawn-shadow { transform-origin:11px 22.5px; animation:yawn-shadow 3.5s ease-in-out infinite; }
+        @keyframes yawn-lean { 0%,100%{transform:translateY(0) rotate(0)} 35%,65%{transform:translateY(-1px) rotate(-4deg)} }
+        @keyframes yawn-open { 0%,15%{transform:scale(.4)} 30%{transform:scale(1.1)} 50%{transform:scale(1.3)} 70%{transform:scale(1)} 85%,100%{transform:scale(.4)} }
+        @keyframes yawn-hand { 0%,15%{transform:rotate(0) translateY(0)} 30%,70%{transform:rotate(-40deg) translateY(-2px)} 85%,100%{transform:rotate(0) translateY(0)} }
+        @keyframes yawn-shadow { 0%,100%{transform:scaleX(1);opacity:.3} 50%{transform:scaleX(1.03);opacity:.35} }
+      </style></defs>
+      <ellipse class="yawn-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <g class="yawn-body">
+        <!-- 左手垂下 -->
+        <rect x="2" y="10" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.6" transform="rotate(45 3.5 11.5)"/>
+        <!-- 右手捂嘴（动画抬起） -->
+        <g class="yawn-hand">
+          <rect x="16" y="10" width="3.5" height="3.5" rx="1.75" fill="#8891b8" opacity="0.8"/>
+        </g>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35" transform="rotate(-6 11 5)"/>
+        <!-- 半闭眼（向下弧线，困的感觉） -->
+        <path d="M8.5 11.5 Q9.5 10.5 10.5 11.5" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <path d="M11.5 11.5 Q12.5 10.5 13.5 11.5" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <!-- 粉色张嘴（打哈欠） -->
+        <g class="yawn-mouth">
+          <ellipse cx="11" cy="14.5" rx="1.8" ry="2.2" fill="#e8a0a0"/>
+          <ellipse cx="11" cy="14" rx="1.3" ry="1.5" fill="#d07070"/>
+        </g>
+      </g>
+    </svg>
+    <span>yawning</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       DOZING — 半睡半醒，头一点一点
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .doze-body { transform-origin:11px 18px; animation:doze-nod 2.5s ease-in-out infinite; }
+        .doze-shadow { transform-origin:11px 22.5px; animation:doze-shadow 2.5s ease-in-out infinite; }
+        .doze-z1 { animation:doze-z 3.5s ease-in-out infinite; animation-delay:0s; opacity:0; }
+        .doze-z2 { animation:doze-z 3.5s ease-in-out infinite; animation-delay:1.2s; opacity:0; }
+        @keyframes doze-nod { 0%,100%{transform:rotate(0) translateY(0)} 40%{transform:rotate(5deg) translateY(2px)} 55%{transform:rotate(-3deg) translateY(-1px)} 70%{transform:rotate(3deg) translateY(1px)} }
+        @keyframes doze-shadow { 0%,100%{transform:scaleX(1);opacity:.3} 40%{transform:scaleX(1.05);opacity:.35} }
+        @keyframes doze-z { 0%{opacity:0;transform:translate(14px,6px) scale(.4)} 20%{opacity:.7} 80%{opacity:.3} 100%{opacity:0;transform:translate(18px,-2px) scale(.8)} }
+      </style>
+      <g id="doze-pz"><rect x="0" y="0" width="2.5" height="0.6"/><rect x="1.3" y="0.6" width="0.7" height="0.7"/><rect x="0.5" y="1.3" width="0.7" height="0.7"/><rect x="0" y="2" width="2.5" height="0.6"/></g>
+      </defs>
+      <use href="#doze-pz" class="doze-z1" fill="#8891b8"/>
+      <use href="#doze-pz" class="doze-z2" fill="#a0a8c8"/>
+      <ellipse class="doze-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <g class="doze-body">
+        <rect x="2" y="10" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.55" transform="rotate(45 3.5 11.5)"/>
+        <rect x="17" y="10" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.55" transform="rotate(45 18.5 11.5)"/>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#9098b8"/>
+        <polygon points="11,1 15,7 7,7" fill="#d45a2a" transform="rotate(-10 11 5)"/>
+        <!-- 半闭眼 -->
+        <rect x="9" y="10.5" width="4" height="0.8" rx="0.4" fill="#111827"/>
+        <!-- 小嘴 -->
+        <path d="M9.5 13.5 Q11 14.5 12.5 13.5" stroke="#111827" stroke-width="0.8" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>dozing</span>
+  </div>
+
+</div>
+
+<!-- ══════════ ROW 5 — poke reactions + optional states ══════════ -->
+<div class="row">
+
+  <!-- ═══════════════════════════════════════════════
+       POKE-LEFT — 被左侧点击，头歪向右看你
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .poke-l-body { transform-origin:11px 12px; animation:poke-l-tilt .6s cubic-bezier(.34,1.56,.64,1) forwards; }
+        .poke-l-shadow { transform-origin:11px 22.5px; }
+        @keyframes poke-l-tilt { 0%{transform:rotate(0) translateX(0)} 40%{transform:rotate(12deg) translateX(2px)} 100%{transform:rotate(8deg) translateX(1.5px)} }
+      </style></defs>
+      <ellipse class="poke-l-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0" opacity="0.35"/>
+      <g class="poke-l-body">
+        <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 3.5 10.5)"/>
+        <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 18.5 10.5)"/>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <!-- 眼睛偏右看 -->
+        <rect x="11.5" y="10" width="2" height="2" fill="#111827"/>
+        <!-- 嘟嘴偏右 -->
+        <path d="M10 14 Q12.5 16 14 14" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>poke-left</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       POKE-RIGHT — 被右侧点击，头歪向左看你
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .poke-r-body { transform-origin:11px 12px; animation:poke-r-tilt .6s cubic-bezier(.34,1.56,.64,1) forwards; }
+        @keyframes poke-r-tilt { 0%{transform:rotate(0) translateX(0)} 40%{transform:rotate(-12deg) translateX(-2px)} 100%{transform:rotate(-8deg) translateX(-1.5px)} }
+      </style></defs>
+      <ellipse cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0" opacity="0.35"/>
+      <g class="poke-r-body">
+        <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 3.5 10.5)"/>
+        <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 18.5 10.5)"/>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <!-- 眼睛偏左看 -->
+        <rect x="8.5" y="10" width="2" height="2" fill="#111827"/>
+        <!-- 嘟嘴偏左 -->
+        <path d="M8 14 Q9.5 16 12 14" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>poke-right</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       ATTENTION — AI完成小庆祝，点头微笑，比happy温和
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .attn-body { transform-origin:11px 18px; animation:attn-nod 1.5s ease-in-out infinite; }
+        .attn-shadow { transform-origin:11px 22.5px; animation:attn-shadow 1.5s ease-in-out infinite; }
+        .attn-spark { opacity:0; }
+        .attn-sp1 { animation:attn-spark-pop 1.5s ease-out infinite; animation-delay:0s; }
+        .attn-sp2 { animation:attn-spark-pop 1.5s ease-out infinite; animation-delay:.5s; }
+        @keyframes attn-nod { 0%,100%{transform:translateY(0) scaleY(1)} 35%{transform:translateY(-2px) scaleY(1.03)} 65%{transform:translateY(0) scaleY(.98)} }
+        @keyframes attn-shadow { 0%,100%{transform:scaleX(1);opacity:.35} 35%{transform:scaleX(.9);opacity:.25} }
+        @keyframes attn-spark-pop { 0%{opacity:0;transform:scale(0)} 20%{opacity:1;transform:scale(1.2)} 60%{opacity:.8;transform:scale(1)} 100%{opacity:0;transform:scale(.5) translateY(-3px)} }
+      </style></defs>
+      <g class="attn-spark attn-sp1" fill="#FFD700"><rect x="18" y="4" width="1.5" height="1.5" rx="0.4"/></g>
+      <g class="attn-spark attn-sp2" fill="#FF9F3F"><rect x="2" y="5" width="1.2" height="1.2" rx="0.3"/></g>
+      <ellipse class="attn-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <g class="attn-body">
+        <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 3.5 10.5)"/>
+        <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 18.5 10.5)"/>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+        <!-- 温和弯眼 -->
+        <path d="M9.5 11 Q11 9.8 12.5 11" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+        <!-- 温和微笑 -->
+        <path d="M9 13.5 Q11 15.5 13 13.5" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>attention</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       CARRYING — 抱着箱子走路
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .carry-body { transform-origin:11px 18px; animation:carry-walk .6s ease-in-out infinite; }
+        .carry-shadow { transform-origin:11px 22.5px; animation:carry-shadow .6s ease-in-out infinite; }
+        .carry-box { transform-origin:11px 16px; animation:carry-box-bob .6s ease-in-out infinite; }
+        @keyframes carry-walk { 0%,100%{transform:translateX(0) translateY(0) rotate(0)} 25%{transform:translateX(1px) translateY(-1.5px) rotate(2deg)} 75%{transform:translateX(-1px) translateY(-1.5px) rotate(-2deg)} }
+        @keyframes carry-shadow { 0%,100%{transform:scaleX(1);opacity:.3} 25%,75%{transform:scaleX(.85);opacity:.2} }
+        @keyframes carry-box-bob { 0%,100%{transform:translateY(0) rotate(0)} 25%{transform:translateY(-.5px) rotate(1deg)} 75%{transform:translateY(-.5px) rotate(-1deg)} }
+      </style></defs>
+      <ellipse class="carry-shadow" cx="11" cy="22.5" rx="5" ry="0.6" fill="#c0c0c0"/>
+      <g class="carry-body">
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+        <!-- 努力表情 -->
+        <rect x="9" y="10.5" width="4" height="1" rx="0.5" fill="#111827"/>
+        <path d="M9 14 Q11 12.5 13 14" stroke="#111827" stroke-width="0.9" stroke-linecap="round" fill="none"/>
+        <!-- 箱子在身前 -->
+        <g class="carry-box">
+          <!-- 两手抱着箱子 -->
+          <rect x="4" y="12" width="3" height="3" rx="1.5" fill="#8891b8" opacity="0.8"/>
+          <rect x="15" y="12" width="3" height="3" rx="1.5" fill="#8891b8" opacity="0.8"/>
+          <!-- 箱子 -->
+          <rect x="6" y="14" width="10" height="7" rx="1" fill="#c8a96e"/>
+          <rect x="6" y="14" width="10" height="7" rx="1" fill="none" stroke="#a08040" stroke-width="0.5"/>
+          <!-- 箱子胶带 -->
+          <rect x="10" y="14" width="2" height="7" rx="0.3" fill="#e0c070" opacity="0.7"/>
+          <!-- 箱子高光 -->
+          <rect x="7" y="15" width="3" height="0.7" rx="0.3" fill="white" opacity="0.3"/>
+        </g>
+      </g>
+    </svg>
+    <span>carrying</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       RANDOM-LOOK — idle随机行为，左右张望
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .look-body { transform-origin:11px 18px; animation:look-sway 4s ease-in-out infinite; }
+        .look-eye { animation:look-eye 4s ease-in-out infinite; }
+        .look-shadow { transform-origin:11px 22.5px; animation:look-shadow 4s ease-in-out infinite; }
+        @keyframes look-sway { 0%,100%{transform:rotate(0)} 25%{transform:rotate(6deg) translateX(1px)} 75%{transform:rotate(-6deg) translateX(-1px)} }
+        @keyframes look-eye { 0%,100%{transform:translateX(0)} 25%{transform:translateX(2px)} 50%{transform:translateX(0)} 75%{transform:translateX(-2px)} }
+        @keyframes look-shadow { 0%,100%{transform:scaleX(1);opacity:.35} 25%{transform:scaleX(.95) translateX(1px);opacity:.3} 75%{transform:scaleX(.95) translateX(-1px);opacity:.3} }
+      </style></defs>
+      <ellipse class="look-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <g class="look-body">
+        <rect x="2" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 3.5 10.5)"/>
+        <rect x="17" y="9" width="3" height="3" rx="0.5" fill="#8891b8" opacity="0.7" transform="rotate(45 18.5 10.5)"/>
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+        <g class="look-eye"><rect x="10" y="10" width="2" height="2" fill="#111827"/></g>
+        <path d="M8 13.5 Q11 16.5 14 13.5" stroke="#111827" stroke-width="1" stroke-linecap="round" fill="none"/>
+      </g>
+    </svg>
+    <span>random-look</span>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       RANDOM-READ — idle随机行为，低头看书
+  ══════════════════════════════════════════════════ -->
+  <div class="item">
+    <svg class="pet" viewBox="-18 -18 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><style>
+        .read-body { transform-origin:11px 12px; animation:read-tilt 5s ease-in-out infinite; }
+        .read-shadow { transform-origin:11px 22.5px; animation:read-shadow 5s ease-in-out infinite; }
+        .read-page { animation:read-flip 2.5s ease-in-out infinite; }
+        @keyframes read-tilt { 0%,100%{transform:rotate(0) translateY(0)} 50%{transform:rotate(5deg) translateY(1px)} }
+        @keyframes read-shadow { 0%,100%{transform:scaleX(1);opacity:.3} 50%{transform:scaleX(1.05);opacity:.35} }
+        @keyframes read-flip { 0%,100%{transform:scaleX(1)} 50%{transform:scaleX(-1)} }
+      </style></defs>
+      <ellipse class="read-shadow" cx="11" cy="22.5" rx="4" ry="0.6" fill="#c0c0c0"/>
+      <g class="read-body">
+        <rect x="5" y="6" width="12" height="12" rx="6" fill="#97A0C5"/>
+        <polygon points="11,1 15,7 7,7" fill="#FF6B35"/>
+        <rect x="10" y="2" width="1" height="1" fill="#e8714a"/>
+        <!-- 低头看（眼睛看下方） -->
+        <rect x="10" y="11.5" width="2" height="1.5" rx="0.5" fill="#111827"/>
+        <!-- 安静小嘴 -->
+        <path d="M9.5 14.5 Q11 15.5 12.5 14.5" stroke="#111827" stroke-width="0.8" stroke-linecap="round" fill="none"/>
+        <!-- 书本在手前 -->
+        <rect x="4" y="14" width="3" height="3" rx="1.5" fill="#8891b8" opacity="0.7"/>
+        <rect x="15" y="14" width="3" height="3" rx="1.5" fill="#8891b8" opacity="0.7"/>
+        <!-- 打开的书 -->
+        <rect x="6" y="16" width="4.5" height="5" rx="0.5" fill="#f0ece0"/>
+        <rect x="11.5" y="16" width="4.5" height="5" rx="0.5" fill="#e8e4d8"/>
+        <rect x="10.5" y="16" width="1" height="5.5" rx="0.3" fill="#d0c8b0"/>
+        <!-- 书上文字 -->
+        <rect x="7" y="17.5" width="3" height="0.5" rx="0.2" fill="#b0a890" opacity="0.7"/>
+        <rect x="7" y="18.8" width="2" height="0.5" rx="0.2" fill="#b0a890" opacity="0.5"/>
+        <g class="read-page"><rect x="12.5" y="17.5" width="2.5" height="0.5" rx="0.2" fill="#b0a890" opacity="0.7"/></g>
+        <rect x="12.5" y="18.8" width="3" height="0.5" rx="0.2" fill="#b0a890" opacity="0.5"/>
+      </g>
+    </svg>
+    <span>random-read</span>
+  </div>
+
+</div>
+
+</body>
+</html>
