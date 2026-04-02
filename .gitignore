@@ -201,3 +201,4 @@ resources/hub
 dist-server/
 .omc/
 .superset/
+.claude/teams/aionui-ui-dev.json
