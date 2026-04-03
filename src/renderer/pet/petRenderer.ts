@@ -1,13 +1,3 @@
-declare global {
-  interface Window {
-    petAPI: {
-      onStateChange: (cb: (state: string) => void) => void;
-      onEyeMove: (cb: (data: { eyeDx: number; eyeDy: number; bodyDx: number; bodyRotate: number }) => void) => void;
-      onResize: (cb: (size: number) => void) => void;
-    };
-  }
-}
-
 const LOAD_TIMEOUT = 3000;
 let currentObject: HTMLObjectElement | null = document.getElementById('pet') as HTMLObjectElement;
 
@@ -50,5 +40,3 @@ window.petAPI.onEyeMove(({ eyeDx, eyeDy, bodyDx, bodyRotate }) => {
   if (pupil) pupil.setAttribute('transform', `translate(${eyeDx} ${eyeDy})`);
   if (track) track.setAttribute('transform', `translate(${bodyDx} 0) rotate(${bodyRotate} 11 12)`);
 });
-
-export {};

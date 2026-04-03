@@ -1,14 +1,3 @@
-declare global {
-  interface Window {
-    petHitAPI: {
-      dragStart: () => void;
-      dragEnd: () => void;
-      click: (data: { side: string; count: number }) => void;
-      contextMenu: () => void;
-    };
-  }
-}
-
 const DRAG_THRESHOLD = 3;
 const CLICK_WINDOW = 400;
 
@@ -66,5 +55,3 @@ document.addEventListener('pointerup', (e: PointerEvent) => {
 });
 
 document.addEventListener('contextmenu', (e) => e.preventDefault());
-
-export {};

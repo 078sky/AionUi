@@ -31,6 +31,7 @@ describe('getBuiltinSettingsNavItems', () => {
       'tools',
       'display',
       'webui',
+      'pet',
       'system',
       'about',
     ]);
@@ -44,6 +45,7 @@ describe('getBuiltinSettingsNavItems', () => {
       'Tools',
       'Display',
       'WebUI',
+      'Desktop Pet',
       'System',
       'About',
     ]);
