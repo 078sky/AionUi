@@ -82,8 +82,16 @@ class HubStateManagerImpl {
   /**
    * Returns the full extension list with runtime status derived from
    * ExtensionRegistry, AcpDetector, transient states, and persistent errors.
+   *
+   * Refreshes builtin agent detection before reading so that CLI changes
+   * (install/uninstall) since last check are reflected immediately.
    */
-  public getExtensionListWithStatus(extensions: Record<string, IHubExtension>): IHubAgentItem[] {
+  public async getExtensionListWithStatus(extensions: Record<string, IHubExtension>): Promise<IHubAgentItem[]> {
+    // Refresh builtin CLI detection so status reflects current PATH
+    const refreshStart = Date.now();
+    await acpDetector.refreshBuiltinAgents();
+    console.log(`[HubStateManager] refreshBuiltinAgents completed in ${Date.now() - refreshStart}ms`);
+
     const loadedByName = new Map(
       ExtensionRegistry.getInstance()
         .getLoadedExtensions()

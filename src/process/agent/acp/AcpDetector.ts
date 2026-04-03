@@ -27,13 +27,27 @@ interface DetectedAgent {
 
 /**
  * Global ACP detector — detects available agents from three sources:
- *   1. POTENTIAL_ACP_CLIS (built-in CLI list, real backendId)
- *   2. Extension-contributed ACP adapters (from ExtensionRegistry)
- *   3. User-configured custom agents (from config store)
  *
- * All three run in parallel, then results are deduplicated by cliPath.
- * Priority: POTENTIAL_ACP_CLIS > Extension > Custom (first wins on conflict).
- * Gemini is always prepended as a built-in (no CLI detection needed).
+ * **Builtin agents** — Defined in POTENTIAL_ACP_CLIS. These are well-known
+ * CLI tools (claude, qwen, goose, etc.) that the app knows about at compile
+ * time. Each has a real `backendId` (e.g. 'claude', 'qwen') and is detected
+ * via `which`/`where` on the system PATH. Gemini is a special builtin that
+ * is always present (no CLI detection needed).
+ *
+ * **Extension agents** — Contributed by installed extensions via
+ * `contributes.acpAdapters` in the extension manifest. Discovered from
+ * ExtensionRegistry at runtime. Always have `backend: 'custom'` with a
+ * `customAgentId` of the form `ext:<extensionName>:<adapterId>` and
+ * `isExtension: true`. Also verified via `isCliAvailable` before inclusion.
+ *
+ * **Custom agents** — User-configured agents from the config store
+ * (`acp.customAgents`). Always have `backend: 'custom'`. No CLI detection
+ * is performed — the user is responsible for ensuring the CLI is available.
+ * Includes preset agents (built-in templates like Academic Paper).
+ *
+ * All three sources run in parallel during detection, then results are
+ * deduplicated by `cliPath` (first wins). Merge order determines priority:
+ * Gemini > Builtin > Extension > Custom.
  */
 class AcpDetector {
   private detectedAgents: DetectedAgent[] = [];
@@ -261,6 +275,31 @@ class AcpDetector {
     const customAgents = await this.detectCustomAgents();
     this.detectedAgents.push(...customAgents);
     this.detectedAgents = this.deduplicate(this.detectedAgents);
+  }
+
+  /**
+   * Refresh builtin CLI agents only (called when system PATH may have changed).
+   * Clears cached env so newly installed/removed CLIs are detected.
+   * Gemini is a builtin that requires no CLI — it is always kept.
+   */
+  async refreshBuiltinAgents(): Promise<void> {
+    this.enhancedEnv = undefined;
+    // Snapshot old builtin backends for diff logging
+    const oldBuiltins = this.detectedAgents
+      .filter((a) => a.backend !== 'gemini' && a.backend !== 'custom')
+      .map((a) => a.backend);
+    // Remove builtin CLI agents (keep Gemini, extension agents, and custom agents)
+    this.detectedAgents = this.detectedAgents.filter((a) => a.backend === 'gemini' || a.backend === 'custom');
+    const builtinAgents = await this.detectBuiltinAgents();
+    const newBuiltins = builtinAgents.map((a) => a.backend);
+    // Prepend so builtin priority is preserved after deduplicate
+    this.detectedAgents = this.deduplicate([...builtinAgents, ...this.detectedAgents]);
+
+    const added = newBuiltins.filter((b) => !oldBuiltins.includes(b));
+    const removed = oldBuiltins.filter((b) => !newBuiltins.includes(b));
+    if (added.length > 0 || removed.length > 0) {
+      console.log(`[AcpDetector] Builtin agents changed: +[${added.join(', ')}] -[${removed.join(', ')}]`);
+    }
   }
 
   /**
