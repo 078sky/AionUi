@@ -1,88 +1,167 @@
-# AionUi 桌面宠物 — 交互 · 动画 · 状态映射表
+# AionUi 桌面宠物 — 交互 · 动画 · 事件映射表（校正版）
 
-## 1. 用户交互 → 动画状态
+## 1. AI 事件 → 宠物动画（一对一映射）
 
-| 交互方式 | 触发条件 | 对应动画状态 | 动画描述 | 持续时间 | 回到 |
-|---------|---------|------------|---------|---------|------|
-| **拖拽** | 按住宠物拖动 >3px | `dragging` | >< 箭头挤眼，身体拉伸，帽子歪摇 | 拖拽期间 | idle |
-| **松手** | 拖拽后松开 | `idle` | 恢复正常呼吸 | — | — |
-| **单击** | 左键点一下 | `attention` | 温和点头微笑，小星光 | 3s | idle |
-| **双击左半** | 400ms 内点 2 下，点在宠物左侧 | `poke-left` | 头歪向右看你，嘴巴偏右 | 2.5s | idle |
-| **双击右半** | 400ms 内点 2 下，点在宠物右侧 | `poke-right` | 头歪向左看你，嘴巴偏左 | 2.5s | idle |
-| **连点 3+** | 400ms 内点 3 次以上 | `error` | X 眼抖动，帽子飞起 | 5s | idle |
-| **右键 → 摸一摸** | 右键菜单点击 | `attention` + 像素爱心飘出 | 温和微笑 + 身体弹跳 + 7 个像素爱心上飘 | 3s | idle |
-| **右键 → 调大小** | 右键菜单选择 | 无状态切换 | 宠物窗口缩放（200/280/360px） | — | — |
-| **右键 → 勿扰** | 右键菜单点击 | 维持当前 | 关闭所有自动状态切换 | — | — |
-| **右键 → 隐藏** | 右键菜单点击 | 无 | 宠物消失（重启恢复） | — | — |
-| **鼠标在宠物附近移动** | idle 状态下 | idle（眼球追踪） | 眼珠跟随鼠标 3px，身体微倾 35%，转头 0.6° | 实时 | — |
+### 消息流触发（bridge.adapter.emit hook）
 
-## 2. 空闲/睡眠序列 → 动画状态
+AionUi 各平台实际发出的消息类型（已校正）：
 
-| 触发条件 | 对应动画状态 | 动画描述 | 持续时间 | 下一步 |
-|---------|------------|---------|---------|-------|
-| 鼠标静止 **20s** | `random-look` 或 `random-read` | 左右张望 / 低头看书（随机） | 4-8s | idle |
-| 鼠标静止 **60s** | `yawning` | 嘴巴张大打哈欠，眼睛半闭，右手捂嘴 | 3s | dozing |
-| yawning 结束后 | `dozing` | 头一点一点打盹，小 z 飘出 | 持续 | sleeping |
-| 鼠标静止 **10min** | `sleeping` | 深呼吸 + zzz 飘浮 + 帽子歪斜 | 持续 | — |
-| 睡眠中鼠标移动 | `waking` | 伸懒腰 + 双手高举 + 星星爆出 | 1.5s | idle |
+| AI 事件 | 实际 message.type | 宠物状态 | SVG 文件 | 持续 | 实现状态 | 优先级 |
+|--------|-------------------|---------|----------|------|---------|--------|
+| AI 开始思考 | `thinking` | thinking | thinking.svg | 持续 | ✅ 已实现 | — |
+| AI 输出内容 | `text` | working | working.svg | 持续 | ✅ 已实现 | — |
+| AI 出错 | `error` | error | error.svg | 5s→idle | ✅ 已实现 | — |
+| AI 完成回复 | `finish`（仅 ACP） | happy | happy.svg | 3s→idle | ⚠️ 只有 ACP 有 finish | 🔴 P0 |
+| 系统消息 | `system` | — | 不触发 | — | — | — |
+| 用户消息回显 | `user_content` | — | 不触发 | — | — | — |
+| 请求追踪 | `request_trace` | — | 不触发 | — | — | — |
+| 命令更新 | `slash_commands_updated` | — | 不触发 | — | — | — |
 
-## 3. AI 事件 → 动画状态
+**⚠️ finish 类型问题：** Gemini/OpenClaw/Nanobot 没有 `finish` 类型消息。需要通过其他方式检测回复完成（比如 `turnCompleted` 事件或消息流结束）。
 
-| AI 事件 | 事件源（AionUi 代码） | 对应动画状态 | 动画描述 |
-|--------|---------------------|------------|---------|
-| 用户发送消息 | SendBox `onSend` | `thinking` | 侧脸嘟嘴 + 气泡 + 光点浮动 |
-| AI 收到 thought 流 | `message.type === 'thought'` | `thinking` | 同上 |
-| AI 首次输出 content | `message.type === 'content'`（首次） | `working` | 正面 + 笔记本 + 双手打字 + 帽子抖 |
-| AI 工具调用中 | `message.type === 'tool_call'` | `working` | 同上 |
-| AI 工具调用失败 | `message.type === 'error'` | `error` | X 眼抖动 + 帽子飞 |
-| AI 回复完成 | `message.type === 'finish'` | `attention` | 温和点头微笑 + 小星光 |
-| 用户主动停止 | `conversation.stop` | `notification` | 惊跳 + 叹号弹出 |
-| 新建会话 | `conversation.create` | `waking` | 伸懒腰醒来 |
-| 切换会话 | 路由变化 | `idle` | 正常呼吸待机 |
-| 无活跃会话 | 关闭所有会话 | `sleeping` | 深度睡眠 |
-| 上下文压缩 | compact 事件 | `sweeping` | 扫帚 + 左右摇摆 + 尘土飞 |
-| 子代理启动 | subagent start | `juggling` | 三彩球抛物线 + 笑脸 |
-| 子代理结束 | subagent stop | `working` | 回到打字 |
-| 搬运/创建 worktree | worktree create | `carrying` | 抱箱子走路 |
+### 前置触发（conversationBridge.sendMessage）
 
-## 4. 状态优先级
+| 触发点 | 宠物状态 | 说明 | 实现状态 | 优先级 |
+|--------|---------|------|---------|--------|
+| 用户按发送的瞬间 | thinking | 不等 AI 回复，立刻反馈 | ✅ 已实现 | — |
 
-高优先级状态可以打断低优先级。同级或低级排队等待当前状态最短显示时间结束。
+### 未接入的 AI 事件
+
+| AI 事件 | 检测方式 | 宠物状态 | SVG | 实现状态 | 优先级 |
+|--------|---------|---------|-----|---------|--------|
+| 回复完成（非 ACP） | 监听 `turnCompleted` 事件 | happy | happy.svg | ❌ | 🔴 P0 |
+| 权限确认请求 | 监听 `confirmation.add` | notification | notification.svg | ❌ | 🟡 P1 |
+| 上下文压缩 | 监听 compact 相关消息 | sweeping | sweeping.svg | ❌ | 🟢 P2 |
+| 多会话 2+ 活跃 | 统计 workerTaskManager 任务数 | juggling | juggling.svg | ❌ | 🟢 P2 |
+| 多会话 3+ 活跃 | 同上 | building | building.svg | ❌ | 🟢 P2 |
+| 文件搬运/worktree | 监听相关 IPC | carrying | carrying.svg | ❌ | 🟢 P2 |
+
+---
+
+## 2. 用户交互 → 宠物动画
+
+| 交互 | 宠物状态 | SVG | 持续 | 实现状态 | 优先级 |
+|------|---------|-----|------|---------|--------|
+| 拖拽中 | dragging | dragging.svg | 拖拽期间 | ✅ 已实现 | — |
+| 松手 | 恢复拖拽前状态 | — | — | ✅ 已实现 | — |
+| 单击 | attention | attention.svg | 3s→idle | ✅ 已实现 | — |
+| 双击左半 | poke-left | poke-left.svg | 2.5s→idle | ❌ | 🟡 P1 |
+| 双击右半 | poke-right | poke-right.svg | 2.5s→idle | ❌ | 🟡 P1 |
+| 连点 3+ | error | error.svg | 5s→idle | ❌ | 🟡 P1 |
+| 右键 → 摸一摸 | attention | attention.svg | 3s→idle | ✅ 已实现 | — |
+| 右键 → 调大小 | — | — | — | ✅ 已实现 | — |
+| 右键 → 隐藏 | — | — | — | ✅ 已实现 | — |
+
+---
+
+## 3. 空闲行为 → 宠物动画
+
+| 触发条件 | 宠物状态 | SVG | 持续 | 下一步 | 实现状态 | 优先级 |
+|---------|---------|-----|------|-------|---------|--------|
+| 鼠标静止 20s | random-look 或 random-read | random-look.svg / random-read.svg | 4-8s | idle | ❌ | 🔴 P0 |
+| 鼠标静止 60s | yawning | yawning.svg | 3s | dozing | ❌ | 🔴 P0 |
+| yawning 结束 | dozing | dozing.svg | 持续 | sleeping | ❌ | 🔴 P0 |
+| 鼠标静止 10min | sleeping | sleeping.svg | 持续 | — | ❌ | 🔴 P0 |
+| 睡眠中鼠标移动 | waking | waking.svg | 1.5s | idle | ❌ | 🔴 P0 |
+| idle 时鼠标移动 | idle（眼球追踪） | idle.svg | 实时 | — | ❌ | 🟢 P2 |
+
+---
+
+## 4. SVG 资产对照表（20 个）
+
+| # | SVG 文件 | 触发来源 | 当前触发方式 | 用了？ | 优先级 |
+|---|----------|---------|------------|--------|--------|
+| 1 | idle.svg | 默认/回归 | 启动 + auto-return | ✅ | — |
+| 2 | thinking.svg | AI thinking + 用户发送 | bridge hook + sendMessage | ✅ | — |
+| 3 | working.svg | AI text 输出 | bridge hook | ✅ | — |
+| 4 | happy.svg | AI 完成 (finish) | bridge hook（仅 ACP） | ⚠️ 部分 | 🔴 |
+| 5 | error.svg | AI 出错 | bridge hook | ✅ | — |
+| 6 | attention.svg | 单击 / 摸一摸 | hitWin click + 右键菜单 | ✅ | — |
+| 7 | dragging.svg | 拖拽中 | hitWin drag | ✅ | — |
+| 8 | sleeping.svg | 托盘菜单 / 空闲 10min | 托盘手动（自动待实现） | ⚠️ 手动 | 🔴 |
+| 9 | notification.svg | 权限请求 | — | ❌ | 🟡 |
+| 10 | waking.svg | 鼠标唤醒 | — | ❌ | 🔴 |
+| 11 | yawning.svg | 空闲 60s | — | ❌ | 🔴 |
+| 12 | dozing.svg | yawning 后过渡 | — | ❌ | 🔴 |
+| 13 | random-look.svg | 空闲 20s 随机 | — | ❌ | 🔴 |
+| 14 | random-read.svg | 空闲 20s 随机 | — | ❌ | 🔴 |
+| 15 | sweeping.svg | 上下文压缩 | — | ❌ | 🟢 |
+| 16 | building.svg | 3+ 活跃会话 | — | ❌ | 🟢 |
+| 17 | juggling.svg | 2+ 活跃会话 | — | ❌ | 🟢 |
+| 18 | carrying.svg | 文件搬运 | — | ❌ | 🟢 |
+| 19 | poke-left.svg | 双击左半 | — | ❌ | 🟡 |
+| 20 | poke-right.svg | 双击右半 | — | ❌ | 🟡 |
+
+---
+
+## 5. 实现优先级时间线
+
+### 🔴 P0 — 做完宠物才算"活的"
 
 ```
-dragging (10)  → 最高，拖拽时无条件切换
-error (8)      → AI 出错
-notification (7)
-sweeping (6)
-happy (5) / attention (5)
-carrying (4) / juggling (4) / building (4)
-working (3)
-thinking (2) / waking (2) / poke-left (2) / poke-right (2)
-random-look (1) / random-read (1) / idle (1)
-yawning (0) / dozing (0) / sleeping (0)  → 最低
+1. 空闲行为系统（激活 6 个 SVG）
+   → tick 循环 + 光标轮询
+   → 20s random / 60s yawn / 10min sleep / 鼠标唤醒
+   → 预计 30 行代码
+
+2. 非 ACP 平台完成检测
+   → 监听 turnCompleted 或检测消息流结束
+   → happy 动画对所有平台生效
+   → 预计 10 行代码
+
+3. 前置 thinking 验证
+   → 确认 sendMessage 瞬间宠物立刻切 thinking
+   → 已实现，需验证延迟
 ```
 
-## 5. 全部动画状态清单（20 个）
+### 🟡 P1 — 体验更好
 
-| # | 状态名 | 分类 | 动画要素 |
-|---|--------|------|---------|
-| 1 | `idle` | 常驻 | 呼吸 + 眨眼 + 微摆 + 眼球追踪 |
-| 2 | `thinking` | AI 事件 | 侧脸嘟嘴 + 像素气泡 + 紫色加载点 + 蓝色光点飘 |
-| 3 | `working` | AI 事件 | 正面 + 笔记本电脑 + 双手交替打字 + 帽子抖 + 绿色光点 |
-| 4 | `happy` | AI 事件 | 大跳跃 + ^^ 弯眼 + 腮红 + 十字星光闪 |
-| 5 | `sleeping` | 空闲 | 深呼吸 + zzz 像素 Z 飘浮 + 暗色身体 + 帽子歪 |
-| 6 | `error` | AI 事件 / 交互 | 快速抖动 + XX 眼 + 帽子飞起 + 倒弧嘴 |
-| 7 | `notification` | AI 事件 | 惊跳衰减弹跳 + 叹号弹出 + 手臂举起 |
-| 8 | `waking` | 空闲 / AI | 压扁→拉伸伸懒腰→双手高举→星星爆→落回 |
-| 9 | `sweeping` | AI 事件 | 扫帚左右甩 + 身体摇摆 + 尘土粒子飞 + 眯眼 |
-| 10 | `building` | AI 事件 | 弹跳 + 齿轮旋转 + 双手拿积木摇摆 + 火花 |
-| 11 | `juggling` | AI 事件 | 三彩球(绿/黄/粉)抛物线 + 正面笑脸 + 身体晃 |
-| 12 | `dragging` | 交互 | >< 箭头挤眼 + 身体拉伸压缩 + 帽子歪摇快掉 |
-| 13 | `yawning` | 空闲 | 粉色张嘴打哈欠 + 半闭弧眼 + 右手捂嘴 + 身体后仰 |
-| 14 | `dozing` | 空闲 | 头一点一点 + 半闭眼 + 小 z 飘 + 暗色身体 |
-| 15 | `poke-left` | 交互 | 头歪向右(被左戳) + 眼睛看右 + 嘴偏右 + 弹性回弹 |
-| 16 | `poke-right` | 交互 | 头歪向左(被右戳) + 眼睛看左 + 嘴偏左 + 弹性回弹 |
-| 17 | `attention` | AI 事件 / 交互 | 温和点头 + 弯眼微笑 + 小星光闪 |
-| 18 | `carrying` | AI 事件 | 抱箱子走路 + 身体左右晃 + 努力眯眼 + 倒弧嘴 |
-| 19 | `random-look` | 空闲 | 身体左右张望 + 眼睛跟着看 + 阴影跟倾 |
-| 20 | `random-read` | 空闲 | 低头看书 + 身体前倾 + 翻页动画 + 安静小嘴 |
+```
+4. 双击/连点交互
+   → hitWin click 加计数器 + 方向检测
+   → 预计 15 行代码
+
+5. notification 状态
+   → 监听 confirmation.add bridge 事件
+   → 预计 5 行代码
+
+6. 设置面板
+   → 开关/大小/勿扰
+   → 中等工作量
+```
+
+### 🟢 P2 — 锦上添花
+
+```
+7. 眼睛追踪
+8. sweeping / juggling / building / carrying
+9. 位置记忆
+10. 权限气泡窗口
+```
+
+---
+
+## 6. AionUi 可利用的代码触点
+
+### 主进程（已确认可用）
+
+| 触点 | 文件 | 可检测的事件 | 宠物用途 |
+|------|------|-----------|---------|
+| `bridge.adapter.emit()` hook | `src/common/adapter/main.ts` | 所有 bridge 消息 | thinking/working/happy/error |
+| `sendMessage.provider` 入口 | `src/process/bridge/conversationBridge.ts:454` | 用户发送消息 | **前置 thinking** |
+| `turnCompleted` 事件 | `ipcBridge.conversation.turnCompleted` | 轮次完成 | **happy（所有平台）** |
+| `confirmation.add` 事件 | `ipcBridge.conversation.confirmation.add` | 权限请求 | notification |
+| `workerTaskManager.listTasks()` | `src/process/task/workerTaskManagerSingleton.ts` | 活跃任务数 | juggling/building |
+| `screen.getCursorScreenPoint()` | Electron API | 光标位置 | 空闲检测/眼睛追踪 |
+
+### 各平台实际消息类型（校正后）
+
+| 平台 | thinking | text | finish | error | 其他 |
+|------|---------|------|--------|-------|------|
+| ACP | ✅ | ✅ | ✅ | ✅ | system, user_content, request_trace, slash_commands_updated |
+| Gemini | ✅ | ✅ | ❌ | ✅ | system, user_content, request_trace |
+| OpenClaw | ❌ | ✅ | ❌ | ✅ | — |
+| Nanobot | ❌ | ✅ | ❌ | ✅ | — |
+| Remote | — | — | — | — | 通过 IpcAgentEventEmitter |
+
+**关键发现：** 只有 ACP 有 `thinking` 和 `finish`。其他平台需要用 `turnCompleted` 来检测完成，用 `sendMessage` 前置来代替 `thinking`。
