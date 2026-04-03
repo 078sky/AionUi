@@ -64,7 +64,7 @@ repos:
     hooks:
       - id: oxfmt
         name: Oxfmt
-        entry: oxfmt
+        entry: bun run format
         language: system
         files: \.(ts|tsx|js|jsx|json|css|md|yaml|yml|toml)$
         pass_filenames: true
