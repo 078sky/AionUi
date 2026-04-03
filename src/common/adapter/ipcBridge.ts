@@ -718,6 +718,13 @@ export const systemSettings = {
   setSaveUploadToWorkspace: bridge.buildProvider<void, { enabled: boolean }>(
     'system-settings:set-save-upload-to-workspace'
   ),
+  // Desktop pet settings
+  getPetEnabled: bridge.buildProvider<boolean, void>('system-settings:get-pet-enabled'),
+  setPetEnabled: bridge.buildProvider<void, { enabled: boolean }>('system-settings:set-pet-enabled'),
+  getPetSize: bridge.buildProvider<number, void>('system-settings:get-pet-size'),
+  setPetSize: bridge.buildProvider<void, { size: number }>('system-settings:set-pet-size'),
+  getPetDnd: bridge.buildProvider<boolean, void>('system-settings:get-pet-dnd'),
+  setPetDnd: bridge.buildProvider<void, { dnd: boolean }>('system-settings:set-pet-dnd'),
 };
 
 // 系统通知接口 / System notification API

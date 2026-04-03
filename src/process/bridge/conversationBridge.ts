@@ -456,7 +456,9 @@ export function initConversationBridge(
     try {
       const { getEventBridge } = await import('../pet/petManager');
       getEventBridge()?.handleUserSendMessage();
-    } catch { /* pet not initialized */ }
+    } catch {
+      /* pet not initialized */
+    }
 
     if (!params) {
       return { success: false, msg: 'Missing request parameters' };

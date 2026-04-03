@@ -158,6 +158,10 @@ export interface IConfigStorageRefer {
   'skillsMarket.enabled'?: boolean;
   // Desktop Pet: whether the desktop pet feature is enabled
   'pet.enabled'?: boolean;
+  // Desktop Pet: size in pixels (200, 280, or 360)
+  'pet.size'?: number;
+  // Desktop Pet: do not disturb mode (pet stays idle, ignores AI events)
+  'pet.dnd'?: boolean;
 }
 
 export interface IEnvStorageRefer {

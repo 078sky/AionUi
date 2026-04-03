@@ -693,7 +693,9 @@ app.on('before-quit', async () => {
   try {
     const { destroyPetWindow } = await import('./process/pet/petManager');
     destroyPetWindow();
-  } catch { /* pet not initialized */ }
+  } catch {
+    /* pet not initialized */
+  }
 
   // Stop all active team sessions (TCP servers + child processes)
   await disposeAllTeamSessions().catch((err) => console.error('[App] Failed to dispose team sessions:', err));

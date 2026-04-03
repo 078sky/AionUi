@@ -136,4 +136,35 @@ export function initSystemSettingsBridge(): void {
   ipcBridge.systemSettings.setSaveUploadToWorkspace.provider(async ({ enabled }) => {
     await ProcessConfig.set('upload.saveToWorkspace', enabled);
   });
+
+  // Desktop pet settings
+  ipcBridge.systemSettings.getPetEnabled.provider(async () => {
+    const value = await ProcessConfig.get('pet.enabled');
+    return value ?? true;
+  });
+
+  ipcBridge.systemSettings.setPetEnabled.provider(async ({ enabled }) => {
+    await ProcessConfig.set('pet.enabled', enabled);
+    // TODO: notify petManager to create/destroy window
+  });
+
+  ipcBridge.systemSettings.getPetSize.provider(async () => {
+    const value = await ProcessConfig.get('pet.size');
+    return value ?? 280;
+  });
+
+  ipcBridge.systemSettings.setPetSize.provider(async ({ size }) => {
+    await ProcessConfig.set('pet.size', size);
+    // TODO: notify petManager to resize window
+  });
+
+  ipcBridge.systemSettings.getPetDnd.provider(async () => {
+    const value = await ProcessConfig.get('pet.dnd');
+    return value ?? false;
+  });
+
+  ipcBridge.systemSettings.setPetDnd.provider(async ({ dnd }) => {
+    await ProcessConfig.set('pet.dnd', dnd);
+    // TODO: notify petManager to toggle DND mode
+  });
 }

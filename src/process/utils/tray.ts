@@ -163,7 +163,9 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
             const petManager = await import('../pet/petManager');
             // Toggle: if pet windows exist, hide; otherwise show/create
             petManager.showPetWindow();
-          } catch { /* pet not available */ }
+          } catch {
+            /* pet not available */
+          }
         },
       },
       { type: 'separator' as const },
@@ -174,7 +176,9 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
             const { destroyPetWindow, createPetWindow } = await import('../pet/petManager');
             destroyPetWindow();
             createPetWindow();
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         },
       },
       {
@@ -184,7 +188,9 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
             const { destroyPetWindow, createPetWindow } = await import('../pet/petManager');
             destroyPetWindow();
             createPetWindow();
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         },
       },
       {
@@ -194,7 +200,9 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
             const { destroyPetWindow, createPetWindow } = await import('../pet/petManager');
             destroyPetWindow();
             createPetWindow();
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         },
       },
     ],
