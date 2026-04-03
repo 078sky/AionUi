@@ -156,6 +156,8 @@ export interface IConfigStorageRefer {
   };
   // Skills Market: whether the aionui-skills builtin skill is enabled
   'skillsMarket.enabled'?: boolean;
+  // Desktop Pet: whether the desktop pet feature is enabled
+  'pet.enabled'?: boolean;
 }
 
 export interface IEnvStorageRefer {

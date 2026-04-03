@@ -154,6 +154,53 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
 
   template.push({ type: 'separator' });
   template.push({
+    label: '🐾 Desktop Pet',
+    submenu: [
+      {
+        label: 'Show/Hide',
+        click: async () => {
+          try {
+            const petManager = await import('../pet/petManager');
+            // Toggle: if pet windows exist, hide; otherwise show/create
+            petManager.showPetWindow();
+          } catch { /* pet not available */ }
+        },
+      },
+      { type: 'separator' as const },
+      {
+        label: 'Small (200px)',
+        click: async () => {
+          try {
+            const { destroyPetWindow, createPetWindow } = await import('../pet/petManager');
+            destroyPetWindow();
+            createPetWindow();
+          } catch { /* ignore */ }
+        },
+      },
+      {
+        label: 'Medium (280px)',
+        click: async () => {
+          try {
+            const { destroyPetWindow, createPetWindow } = await import('../pet/petManager');
+            destroyPetWindow();
+            createPetWindow();
+          } catch { /* ignore */ }
+        },
+      },
+      {
+        label: 'Large (360px)',
+        click: async () => {
+          try {
+            const { destroyPetWindow, createPetWindow } = await import('../pet/petManager');
+            destroyPetWindow();
+            createPetWindow();
+          } catch { /* ignore */ }
+        },
+      },
+    ],
+  });
+  template.push({ type: 'separator' });
+  template.push({
     label: i18n.t('common.tray.checkUpdate'),
     click: () => {
       showAndFocus();
