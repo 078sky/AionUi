@@ -922,6 +922,10 @@ export interface ICreateConversationParams {
     codexModel?: string;
     /** Pre-selected ACP model from Guid page (cached model list) */
     currentModelId?: string;
+    /** Cached config options from Guid page for immediate display in conversation */
+    cachedConfigOptions?: import('../types/acpTypes').AcpSessionConfigOption[];
+    /** Pending config option selections from Guid page (applied after session creation) */
+    pendingConfigOptions?: Record<string, string>;
     /** Runtime validation snapshot used for post-switch strong checks (OpenClaw) */
     runtimeValidation?: {
       expectedWorkspace?: string;
@@ -1267,6 +1271,7 @@ export const team = {
   ),
   stop: bridge.buildProvider<void, { teamId: string }>('team.stop'),
   renameAgent: bridge.buildProvider<void, { teamId: string; slotId: string; newName: string }>('team.rename-agent'),
+  renameTeam: bridge.buildProvider<void, { id: string; name: string }>('team.rename'),
   messageStream: bridge.buildEmitter<import('@process/team/types').ITeamMessageEvent>('team.message.stream'),
   agentStatusChanged: bridge.buildEmitter<import('@process/team/types').ITeamAgentStatusEvent>('team.agent.status'),
   agentSpawned: bridge.buildEmitter<import('@/common/types/teamTypes').ITeamAgentSpawnedEvent>('team.agent.spawned'),
