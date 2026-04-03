@@ -27,8 +27,23 @@ export { registerWebSocketBroadcaster, getBridgeEmitter };
 /**
  * @description 建立与每一个browserWindow的通信桥梁
  * */
+// Pet notification hook — set by PetWindowManager, called on every bridge emit
+let petNotifyHook: ((name: string, data: unknown) => void) | null = null;
+export const setPetNotifyHook = (hook: ((name: string, data: unknown) => void) | null): void => {
+  petNotifyHook = hook;
+};
+
 bridge.adapter({
   emit(name, data) {
+    // 0. Notify pet window (if hook is set)
+    if (petNotifyHook) {
+      try {
+        petNotifyHook(name, data);
+      } catch {
+        /* never crash */
+      }
+    }
+
     // 1. Send to all Electron BrowserWindows (skip destroyed ones)
     let serialized: string;
     try {

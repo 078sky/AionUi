@@ -27,6 +27,7 @@ import { ProcessConfig } from './process/utils/initStorage';
 import { loadShellEnvironmentAsync, logEnvironmentDiagnostics, mergePaths } from './process/utils/shellEnv';
 import { initializeAcpDetector, registerWindowMaximizeListeners, disposeAllTeamSessions } from '@process/bridge';
 import { wasLaunchedAtLogin } from '@process/bridge/applicationBridge';
+import { createPetWindow, destroyPetWindow } from '@process/pet/PetWindowManager';
 import { onCloseToTrayChanged, onLanguageChanged } from './process/bridge/systemSettingsBridge';
 import { setInitialLanguage } from '@process/services/i18n';
 import { workerTaskManager } from './process/task/workerTaskManagerSingleton';
@@ -501,6 +502,14 @@ const handleAppReady = async (): Promise<void> => {
     createWindow({ showOnReady: showMainWindowOnReady });
     mark('createWindow');
 
+    // Desktop pet window — isolated in try-catch, never affects main app
+    try {
+      createPetWindow();
+      mark('createPetWindow');
+    } catch (e) {
+      console.error('[Pet] Failed:', e);
+    }
+
     // Run ACP detection in parallel with renderer loading.
     // By the time React mounts and calls getAvailableAgents (~300ms+),
     // detection (~700ms) is usually already done.
@@ -659,6 +668,7 @@ app.on('before-quit', async () => {
   setIsQuitting(true);
   isExplicitQuit = true;
   destroyTray();
+  destroyPetWindow();
   // 在应用退出前清理工作进程
   workerTaskManager.clear();
 

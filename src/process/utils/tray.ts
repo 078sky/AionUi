@@ -176,6 +176,48 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
       app.exit(0);
     },
   });
+  // ── Desktop Pet ──
+  template.push({ type: 'separator' });
+  template.push({
+    label: '🐾 桌面宠物',
+    submenu: [
+      {
+        label: '🤗 摸一摸',
+        click: () => {
+          try {
+            const { setPetState } = require('@process/pet/PetWindowManager');
+            setPetState('attention');
+            setTimeout(() => setPetState('idle'), 3000);
+          } catch {
+            /* pet not loaded */
+          }
+        },
+      },
+      {
+        label: '😴 睡觉',
+        click: () => {
+          try {
+            const { setPetState } = require('@process/pet/PetWindowManager');
+            setPetState('sleeping');
+          } catch {
+            /* */
+          }
+        },
+      },
+      {
+        label: '💤 重置 (idle)',
+        click: () => {
+          try {
+            const { setPetState } = require('@process/pet/PetWindowManager');
+            setPetState('idle');
+          } catch {
+            /* */
+          }
+        },
+      },
+    ],
+  });
+
   template.push({ type: 'separator' });
   template.push({
     label: i18n.t('common.tray.quit'),

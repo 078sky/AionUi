@@ -126,7 +126,13 @@ export default defineConfig(({ mode }) => {
       build: {
         sourcemap: false,
         reportCompressedSize: false,
-        rollupOptions: { input: { index: resolve('src/preload.ts') } },
+        rollupOptions: {
+          input: {
+            index: resolve('src/preload.ts'),
+            pet: resolve('src/petPreload.ts'),
+            petHit: resolve('src/petHitPreload.ts'),
+          },
+        },
       },
     },
 
@@ -171,7 +177,11 @@ export default defineConfig(({ mode }) => {
         chunkSizeWarningLimit: 1500,
         cssCodeSplit: true,
         rollupOptions: {
-          input: { index: resolve('src/renderer/index.html') },
+          input: {
+            index: resolve('src/renderer/index.html'),
+            pet: resolve('src/renderer/pet.html'),
+            'pet-hit': resolve('src/renderer/pet-hit.html'),
+          },
           external: ['node:crypto', 'crypto'],
           onwarn(warning, warn) {
             if (warning.code === 'EVAL') return;
