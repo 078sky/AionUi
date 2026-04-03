@@ -2,11 +2,11 @@
 
 ## 测试分层
 
-| 层级 | 名称 | 测什么 | 关注点 | 运行环境 |
-|------|------|--------|--------|---------|
-| L1 | Integration Test | 主进程安装链路 | 数据流转正确性 | 本地 + CI |
-| L2 | E2E Test | UI 交互流程 | 用户体验正确性 | 本地（需 Electron） |
-| L3 | Smoke Test | 真实 Backend 连通性 | ACP 协议可用性 | 仅本地 |
+| 层级 | 名称             | 测什么              | 关注点         | 运行环境            |
+| ---- | ---------------- | ------------------- | -------------- | ------------------- |
+| L1   | Integration Test | 主进程安装链路      | 数据流转正确性 | 本地 + CI           |
+| L2   | E2E Test         | UI 交互流程         | 用户体验正确性 | 本地（需 Electron） |
+| L3   | Smoke Test       | 真实 Backend 连通性 | ACP 协议可用性 | 仅本地              |
 
 ---
 
@@ -111,12 +111,12 @@ bunx playwright test tests/e2e/specs/hub-backend-install.e2e.ts --config playwri
 
 **覆盖的 Backend**:
 
-| Backend | 命令 | ACP 参数 | 备注 |
-|---------|------|----------|------|
-| fake-acp-cli | `node index.js` | — | 始终运行 |
-| claude | `claude` | `--acp` | 需 `ACP_SMOKE_REAL=1` |
-| codex | `codex` | `--acp` | 需 `ACP_SMOKE_REAL=1` |
-| goose | `goose` | `acp` | 需 `ACP_SMOKE_REAL=1` |
+| Backend      | 命令            | ACP 参数 | 备注                  |
+| ------------ | --------------- | -------- | --------------------- |
+| fake-acp-cli | `node index.js` | —        | 始终运行              |
+| claude       | `claude`        | `--acp`  | 需 `ACP_SMOKE_REAL=1` |
+| codex        | `codex`         | `--acp`  | 需 `ACP_SMOKE_REAL=1` |
+| goose        | `goose`         | `acp`    | 需 `ACP_SMOKE_REAL=1` |
 
 **运行**:
 
@@ -198,10 +198,10 @@ bun run test:e2e
 
 所有测试已处理跨平台差异：
 
-| 差异点 | 处理方式 |
-|--------|---------|
-| symlink 权限 (Windows) | Windows 用 .cmd wrapper 替代 |
-| shebang (Windows) | 统一用 `spawn('node', [path])` |
-| 进程信号 (Windows) | `child.kill()` 跨平台，SIGKILL 仅 Unix |
-| CLI 检测 | `where` (Windows) / `which` (Unix) |
-| 路径分隔符 | 统一用 `path.join()` + `os.tmpdir()` |
+| 差异点                 | 处理方式                               |
+| ---------------------- | -------------------------------------- |
+| symlink 权限 (Windows) | Windows 用 .cmd wrapper 替代           |
+| shebang (Windows)      | 统一用 `spawn('node', [path])`         |
+| 进程信号 (Windows)     | `child.kill()` 跨平台，SIGKILL 仅 Unix |
+| CLI 检测               | `where` (Windows) / `which` (Unix)     |
+| 路径分隔符             | 统一用 `path.join()` + `os.tmpdir()`   |
