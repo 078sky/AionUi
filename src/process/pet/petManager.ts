@@ -53,7 +53,7 @@ export function createPetWindow(): void {
     hasShadow: false,
     focusable: false,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/petPreload.js'),
+      preload: path.join(__dirname, '..', '..', 'preload', 'petPreload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -85,7 +85,7 @@ export function createPetWindow(): void {
     hasShadow: false,
     focusable: false,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/petHitPreload.js'),
+      preload: path.join(__dirname, '..', '..', 'preload', 'petHitPreload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -151,8 +151,8 @@ export function createPetWindow(): void {
     });
   } else {
     // Production mode: use built HTML files
-    const petFile = path.join(__dirname, '../renderer/pet/pet.html');
-    const petHitFile = path.join(__dirname, '../renderer/pet/pet-hit.html');
+    const petFile = path.join(__dirname, '..', '..', 'renderer', 'pet', 'pet.html');
+    const petHitFile = path.join(__dirname, '..', '..', 'renderer', 'pet', 'pet-hit.html');
 
     petWindow.loadFile(petFile).catch((error) => {
       console.error('[Pet] loadFile failed for pet window:', error);
@@ -302,7 +302,7 @@ function registerIpcHandlers(): void {
     }
 
     if (stateMachine) {
-      stateMachine.requestState('idle');
+      stateMachine.forceState('idle');
     }
 
     if (idleTicker) {
@@ -368,7 +368,7 @@ function registerIpcHandlers(): void {
       {
         label: 'Do Not Disturb',
         type: 'checkbox',
-        checked: stateMachine?.getCurrentState() === 'idle' && false, // TODO: implement DND state
+        checked: stateMachine?.getDnd() ?? false,
         click: (menuItem) => {
           if (stateMachine) {
             stateMachine.setDnd(menuItem.checked);

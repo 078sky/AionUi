@@ -127,13 +127,20 @@ export default defineConfig(({ mode }) => {
       build: {
         sourcemap: false,
         reportCompressedSize: false,
-        rollupOptions: { input: { index: resolve('src/preload.ts') } },
+        rollupOptions: {
+          input: {
+            index: resolve('src/preload.ts'),
+            petPreload: resolve('src/petPreload.ts'),
+            petHitPreload: resolve('src/petHitPreload.ts'),
+          },
+        },
       },
     },
 
     renderer: {
       base: './',
       publicDir: resolve('public'),
+      appType: 'mpa',
       server: {
         // Default to 5173; when occupied (e.g. another AionUi clone is running),
         // Vite auto-increments to the next available port.

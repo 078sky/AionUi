@@ -22,6 +22,10 @@ export class PetStateMachine {
     }
   }
 
+  getDnd(): boolean {
+    return this.dnd;
+  }
+
   requestState(state: PetState): PetState | null {
     if (this.dnd && state !== 'dragging') return null;
     if (state === this.current) return null;

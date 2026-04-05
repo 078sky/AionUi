@@ -1,5 +1,6 @@
 const DRAG_THRESHOLD = 3;
 const CLICK_WINDOW = 400;
+const STARTUP_DELAY = 500;
 
 const hitEl = document.getElementById('hit')!;
 let isDragging = false;
@@ -9,8 +10,15 @@ let startY = 0;
 let clickCount = 0;
 let clickTimer: ReturnType<typeof setTimeout> | null = null;
 let lastClickSide: 'left' | 'right' = 'left';
+let ready = false;
+
+// Prevent spurious pointer events during window creation
+setTimeout(() => {
+  ready = true;
+}, STARTUP_DELAY);
 
 hitEl.addEventListener('pointerdown', (e: PointerEvent) => {
+  if (!ready) return;
   if (e.button === 2) {
     window.petHitAPI.contextMenu();
     return;

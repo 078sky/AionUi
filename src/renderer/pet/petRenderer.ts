@@ -1,6 +1,18 @@
 const LOAD_TIMEOUT = 3000;
 let currentObject: HTMLObjectElement | null = document.getElementById('pet') as HTMLObjectElement;
 
+function setupTransitions(): void {
+  if (!currentObject) return;
+  const doc = currentObject.contentDocument;
+  if (!doc) return;
+
+  const eye = doc.querySelector('.idle-eye') as SVGElement | null;
+  const body = doc.querySelector('.idle-body') as SVGElement | null;
+
+  if (eye) eye.style.transition = 'transform 0.2s ease-out';
+  if (body) body.style.transition = 'transform 0.2s ease-out';
+}
+
 function loadSvg(svgPath: string): void {
   const newObj = document.createElement('object');
   newObj.type = 'image/svg+xml';
@@ -21,13 +33,21 @@ function loadSvg(svgPath: string): void {
     clearTimeout(timeout);
     if (currentObject) currentObject.remove();
     currentObject = newObj;
+    setupTransitions();
   });
 
   document.body.appendChild(newObj);
 }
 
+// Setup transitions for initial SVG
+if (currentObject) {
+  currentObject.addEventListener('load', () => {
+    setupTransitions();
+  });
+}
+
 window.petAPI.onStateChange((state: string) => {
-  loadSvg(`../../public/pet-states/${state}.svg`);
+  loadSvg(`/pet-states/${state}.svg`);
 });
 
 window.petAPI.onEyeMove(({ eyeDx, eyeDy, bodyDx, bodyRotate }) => {
@@ -35,8 +55,9 @@ window.petAPI.onEyeMove(({ eyeDx, eyeDy, bodyDx, bodyRotate }) => {
   const doc = currentObject.contentDocument;
   if (!doc) return;
 
-  const pupil = doc.querySelector('.idle-pupil');
-  const track = doc.querySelector('.idle-track');
-  if (pupil) pupil.setAttribute('transform', `translate(${eyeDx} ${eyeDy})`);
-  if (track) track.setAttribute('transform', `translate(${bodyDx} 0) rotate(${bodyRotate} 11 12)`);
+  const eye = doc.querySelector('.idle-eye') as SVGElement | null;
+  const body = doc.querySelector('.idle-body') as SVGElement | null;
+
+  if (eye) eye.style.transform = `translate(${eyeDx}px, ${eyeDy}px)`;
+  if (body) body.style.transform = `translate(${bodyDx}px, 0) rotate(${bodyRotate}deg)`;
 });
