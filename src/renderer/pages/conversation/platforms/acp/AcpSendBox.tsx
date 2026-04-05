@@ -3,7 +3,6 @@ import type { AcpBackend } from '@/common/types/acpTypes';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import { uuid } from '@/common/utils';
 import SendBox from '@/renderer/components/chat/sendbox';
-import ThoughtDisplay from '@/renderer/components/chat/ThoughtDisplay';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/chat/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/chat/useSendBoxFiles';
@@ -232,7 +231,6 @@ const AcpSendBox: React.FC<{
     resetState,
     tokenUsage,
     contextLimit,
-    hasThinkingMessage,
   } = useAcpMessage(conversation_id, { backend, agentName, sessionMode });
   const { t } = useTranslation();
   const teamPermission = useTeamPermission();
@@ -583,18 +581,6 @@ Please check your local CLI tool authentication status`,
     !shouldShowAuthBanner &&
     ((acpStatus === 'disconnected' && (!hasHydratedTerminalStatus || hasPendingCommands)) || isRetryActionActive);
   const isRetryingConnection = shouldShowDisconnectedBanner && isRetryActionActive;
-  // The send-time affordance only covers the pre-first-response gap.
-  // Once ACP emits inline thinking, let that inline activity own the user's attention.
-  const warmupThought =
-    aiProcessing && !hasThinkingMessage
-      ? {
-          subject: t('conversation.chat.processing'),
-          description: t('acp.status.connecting', {
-            agent: agentName || backend,
-            defaultValue: `Connecting to ${agentName || backend}...`,
-          }),
-        }
-      : undefined;
 
   const onSendHandler = async (message: string) => {
     const atPathFiles = atPath.map((item) => (typeof item === 'string' ? item : item.path));
@@ -964,7 +950,6 @@ Please check your local CLI tool authentication status`,
           }}
         />
       )}
-      <ThoughtDisplay thought={warmupThought} running={aiProcessing && !hasThinkingMessage} onStop={handleStop} />
       <CommandQueuePanel
         items={queuedCommands}
         paused={isQueuePaused}
