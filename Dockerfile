@@ -6,6 +6,7 @@ RUN npm install -g bun
 
 # Install all dependencies (including devDeps for build)
 COPY package.json bun.lock ./
+COPY patches ./patches    # bun install applies these patches; must be present before install
 RUN bun install
 
 # Copy source
