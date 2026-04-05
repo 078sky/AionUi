@@ -212,9 +212,20 @@ export type IMessageAgentStatus = IMessage<
   'agent_status',
   {
     backend: AcpBackend; // Agent identifier: 'claude', 'qwen', 'codex', etc.
-    status: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'error';
+    status:
+      | 'connecting'
+      | 'connected'
+      | 'authenticated'
+      | 'session_active'
+      | 'auth_required'
+      | 'disconnected'
+      | 'error';
     /** Display name for the agent (e.g. extension-contributed adapter name) / Agent 显示名称 */
     agentName?: string;
+    /** Runtime disconnect metadata for diagnostics */
+    disconnectCode?: number | null;
+    /** Runtime disconnect metadata for diagnostics */
+    disconnectSignal?: string | null;
     // Optional legacy fields for backward compatibility
     sessionId?: string;
     isConnected?: boolean;
@@ -404,6 +415,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
           content: message.data as string,
           type: 'error',
         },
+        ...(message.hidden && { hidden: true }),
       };
     }
     case 'content':
@@ -452,6 +464,7 @@ export const transformMessage = (message: IResponseMessage): TMessage => {
         position: 'center',
         conversation_id: message.conversation_id,
         content: message.data as any,
+        ...(message.hidden && { hidden: true }),
       };
     }
     case 'acp_permission': {

@@ -1,17 +1,9 @@
 import path from 'path';
+import { getDevAppName } from '@/common/config/devProfile';
 import type { IPlatformServices } from './IPlatformServices';
 import { NodePlatformServices } from './NodePlatformServices';
 
 let _services: IPlatformServices | null = null;
-
-/**
- * Resolve the dev-mode app name for environment isolation.
- * Centralised so that every call-site stays in sync.
- */
-export function getDevAppName(): string {
-  const isMultiInstance = process.env.AIONUI_MULTI_INSTANCE === '1';
-  return isMultiInstance ? 'AionUi-Dev-2' : 'AionUi-Dev';
-}
 
 export function registerPlatformServices(services: IPlatformServices): void {
   _services = services;

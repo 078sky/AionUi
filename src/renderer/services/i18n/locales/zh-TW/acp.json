@@ -2,7 +2,13 @@
   "auth": {
     "failed": "{{backend}} 認證失敗：\n\n{{error}}\n\n請檢查本地CLI工具的認證狀態",
     "console_error": "ACP authentication error details:",
-    "failed_confirm": "ACP {{backend}} 身份驗證失敗：\n\n{{error}}\n\n是否立即前往設定頁面進行配置？"
+    "failed_confirm": "ACP {{backend}} 身份驗證失敗：\n\n{{error}}\n\n是否立即前往設定頁面進行配置？",
+    "requiredHint": "{{agent}} 需要先完成認證才能繼續此執行緒。現在進行認證，或先重新整理本機 CLI 登入狀態。",
+    "authenticate": "立即認證",
+    "authenticateFailed": "無法完成 {{agent}} 認證。請重試，或先重新整理本機 CLI 登入狀態。"
+  },
+  "send": {
+    "failed": "向 {{backend}} 發送訊息失敗：\n\n{{error}}"
   },
   "sendbox": {
     "placeholder": "發送訊息到 {{backend}}..."
@@ -12,8 +18,31 @@
     "connected": "已連線至 {{agent}}",
     "authenticated": "已通過 {{agent}} 身份驗證",
     "session_active": "{{agent}} 工作階段進行中",
+    "auth_required": "{{agent}} 需要認證",
+    "disconnected": "{{agent}} 已中斷連線",
     "error": "連線錯誤",
     "unknown": "未知狀態"
+  },
+  "connection": {
+    "disconnectedHint": "ACP 執行階段已意外停止。你可以立即重試連線，或傳送一則新訊息來啟動新的工作階段。",
+    "retryFailed": "無法預熱 {{agent}}。請重試，或直接傳送一則新訊息。"
+  },
+  "logs": {
+    "title": "ACP 日誌",
+    "requestStarted": "{{backend}} -> {{model}} 已開始",
+    "firstResponse": "{{backend}} -> {{model}} 在 {{duration}}ms 後收到首個回應",
+    "requestFinished": "{{backend}} -> {{model}} 在 {{duration}}ms 內完成",
+    "requestErrored": "{{backend}} -> {{model}} 在 {{duration}}ms 內失敗",
+    "sendFailed": "{{agent}} 發送請求失敗",
+    "authRequested": "已請求為 {{agent}} 重新認證",
+    "authReady": "{{agent}} 認證完成，連線已恢復",
+    "authFailed": "{{agent}} 認證失敗",
+    "retryRequested": "已請求重新連線 {{agent}}",
+    "retryReady": "{{agent}} 連線預熱已就緒",
+    "retryFailed": "{{agent}} 連線預熱失敗",
+    "sendNowRequested": "已要求立即送出 {{agent}} 的下一條指令",
+    "cancelRequested": "已請求停止",
+    "disconnectReason": "退出碼: {{code}}, 訊號: {{signal}}"
   },
   "config": {
     "reasoning_effort": "推理深度",

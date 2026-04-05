@@ -56,6 +56,7 @@ const ACP_PERF_LOG = process.env.ACP_PERF === '1';
  */
 interface InitializeResult {
   authMethods?: Array<{
+    id?: string;
     type: string;
     [key: string]: unknown;
   }>;
@@ -124,6 +125,11 @@ export interface AcpAgentConfig {
   onSessionIdUpdate?: (sessionId: string) => void;
   /** Callback when ACP agent updates available slash commands / ACP 可用斜杠命令更新回调 */
   onAvailableCommandsUpdate?: (commands: AcpAvailableCommand[]) => void;
+  /** Callback when a pending permission request is no longer valid / 权限请求失效时的回调 */
+  onPermissionRequestInvalidated?: (
+    callId: string,
+    reason: 'replaced' | 'timeout' | 'cancelled' | 'disconnected'
+  ) => void;
 }
 
 // ACP agent任务类
@@ -165,6 +171,10 @@ export class AcpAgent {
   private readonly onSignalEvent?: (data: IResponseMessage) => void;
   private readonly onSessionIdUpdate?: (sessionId: string) => void;
   private readonly onAvailableCommandsUpdate?: (commands: AcpAvailableCommand[]) => void;
+  private readonly onPermissionRequestInvalidated?: (
+    callId: string,
+    reason: 'replaced' | 'timeout' | 'cancelled' | 'disconnected'
+  ) => void;
 
   // Track pending navigation tool calls for URL extraction from results
   // 跟踪待处理的导航工具调用，以便从结果中提取 URL
@@ -202,6 +212,7 @@ export class AcpAgent {
     this.onSignalEvent = config.onSignalEvent;
     this.onSessionIdUpdate = config.onSessionIdUpdate;
     this.onAvailableCommandsUpdate = config.onAvailableCommandsUpdate;
+    this.onPermissionRequestInvalidated = config.onPermissionRequestInvalidated;
     this.extra = config.extra || {
       workspace: config.workingDir,
       backend: config.backend,
@@ -425,7 +436,16 @@ export class AcpAgent {
       if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: total ${Date.now() - startTotal}ms`);
     } catch (error) {
       if (ACP_PERF_LOG) console.log(`[ACP-PERF] start: failed after ${Date.now() - startTotal}ms`);
-      this.emitStatusMessage('error');
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      if (
+        errorMsg.includes('Authentication required') ||
+        errorMsg.includes('authentication failed') ||
+        errorMsg.includes('[ACP-AUTH-')
+      ) {
+        this.emitStatusMessage('auth_required');
+      } else {
+        this.emitStatusMessage('error');
+      }
       throw error;
     }
   }
@@ -592,9 +612,9 @@ export class AcpAgent {
   cancelPrompt(): void {
     this.connection.cancelPrompt();
     // Reject pending permission dialogs so UI doesn't stay stuck
-    for (const [id, pending] of this.pendingPermissions) {
-      pending.reject(new Error('Cancelled'));
-      this.pendingPermissions.delete(id);
+    const pendingRequestIds = Array.from(this.pendingPermissions.keys());
+    for (const requestId of pendingRequestIds) {
+      this.invalidatePermissionRequest(requestId, 'cancelled', new Error('Cancelled'));
     }
     // Emit finish signal to reset frontend loading state
     if (this.onSignalEvent) {
@@ -734,6 +754,7 @@ export class AcpAgent {
       return { success: true, data: null };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      const lowerErrorMsg = errorMsg.toLowerCase();
       // Special handling for Internal error
       if (errorMsg.includes('Internal error')) {
         if (this.extra.backend === 'qwen') {
@@ -741,7 +762,8 @@ export class AcpAgent {
             `Qwen ACP Internal Error: This usually means authentication failed or ` +
             `the Qwen CLI has compatibility issues. Please try: 1) Restart the application ` +
             `2) Use 'npx @qwen-code/qwen-code' instead of global qwen 3) Check if you have valid Qwen credentials.`;
-          this.emitErrorMessage(enhancedMsg);
+          this.emitStatusMessage('auth_required');
+          this.emitErrorMessage(enhancedMsg, { hidden: true });
           return {
             success: false,
             error: createAcpError(AcpErrorType.AUTHENTICATION_FAILED, enhancedMsg, false),
@@ -752,21 +774,32 @@ export class AcpAgent {
       let errorType: AcpErrorType = AcpErrorType.UNKNOWN;
       let retryable = false;
 
-      if (errorMsg.includes('authentication') || errorMsg.includes('认证失败') || errorMsg.includes('[ACP-AUTH-')) {
+      if (
+        lowerErrorMsg.includes('authentication') ||
+        lowerErrorMsg.includes('auth required') ||
+        errorMsg.includes('Authentication required') ||
+        errorMsg.includes('认证失败') ||
+        errorMsg.includes('[ACP-AUTH-')
+      ) {
         errorType = AcpErrorType.AUTHENTICATION_FAILED;
         retryable = false;
-      } else if (errorMsg.includes('timeout') || errorMsg.includes('Timeout') || errorMsg.includes('timed out')) {
+        this.emitStatusMessage('auth_required');
+      } else if (lowerErrorMsg.includes('timeout') || lowerErrorMsg.includes('timed out')) {
         errorType = AcpErrorType.TIMEOUT;
         retryable = true;
-      } else if (errorMsg.includes('permission') || errorMsg.includes('Permission')) {
+      } else if (lowerErrorMsg.includes('permission')) {
         errorType = AcpErrorType.PERMISSION_DENIED;
         retryable = false;
-      } else if (errorMsg.includes('connection') || errorMsg.includes('Connection')) {
+      } else if (lowerErrorMsg.includes('connection')) {
         errorType = AcpErrorType.NETWORK_ERROR;
         retryable = true;
       }
 
-      this.emitErrorMessage(errorMsg);
+      const shouldHideErrorInTimeline =
+        errorType === AcpErrorType.AUTHENTICATION_FAILED ||
+        lowerErrorMsg.includes('connection') ||
+        errorMsg.includes('ACP process exited unexpectedly');
+      this.emitErrorMessage(errorMsg, { hidden: shouldHideErrorInTimeline });
 
       // Emit finish signal to reset frontend loading state.
       // Without this, the UI stays in loading after a timeout and the user cannot
@@ -1138,12 +1171,7 @@ export class AcpAgent {
 
       // 检查是否有重复的权限请求
       if (this.pendingPermissions.has(requestId)) {
-        // 如果是重复请求，先清理旧的
-        const oldRequest = this.pendingPermissions.get(requestId);
-        if (oldRequest) {
-          oldRequest.reject(new Error('Replaced by new permission request'));
-        }
-        this.pendingPermissions.delete(requestId);
+        this.invalidatePermissionRequest(requestId, 'replaced', new Error('Replaced by new permission request'));
       }
 
       this.pendingPermissions.set(requestId, { resolve, reject });
@@ -1162,8 +1190,7 @@ export class AcpAgent {
       if (!this.extra.teamMcpStdioConfig) {
         setTimeout(() => {
           if (this.pendingPermissions.has(requestId)) {
-            this.pendingPermissions.delete(requestId);
-            reject(new Error('Permission request timed out'));
+            this.invalidatePermissionRequest(requestId, 'timeout', new Error('Permission request timed out'));
           }
         }, 1800000);
       }
@@ -1217,6 +1244,11 @@ export class AcpAgent {
    * Notify frontend and clean up internal state
    */
   private handleDisconnect(error: { code: number | null; signal: NodeJS.Signals | null }): void {
+    this.emitStatusMessage('disconnected', {
+      disconnectCode: error.code,
+      disconnectSignal: error.signal,
+    });
+
     // Emit finish signal to reset UI loading state
     if (this.onSignalEvent) {
       this.onSignalEvent({
@@ -1228,11 +1260,31 @@ export class AcpAgent {
     }
 
     // Clear internal state
-    this.pendingPermissions.clear();
+    const pendingRequestIds = Array.from(this.pendingPermissions.keys());
+    for (const requestId of pendingRequestIds) {
+      this.invalidatePermissionRequest(requestId, 'disconnected', new Error('Disconnected'));
+    }
     this.permissionRequestMeta.clear();
     this.approvalStore.clear();
     this.pendingNavigationTools.clear();
     this.statusMessageId = null;
+  }
+
+  private invalidatePermissionRequest(
+    requestId: string,
+    reason: 'replaced' | 'timeout' | 'cancelled' | 'disconnected',
+    error: Error
+  ): void {
+    const pending = this.pendingPermissions.get(requestId);
+    if (!pending) {
+      return;
+    }
+
+    pending.reject(error);
+    this.pendingPermissions.delete(requestId);
+    this.permissionRequestMeta.delete(requestId);
+    this.pendingNavigationTools.delete(requestId);
+    this.onPermissionRequestInvalidated?.(requestId, reason);
   }
 
   private handleFileOperation(operation: { method: string; path: string; content?: string; sessionId: string }): void {
@@ -1303,7 +1355,17 @@ export class AcpAgent {
     return content.slice(0, 500) + '\n... (truncated)';
   }
 
-  private emitStatusMessage(status: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'error'): void {
+  private emitStatusMessage(
+    status:
+      | 'connecting'
+      | 'connected'
+      | 'authenticated'
+      | 'session_active'
+      | 'auth_required'
+      | 'disconnected'
+      | 'error',
+    extra?: { disconnectCode?: number | null; disconnectSignal?: string | null }
+  ): void {
     // Use fixed ID for status messages so they update instead of duplicate
     if (!this.statusMessageId) {
       this.statusMessageId = uuid();
@@ -1316,10 +1378,13 @@ export class AcpAgent {
       type: 'agent_status',
       position: 'center',
       createdAt: Date.now(),
+      hidden: true,
       content: {
         backend: this.extra.backend,
         status,
         agentName: this.extra.agentName,
+        ...(extra?.disconnectCode !== undefined ? { disconnectCode: extra.disconnectCode } : {}),
+        ...(extra?.disconnectSignal !== undefined ? { disconnectSignal: extra.disconnectSignal } : {}),
       },
     };
 
@@ -1373,13 +1438,14 @@ export class AcpAgent {
     }
   }
 
-  private emitErrorMessage(error: string): void {
+  private emitErrorMessage(error: string, options: { hidden?: boolean } = {}): void {
     const errorMessage: TMessage = {
       id: uuid(),
       conversation_id: this.id,
       type: 'tips',
       position: 'center',
       createdAt: Date.now(),
+      ...(options.hidden && { hidden: true }),
       content: {
         content: error,
         type: 'error',
@@ -1420,6 +1486,7 @@ export class AcpAgent {
       data: null, // Will be set in switch statement
       conversation_id: this.id,
       msg_id: message.msg_id || message.id, // 使用消息自己的 msg_id
+      ...(message.hidden && { hidden: true }),
     };
 
     // Map TMessage types to backend response types
@@ -1615,6 +1682,51 @@ export class AcpAgent {
     }
   }
 
+  async authenticate(methodId?: string): Promise<void> {
+    if (!this.connection.isConnected) {
+      this.emitStatusMessage('connecting');
+      await this.connection.connect(
+        this.extra.backend,
+        this.extra.cliPath,
+        this.extra.workspace,
+        this.extra.customArgs,
+        this.extra.customEnv
+      );
+      this.emitStatusMessage('connected');
+    }
+
+    const initResponse = this.connection.getInitializeResponse();
+    const result = initResponse as unknown as InitializeResult | undefined;
+    const resolvedMethodId = methodId || this.getPreferredAuthMethodId(result);
+
+    if (resolvedMethodId) {
+      await this.connection.authenticate(resolvedMethodId);
+      this.emitStatusMessage('authenticated');
+    } else if (this.extra.backend === 'qwen') {
+      await this.ensureQwenAuth();
+      this.emitStatusMessage('authenticated');
+    } else if (this.extra.backend === 'claude') {
+      await this.ensureClaudeAuth();
+      this.emitStatusMessage('authenticated');
+    } else {
+      this.emitStatusMessage('auth_required');
+      throw new Error('Authentication required');
+    }
+
+    try {
+      await this.createOrResumeSession();
+      this.emitModelInfo();
+      this.emitStatusMessage('session_active');
+    } catch (error) {
+      if (this.isAuthenticationError(error)) {
+        this.emitStatusMessage('auth_required');
+      } else {
+        this.emitStatusMessage('error');
+      }
+      throw error;
+    }
+  }
+
   private async ensureBackendAuth(backend: AcpBackend, loginArg: string): Promise<void> {
     try {
       this.emitStatusMessage('connecting');
@@ -1674,47 +1786,101 @@ export class AcpAgent {
     await this.ensureBackendAuth('claude', '/login');
   }
 
+  private getPreferredAuthMethodId(result?: InitializeResult): string | undefined {
+    const initializeResult =
+      result || (this.connection.getInitializeResponse() as unknown as InitializeResult | undefined);
+    return initializeResult?.authMethods?.find((authMethod) => typeof authMethod.id === 'string')?.id;
+  }
+
+  private hasStoredResumeSession(): boolean {
+    return typeof this.extra.acpSessionId === 'string' && this.extra.acpSessionId.length > 0;
+  }
+
+  private isAuthenticationError(error: unknown): boolean {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const lowerErrorMsg = errorMsg.toLowerCase();
+    return (
+      errorMsg.includes('Authentication required') ||
+      errorMsg.includes('authentication failed') ||
+      errorMsg.includes('[ACP-AUTH-') ||
+      lowerErrorMsg.includes('auth required') ||
+      lowerErrorMsg.includes('authentication') ||
+      lowerErrorMsg.includes('unauthorized') ||
+      lowerErrorMsg.includes('forbidden')
+    );
+  }
+
+  private async tryAuthenticateWithAcpMethod(result?: InitializeResult): Promise<boolean> {
+    const resolvedMethodId = this.getPreferredAuthMethodId(result);
+    if (!resolvedMethodId) {
+      return false;
+    }
+
+    await this.connection.authenticate(resolvedMethodId);
+    return true;
+  }
+
   private async performAuthentication(): Promise<void> {
+    const initResponse = this.connection.getInitializeResponse();
+    const result = initResponse as unknown as InitializeResult | undefined;
+    if (!initResponse || !result?.authMethods?.length) {
+      // No auth methods available - CLI should handle authentication itself
+      this.emitStatusMessage('authenticated');
+      return;
+    }
+
+    // 先尝试直接创建session以判断是否已鉴权（同时尝试恢复已有会话）
+    // Try to create/resume session to check if already authenticated
     try {
-      const initResponse = this.connection.getInitializeResponse();
-      const result = initResponse?.result as InitializeResult | undefined;
-      if (!initResponse || !result?.authMethods?.length) {
-        // No auth methods available - CLI should handle authentication itself
-        this.emitStatusMessage('authenticated');
-        return;
-      }
-
-      // 先尝试直接创建session以判断是否已鉴权（同时尝试恢复已有会话）
-      // Try to create/resume session to check if already authenticated
-      try {
-        await this.createOrResumeSession();
-        this.emitStatusMessage('authenticated');
-        return;
-      } catch (_err) {
-        // 需要鉴权，进行条件化"预热"尝试
-      }
-
-      // 条件化预热：仅在需要鉴权时尝试调用后端CLI登录以刷新token
-      if (this.extra.backend === 'qwen') {
-        await this.ensureQwenAuth();
-      } else if (this.extra.backend === 'claude') {
-        await this.ensureClaudeAuth();
-      }
-      // Note: CodeBuddy does not have a CLI login command; auth is handled by the CLI itself
-
-      // 预热后重试创建session（同时尝试恢复会话）
-      // Retry creating/resuming session after warmup
-      try {
-        await this.createOrResumeSession();
-        this.emitStatusMessage('authenticated');
-        return;
-      } catch (error) {
-        // If still failing, guide user to login manually
-        // 如果仍然失败，引导用户手动登录
-        this.emitStatusMessage('error');
-      }
+      await this.createOrResumeSession();
+      this.emitStatusMessage('authenticated');
+      return;
     } catch (error) {
-      this.emitStatusMessage('error');
+      if (!this.isAuthenticationError(error)) {
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
+    // Codex resume can legitimately require an ACP authenticate round-trip after
+    // process restart even when the local CLI login is still valid. Mirror the
+    // manual Authenticate CTA once before surfacing auth_required to the user.
+    if (this.extra.backend === 'codex' && this.hasStoredResumeSession()) {
+      const authenticated = await this.tryAuthenticateWithAcpMethod(result);
+      if (authenticated) {
+        try {
+          await this.createOrResumeSession();
+        } catch (error) {
+          if (this.isAuthenticationError(error)) {
+            this.emitStatusMessage('auth_required');
+          }
+          throw error instanceof Error ? error : new Error(String(error));
+        }
+        this.emitStatusMessage('authenticated');
+        return;
+      }
+    }
+
+    // 条件化预热：仅在需要鉴权时尝试调用后端CLI登录以刷新token
+    if (this.extra.backend === 'qwen') {
+      await this.ensureQwenAuth();
+    } else if (this.extra.backend === 'claude') {
+      await this.ensureClaudeAuth();
+    }
+    // Note: CodeBuddy does not have a CLI login command; auth is handled by the CLI itself
+
+    // 预热后重试创建session（同时尝试恢复会话）
+    // Retry creating/resuming session after warmup
+    try {
+      await this.createOrResumeSession();
+      this.emitStatusMessage('authenticated');
+      return;
+    } catch (error) {
+      // If still failing, guide user to login manually
+      // 如果仍然失败，引导用户手动登录
+      if (this.isAuthenticationError(error)) {
+        this.emitStatusMessage('auth_required');
+      }
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 }

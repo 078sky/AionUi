@@ -4,6 +4,7 @@ import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useResizableSplit } from '@/renderer/hooks/ui/useResizableSplit';
 import ConversationTabs from '@/renderer/pages/conversation/components/ConversationTabs';
+import AcpRuntimeStatusButton from '@/renderer/pages/conversation/components/ChatLayout/AcpRuntimeStatusButton';
 import ChatTitleEditor from '@/renderer/pages/conversation/components/ChatTitleEditor';
 import ConversationTitleMinimap from '@/renderer/pages/conversation/components/ConversationTitleMinimap';
 import MobileWorkspaceOverlay from './MobileWorkspaceOverlay';
@@ -45,6 +46,7 @@ const ChatLayout: React.FC<{
   headerExtra?: React.ReactNode;
   headerLeft?: React.ReactNode;
   workspaceEnabled?: boolean;
+  showAcpRuntimeDiagnostics?: boolean;
   /** Conversation ID for mode switching */
   conversationId?: string;
   /** Custom tabs slot; when provided, replaces the default ConversationTabs */
@@ -98,6 +100,7 @@ const ChatLayout: React.FC<{
     (backend === 'custom' && customAgents?.[0]?.name) ||
     ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name ||
     backend;
+  const shouldShowAcpRuntimeStatusButton = Boolean(props.showAcpRuntimeDiagnostics && conversationId);
 
   const {
     splitRatio: workspaceSplitRatio,
@@ -201,16 +204,23 @@ const ChatLayout: React.FC<{
         </FlexFullContainer>
         <div className='flex items-center gap-12px shrink-0'>
           {props.headerExtra}
-          {(backend || agentLogo) && (
-            <AgentModeSelector
-              backend={backend}
-              agentName={displayName}
-              agentLogo={agentLogo}
-              agentLogoIsEmoji={agentLogoIsEmoji}
-              compact={Boolean(layout?.isMobile)}
-              showLogoInCompact={Boolean(layout?.isMobile)}
-              compactLabelType={layout?.isMobile ? 'agent' : 'mode'}
-            />
+          {(backend || agentLogo || shouldShowAcpRuntimeStatusButton) && (
+            <div className='flex items-center gap-4px shrink-0'>
+              {(backend || agentLogo) && (
+                <AgentModeSelector
+                  backend={backend}
+                  agentName={displayName}
+                  agentLogo={agentLogo}
+                  agentLogoIsEmoji={agentLogoIsEmoji}
+                  compact={Boolean(layout?.isMobile)}
+                  showLogoInCompact={Boolean(layout?.isMobile)}
+                  compactLabelType={layout?.isMobile ? 'agent' : 'mode'}
+                />
+              )}
+              {shouldShowAcpRuntimeStatusButton && conversationId && (
+                <AcpRuntimeStatusButton conversationId={conversationId} backend={backend} agentName={displayName} />
+              )}
+            </div>
           )}
           {isWindowsRuntime && workspaceEnabled && (
             <button

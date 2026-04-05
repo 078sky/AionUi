@@ -355,8 +355,14 @@ export const useRemoveMessageByMsgId = () => {
   );
 };
 
-export const useMessageLstCache = (key: string) => {
+type UseMessageListCacheOptions = {
+  sanitize?: (messages: TMessage[]) => TMessage[];
+};
+
+export const useMessageLstCache = (key: string, options: UseMessageListCacheOptions = {}) => {
   const update = useUpdateMessageList();
+  const sanitize = options.sanitize;
+
   useEffect(() => {
     if (!key) return;
     void ipcBridge.database.getConversationMessages
@@ -367,6 +373,7 @@ export const useMessageLstCache = (key: string) => {
       })
       .then((messages) => {
         if (messages && Array.isArray(messages)) {
+          const applySanitize = (nextMessages: TMessage[]) => (sanitize ? sanitize(nextMessages) : nextMessages);
           // Merge DB messages with any real-time streaming messages already in the list.
           // This prevents a race condition where streaming messages (added via IPC before
           // the DB load completes) could cause DB-only messages (e.g. cron user messages
@@ -375,11 +382,11 @@ export const useMessageLstCache = (key: string) => {
           // messages share the same msg_id but may have different id values
           // (streaming messages get new UUIDs from transformMessage).
           update((currentList) => {
-            if (!currentList.length) return messages;
+            if (!currentList.length) return applySanitize(messages);
             // Only keep streaming messages that belong to the current conversation
             // to prevent messages from a previous conversation leaking into the new one
             const sameConversation = currentList.filter((m) => m.conversation_id === key);
-            if (!sameConversation.length) return messages;
+            if (!sameConversation.length) return applySanitize(messages);
             const dbIds = new Set(messages.map((m) => m.id));
             const dbMsgIds = new Set(messages.map((m) => m.msg_id).filter(Boolean));
 
@@ -412,15 +419,15 @@ export const useMessageLstCache = (key: string) => {
             const streamingOnly = sameConversation.filter(
               (m) => !dbIds.has(m.id) && !(m.msg_id && dbMsgIds.has(m.msg_id))
             );
-            if (!streamingOnly.length && !streamingByMsgId.size) return messages;
-            return [...mergedMessages, ...streamingOnly];
+            if (!streamingOnly.length && !streamingByMsgId.size) return applySanitize(messages);
+            return applySanitize([...mergedMessages, ...streamingOnly]);
           });
         }
       })
       .catch((error) => {
         console.error('[useMessageLstCache] Failed to load messages from database:', error);
       });
-  }, [key]);
+  }, [key, sanitize]);
 };
 
 export const beforeUpdateMessageList = (fn: (list: TMessage[]) => TMessage[]) => {

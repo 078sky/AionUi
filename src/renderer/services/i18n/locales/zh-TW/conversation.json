@@ -259,6 +259,7 @@
     "remove": "移除",
     "files": "{{count}} 個檔案",
     "pausedAfterFailure": "下一條排隊指令啟動失敗。請編輯、調整順序或移除後再繼續。",
+    "sendNow": "立即送出",
     "emptyInput": "排隊指令不能為空。",
     "queueFull": "佇列已滿，請先移除部分指令再繼續新增。",
     "inputTooLong": "排隊指令內容過長，請縮短後再發送。",

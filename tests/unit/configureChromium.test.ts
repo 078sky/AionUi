@@ -27,6 +27,7 @@ function removeSandbox(dir: string): void {
 type SetupOptions = {
   isPackaged?: boolean;
   envPort?: string;
+  devProfile?: string;
   config?: Record<string, unknown>;
   registry?: Array<Record<string, unknown>>;
 };
@@ -52,8 +53,12 @@ async function loadConfigureChromium(options: SetupOptions = {}) {
 
   process.env = { ...originalEnv };
   delete process.env.AIONUI_CDP_PORT;
+  delete process.env.AIONUI_DEV_PROFILE;
   if (options.envPort !== undefined) {
     process.env.AIONUI_CDP_PORT = options.envPort;
+  }
+  if (options.devProfile !== undefined) {
+    process.env.AIONUI_DEV_PROFILE = options.devProfile;
   }
 
   const appendSwitch = vi.fn();
@@ -294,6 +299,17 @@ describe('configureChromium CDP (lightweight mock + file sandbox)', () => {
 
       expect(ctx.setNameSpy).toHaveBeenCalledWith('AionUi-Dev');
       expect(ctx.setPathSpy).toHaveBeenCalledWith('userData', path.join(ctx.sandbox, 'AionUi-Dev'));
+    });
+
+    it('uses a hermetic dev profile when configured', async () => {
+      const ctx = await loadConfigureChromium({
+        isPackaged: false,
+        devProfile: 'acp-e2e-profile',
+      });
+      restores.push(ctx.restore);
+
+      expect(ctx.setNameSpy).toHaveBeenCalledWith('AionUi-Dev-acp-e2e-profile');
+      expect(ctx.setPathSpy).toHaveBeenCalledWith('userData', path.join(ctx.sandbox, 'AionUi-Dev-acp-e2e-profile'));
     });
 
     it('does not set app name or userData path in packaged builds', async () => {

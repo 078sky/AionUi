@@ -42,6 +42,9 @@ function makeAgent(type: any = 'gemini', data: any = {}, emitter?: IAgentEventEm
     public mockPostMessage() {
       vi.spyOn(this as any, 'postMessagePromise').mockResolvedValue(undefined);
     }
+    public testRemoveByCallId(callId: string) {
+      this.removeConfirmationByCallId(callId);
+    }
   }
   const agent = new TestAgent();
   (agent as any).conversation_id = 'conv-' + type;
@@ -128,6 +131,17 @@ describe('BaseAgentManager with injected emitter', () => {
     agent.testAdd({ id: 'conf1', callId: 'call1', options: [] });
     agent.confirm('', 'unknown-call', 'proceed');
     expect(emitter.emitConfirmationRemove).not.toHaveBeenCalled();
+  });
+
+  it('removeConfirmationByCallId removes only the matching confirmation', () => {
+    const { agent, emitter } = makeAgent('acp');
+    agent.testAdd({ id: 'conf1', callId: 'call1', options: [] });
+    agent.testAdd({ id: 'conf2', callId: 'call2', options: [] });
+
+    agent.testRemoveByCallId('call1');
+
+    expect(agent.getConfirmations()).toEqual([{ id: 'conf2', callId: 'call2', options: [] }]);
+    expect(emitter.emitConfirmationRemove).toHaveBeenCalledWith('conv-acp', 'conf1');
   });
 
   // --- getConfirmations ---

@@ -249,6 +249,22 @@ export type TChatConversation =
           lastTokenUsage?: TokenUsageData;
           /** Context window capacity from usage_update */
           lastContextLimit?: number;
+          /** Last known ACP runtime status for thread-level hydration */
+          lastAcpStatus?: {
+            backend: AcpBackend;
+            status:
+              | 'connecting'
+              | 'connected'
+              | 'authenticated'
+              | 'session_active'
+              | 'auth_required'
+              | 'disconnected'
+              | 'error';
+            agentName?: string;
+            disconnectCode?: number | null;
+            disconnectSignal?: string | null;
+            updatedAt: number;
+          };
           /** Persisted session mode for resume support / 持久化的会话模式，用于恢复 */
           sessionMode?: string;
           /** Persisted model ID for resume support / 持久化的模型 ID，用于恢复 */

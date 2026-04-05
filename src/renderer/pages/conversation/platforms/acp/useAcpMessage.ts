@@ -5,19 +5,120 @@
  */
 
 import { ipcBridge } from '@/common';
-import { transformMessage } from '@/common/chat/chatLib';
+import { transformMessage, type TMessage } from '@/common/chat/chatLib';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { TokenUsageData } from '@/common/config/storage';
 import { useAddOrUpdateMessage } from '@/renderer/pages/conversation/Messages/hooks';
 import type { ThoughtData } from '@/renderer/components/chat/ThoughtDisplay';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  publishAcpRuntimeDiagnosticsSnapshot,
+  type AcpLogEntry,
+  type AcpRuntimeStatus,
+  type AcpRuntimeStatusSource,
+} from './acpRuntimeDiagnostics';
+
+export type { AcpLogEntry, AcpRuntimeStatus } from './acpRuntimeDiagnostics';
+export type AcpStatusSource = AcpRuntimeStatusSource;
+type BufferedContentMessage = IResponseMessage & {
+  type: 'content';
+  data: {
+    content: string;
+    [key: string]: unknown;
+  };
+};
+
+const LEGACY_ACP_ERROR_PATTERNS = [
+  /^ACP process exited unexpectedly/i,
+  /^Failed to send message\. Please try again\.?$/i,
+  /^Failed to send message to .+:/i,
+  /authentication failed/i,
+  /local CLI tool authentication status/i,
+];
+
+const isLegacyAcpInfrastructureTip = (message: TMessage): boolean => {
+  if (message.hidden || message.type !== 'tips' || message.position !== 'center') {
+    return false;
+  }
+
+  const content = message.content as {
+    type?: string;
+    content?: unknown;
+  };
+
+  if (content.type !== 'error' || typeof content.content !== 'string') {
+    return false;
+  }
+
+  const contentText = content.content;
+  return LEGACY_ACP_ERROR_PATTERNS.some((pattern) => pattern.test(contentText));
+};
+
+export const sanitizeAcpTimelineMessages = (messages: TMessage[]): TMessage[] => {
+  return messages.filter((message) => {
+    if (message.hidden) {
+      return true;
+    }
+
+    if (message.type === 'agent_status') {
+      return false;
+    }
+
+    return !isLegacyAcpInfrastructureTip(message);
+  });
+};
+
+const isTerminalAcpStatus = (
+  status: AcpRuntimeStatus | null | undefined
+): status is 'auth_required' | 'disconnected' | 'error' =>
+  status === 'auth_required' || status === 'disconnected' || status === 'error';
+
+const ACP_CONTENT_REVEAL_BUFFER_MS = 40;
+
+const isBufferedContentMessage = (message: IResponseMessage): message is BufferedContentMessage => {
+  if (message.type !== 'content' || !message.data || typeof message.data !== 'object') {
+    return false;
+  }
+
+  return typeof (message.data as { content?: unknown }).content === 'string';
+};
+
+type AppendAcpUiLogInput = Omit<AcpLogEntry, 'id' | 'timestamp' | 'source'> & {
+  timestamp?: number;
+};
+
+const MAX_ACP_LOGS = 12;
+
+const getAcpErrorDetail = (data: unknown): string | undefined => {
+  if (typeof data === 'string') {
+    return data;
+  }
+
+  if (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string') {
+    return data.message;
+  }
+
+  return undefined;
+};
 
 type UseAcpMessageReturn = {
   thought: ThoughtData;
   setThought: React.Dispatch<React.SetStateAction<ThoughtData>>;
   running: boolean;
   hasHydratedRunningState: boolean;
-  acpStatus: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error' | null;
+  acpStatus: AcpRuntimeStatus | null;
+  acpStatusSource: AcpStatusSource | null;
+  acpStatusRevision: number;
+  slashCommandsRevision: number;
+  acpLogs: AcpLogEntry[];
+  appendAcpUiLog: (entry: AppendAcpUiLogInput) => void;
+  primeRequestTraceFallback: (trace: {
+    backend: string;
+    agentName?: string;
+    sessionMode?: string;
+    timestamp?: number;
+  }) => void;
+  clearPendingRequestTraceFallback: () => boolean;
   aiProcessing: boolean;
   setAiProcessing: React.Dispatch<React.SetStateAction<boolean>>;
   resetState: () => void;
@@ -26,7 +127,13 @@ type UseAcpMessageReturn = {
   hasThinkingMessage: boolean;
 };
 
-export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
+type UseAcpMessageOptions = {
+  backend?: string;
+  agentName?: string;
+  sessionMode?: string;
+};
+
+export const useAcpMessage = (conversation_id: string, options: UseAcpMessageOptions = {}): UseAcpMessageReturn => {
   const addOrUpdateMessage = useAddOrUpdateMessage();
   const [running, setRunning] = useState(false);
   const [hasHydratedRunningState, setHasHydratedRunningState] = useState(false);
@@ -34,16 +141,22 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
     description: '',
     subject: '',
   });
-  const [acpStatus, setAcpStatus] = useState<
-    'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error' | null
-  >(null);
+  const [acpStatus, setAcpStatus] = useState<AcpRuntimeStatus | null>(null);
+  const [acpStatusSource, setAcpStatusSource] = useState<AcpStatusSource | null>(null);
+  const [acpStatusRevision, setAcpStatusRevision] = useState(0);
+  const [slashCommandsRevision, setSlashCommandsRevision] = useState(0);
+  const [acpLogs, setAcpLogs] = useState<AcpLogEntry[]>([]);
   const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
   const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
   const [contextLimit, setContextLimit] = useState<number>(0);
+  const acpLogSequenceRef = useRef(0);
+  const bufferedContentRef = useRef<BufferedContentMessage[]>([]);
+  const contentFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Use refs to sync state for immediate access in event handlers
   const runningRef = useRef(running);
   const aiProcessingRef = useRef(aiProcessing);
+  const hasLiveAcpActivityRef = useRef(false);
 
   // Track whether current turn has content output
   const hasContentInTurnRef = useRef(false);
@@ -62,7 +175,126 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
     backend: string;
     modelId: string;
     sessionMode?: string;
+    agentName?: string;
+    source: 'trace' | 'fallback';
   } | null>(null);
+
+  const appendAcpLog = useCallback(
+    (entry: Omit<AcpLogEntry, 'id'>) => {
+      const nextEntry: AcpLogEntry = {
+        ...entry,
+        id: `${conversation_id}-acp-log-${++acpLogSequenceRef.current}`,
+      };
+      setAcpLogs((currentLogs) => [nextEntry, ...currentLogs].slice(0, MAX_ACP_LOGS));
+    },
+    [conversation_id]
+  );
+
+  const appendAcpUiLog = useCallback(
+    (entry: AppendAcpUiLogInput) => {
+      appendAcpLog({
+        ...entry,
+        source: 'ui',
+        timestamp: entry.timestamp ?? Date.now(),
+      });
+    },
+    [appendAcpLog]
+  );
+
+  const primeRequestTraceFallback = useCallback(
+    (trace: { backend: string; agentName?: string; sessionMode?: string; timestamp?: number }) => {
+      if (requestTraceRef.current?.source === 'trace') {
+        return;
+      }
+
+      requestTraceRef.current = {
+        startTime: trace.timestamp ?? Date.now(),
+        backend: trace.backend,
+        modelId: 'unknown',
+        sessionMode: trace.sessionMode,
+        agentName: trace.agentName,
+        source: 'fallback',
+      };
+    },
+    []
+  );
+
+  const clearPendingRequestTraceFallback = useCallback(() => {
+    if (requestTraceRef.current?.source !== 'fallback') {
+      return false;
+    }
+
+    requestTraceRef.current = null;
+    return true;
+  }, []);
+
+  const flushBufferedContent = useCallback(() => {
+    if (contentFlushTimerRef.current) {
+      clearTimeout(contentFlushTimerRef.current);
+      contentFlushTimerRef.current = null;
+    }
+
+    const pendingBufferedContent = bufferedContentRef.current;
+    if (pendingBufferedContent.length === 0) {
+      return;
+    }
+
+    bufferedContentRef.current = [];
+    for (const bufferedMessage of pendingBufferedContent) {
+      addOrUpdateMessage(transformMessage(bufferedMessage));
+    }
+  }, [addOrUpdateMessage]);
+
+  const clearBufferedContent = useCallback(() => {
+    if (contentFlushTimerRef.current) {
+      clearTimeout(contentFlushTimerRef.current);
+      contentFlushTimerRef.current = null;
+    }
+    bufferedContentRef.current = [];
+  }, []);
+
+  const scheduleBufferedContentFlush = useCallback(() => {
+    if (contentFlushTimerRef.current !== null) {
+      return;
+    }
+
+    contentFlushTimerRef.current = setTimeout(() => {
+      flushBufferedContent();
+    }, ACP_CONTENT_REVEAL_BUFFER_MS);
+  }, [flushBufferedContent]);
+
+  const bufferContentMessage = useCallback(
+    (message: IResponseMessage) => {
+      if (!isBufferedContentMessage(message)) {
+        addOrUpdateMessage(transformMessage(message));
+        return;
+      }
+
+      const bufferedMessages = bufferedContentRef.current;
+      const previousMessage = bufferedMessages[bufferedMessages.length - 1];
+
+      if (
+        previousMessage &&
+        previousMessage.msg_id === message.msg_id &&
+        previousMessage.conversation_id === message.conversation_id &&
+        previousMessage.hidden === message.hidden
+      ) {
+        previousMessage.data = {
+          ...previousMessage.data,
+          ...message.data,
+          content: previousMessage.data.content + message.data.content,
+        };
+      } else {
+        bufferedMessages.push({
+          ...message,
+          data: { ...message.data },
+        });
+      }
+
+      scheduleBufferedContentFlush();
+    },
+    [addOrUpdateMessage, scheduleBufferedContentFlush]
+  );
 
   // Throttle thought updates to reduce render frequency
   const thoughtThrottleRef = useRef<{
@@ -118,6 +350,12 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
         return;
       }
 
+      hasLiveAcpActivityRef.current = true;
+
+      if (message.type !== 'content' && bufferedContentRef.current.length > 0) {
+        flushBufferedContent();
+      }
+
       const transformedMessage = transformMessage(message);
       switch (message.type) {
         case 'thought':
@@ -144,8 +382,26 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
           // New turn starting — clear the finished guard and content flag
           turnFinishedRef.current = false;
           hasContentInTurnRef.current = false;
+          if (!requestTraceRef.current) {
+            requestTraceRef.current = {
+              startTime: Date.now(),
+              backend: options.backend || 'unknown',
+              modelId: 'unknown',
+              sessionMode: options.sessionMode,
+              agentName: options.agentName,
+              source: 'fallback',
+            };
+          }
           setRunning(true);
           runningRef.current = true;
+          setAcpStatusSource('live');
+          setAcpStatus((prev) => {
+            if (prev === 'session_active') {
+              return prev;
+            }
+            setAcpStatusRevision((revision) => revision + 1);
+            return 'session_active';
+          });
           // Don't reset aiProcessing here - let content arrival handle it
           break;
         case 'finish':
@@ -164,6 +420,17 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
             // Log request completion
             if (requestTraceRef.current) {
               const duration = Date.now() - requestTraceRef.current.startTime;
+              appendAcpLog({
+                kind: 'request_finished',
+                level: 'success',
+                source: 'live',
+                timestamp: Date.now(),
+                backend: requestTraceRef.current.backend,
+                modelId: requestTraceRef.current.modelId,
+                sessionMode: requestTraceRef.current.sessionMode,
+                agentName: requestTraceRef.current.agentName,
+                durationMs: duration,
+              });
               console.log(
                 `%c[RequestTrace]%c FINISH | ${requestTraceRef.current.backend} → ${requestTraceRef.current.modelId} | ${duration}ms | ${new Date().toISOString()}`,
                 'color: #52c41a; font-weight: bold',
@@ -174,42 +441,92 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
           }
           break;
         case 'content': {
+          if (turnFinishedRef.current) {
+            // Ignore late chunks from a canceled or already-finished turn.
+            // The next valid turn must reopen the gate with an explicit start event.
+            break;
+          }
           // First content token — AI has started responding, clear processing indicator
           if (!hasContentInTurnRef.current) {
             hasContentInTurnRef.current = true;
             setAiProcessing(false);
             aiProcessingRef.current = false;
+            if (requestTraceRef.current) {
+              appendAcpLog({
+                kind: 'first_response',
+                level: 'success',
+                source: 'live',
+                timestamp: Date.now(),
+                backend: requestTraceRef.current.backend,
+                modelId: requestTraceRef.current.modelId,
+                sessionMode: requestTraceRef.current.sessionMode,
+                agentName: requestTraceRef.current.agentName,
+                durationMs: Date.now() - requestTraceRef.current.startTime,
+              });
+            }
           }
           // Auto-recover running state only if turn hasn't finished
           if (!runningRef.current && !turnFinishedRef.current) {
             setRunning(true);
             runningRef.current = true;
           }
+          setAcpStatusSource('live');
+          setAcpStatus((prev) => {
+            if (prev === 'session_active') {
+              return prev;
+            }
+            setAcpStatusRevision((revision) => revision + 1);
+            return 'session_active';
+          });
           // Clear thought when final answer arrives
           setThought({ subject: '', description: '' });
-          addOrUpdateMessage(transformedMessage);
+          bufferContentMessage(message);
           break;
         }
         case 'agent_status': {
-          // Auto-recover running state only if turn hasn't finished
-          if (!runningRef.current && !turnFinishedRef.current) {
-            setRunning(true);
-            runningRef.current = true;
-          }
-          // Update ACP/Agent status
+          // Agent lifecycle status is not a generation signal.
+          // Keep turn loading driven by start/content/finish/error only.
           const agentData = message.data as {
-            status?: 'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error';
+            status?: AcpRuntimeStatus;
             backend?: string;
+            agentName?: string;
+            disconnectCode?: number | null;
+            disconnectSignal?: string | null;
           };
           if (agentData?.status) {
+            setAcpStatusSource('live');
             setAcpStatus(agentData.status);
-            // Reset running state when authentication is complete
-            if (['authenticated', 'session_active'].includes(agentData.status)) {
-              setRunning(false);
-              runningRef.current = false;
+            setAcpStatusRevision((revision) => revision + 1);
+            if (isTerminalAcpStatus(agentData.status) && requestTraceRef.current) {
+              appendAcpLog({
+                kind: 'request_error',
+                level: 'error',
+                source: 'live',
+                timestamp: Date.now(),
+                backend: requestTraceRef.current.backend,
+                modelId: requestTraceRef.current.modelId,
+                sessionMode: requestTraceRef.current.sessionMode,
+                durationMs: Date.now() - requestTraceRef.current.startTime,
+                disconnectCode: agentData.disconnectCode ?? null,
+                disconnectSignal: agentData.disconnectSignal ?? null,
+              });
+              requestTraceRef.current = null;
             }
-            // Reset all loading states on error or disconnect so UI doesn't stay stuck
-            if (['error', 'disconnected'].includes(agentData.status)) {
+            appendAcpLog({
+              kind: 'status',
+              level: isTerminalAcpStatus(agentData.status) ? 'error' : 'info',
+              source: 'live',
+              timestamp: Date.now(),
+              backend: agentData.backend,
+              agentName: agentData.agentName,
+              status: agentData.status,
+              disconnectCode: agentData.disconnectCode ?? null,
+              disconnectSignal: agentData.disconnectSignal ?? null,
+            });
+            // Terminal ACP statuses end the current turn immediately so late
+            // lifecycle noise cannot revive the send box loading state.
+            if (isTerminalAcpStatus(agentData.status)) {
+              turnFinishedRef.current = true;
               setRunning(false);
               runningRef.current = false;
               setAiProcessing(false);
@@ -241,10 +558,9 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
           // Model info updates are handled by AcpModelSelector, no action needed here
           break;
         case 'slash_commands_updated':
-          // Slash commands became available (often during bootstrap when
-          // agent_status events are suppressed). Update acpStatus so
-          // useSlashCommands re-fetches.
-          setAcpStatus((prev) => prev ?? 'session_active');
+          // Slash command availability is a cache invalidation signal only.
+          // It must not be treated as proof that the ACP runtime recovered.
+          setSlashCommandsRevision((revision) => revision + 1);
           break;
         case 'acp_context_usage': {
           const usageData = message.data as { used: number; size: number };
@@ -259,12 +575,28 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
         case 'request_trace':
           {
             const trace = message.data as Record<string, unknown>;
+            const traceTimestamp = Number(trace.timestamp) || Date.now();
+            const shouldAppendStartedLog = !requestTraceRef.current || requestTraceRef.current.source === 'fallback';
             requestTraceRef.current = {
-              startTime: Number(trace.timestamp) || Date.now(),
+              startTime: traceTimestamp,
               backend: String(trace.backend || 'unknown'),
               modelId: String(trace.modelId || 'unknown'),
               sessionMode: trace.sessionMode as string | undefined,
+              agentName: options.agentName,
+              source: 'trace',
             };
+            if (shouldAppendStartedLog) {
+              appendAcpLog({
+                kind: 'request_started',
+                level: 'info',
+                source: 'live',
+                timestamp: traceTimestamp,
+                backend: requestTraceRef.current.backend,
+                modelId: requestTraceRef.current.modelId,
+                sessionMode: requestTraceRef.current.sessionMode,
+                agentName: requestTraceRef.current.agentName,
+              });
+            }
             console.log(
               `%c[RequestTrace]%c START | ${trace.backend} → ${trace.modelId} | ${new Date().toISOString()}`,
               'color: #1890ff; font-weight: bold',
@@ -284,6 +616,18 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
           // Log request error
           if (requestTraceRef.current) {
             const duration = Date.now() - requestTraceRef.current.startTime;
+            appendAcpLog({
+              kind: 'request_error',
+              level: 'error',
+              source: 'live',
+              timestamp: Date.now(),
+              backend: requestTraceRef.current.backend,
+              modelId: requestTraceRef.current.modelId,
+              sessionMode: requestTraceRef.current.sessionMode,
+              agentName: requestTraceRef.current.agentName,
+              durationMs: duration,
+              detail: getAcpErrorDetail(message.data),
+            });
             console.log(
               `%c[RequestTrace]%c ERROR | ${requestTraceRef.current.backend} → ${requestTraceRef.current.modelId} | ${duration}ms | ${new Date().toISOString()}`,
               'color: #ff4d4f; font-weight: bold',
@@ -303,12 +647,37 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
           break;
       }
     },
-    [conversation_id, addOrUpdateMessage, throttledSetThought, setThought, setRunning, setAiProcessing, setAcpStatus]
+    [
+      conversation_id,
+      addOrUpdateMessage,
+      appendAcpLog,
+      options.agentName,
+      options.backend,
+      options.sessionMode,
+      bufferContentMessage,
+      flushBufferedContent,
+      throttledSetThought,
+      setThought,
+      setRunning,
+      setAiProcessing,
+      setAcpStatus,
+    ]
   );
 
   useEffect(() => {
     return ipcBridge.acpConversation.responseStream.on(handleResponseMessage);
   }, [handleResponseMessage]);
+
+  useEffect(() => {
+    const activityPhase = aiProcessing ? 'waiting' : running ? 'streaming' : 'idle';
+    publishAcpRuntimeDiagnosticsSnapshot(conversation_id, {
+      status: acpStatus,
+      statusSource: acpStatusSource,
+      statusRevision: acpStatusRevision,
+      activityPhase,
+      logs: acpLogs,
+    });
+  }, [acpLogs, acpStatus, acpStatusRevision, acpStatusSource, aiProcessing, conversation_id, running]);
 
   // Reset state when conversation changes and restore actual running status
   useEffect(() => {
@@ -316,10 +685,21 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
 
     setThought({ subject: '', description: '' });
     setAcpStatus(null);
+    setAcpStatusSource(null);
+    setAcpStatusRevision(0);
+    setSlashCommandsRevision(0);
+    setAcpLogs([]);
     setTokenUsage(null);
     setContextLimit(0);
     hasContentInTurnRef.current = false;
+    turnFinishedRef.current = false;
+    hasThinkingMessageRef.current = false;
+    setHasThinkingMessage(false);
     setHasHydratedRunningState(false);
+    hasLiveAcpActivityRef.current = false;
+    requestTraceRef.current = null;
+    acpLogSequenceRef.current = 0;
+    clearBufferedContent();
 
     // Check actual conversation status from backend before resetting running/aiProcessing
     // to avoid flicker when switching to a running conversation
@@ -328,19 +708,26 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
         return;
       }
 
+      const hasLiveAcpActivity = hasLiveAcpActivityRef.current;
+
       if (!res) {
-        setRunning(false);
-        runningRef.current = false;
-        setAiProcessing(false);
-        aiProcessingRef.current = false;
+        if (!hasLiveAcpActivity) {
+          setRunning(false);
+          runningRef.current = false;
+          setAiProcessing(false);
+          aiProcessingRef.current = false;
+        }
         setHasHydratedRunningState(true);
         return;
       }
-      const isRunning = res.status === 'running';
-      setRunning(isRunning);
-      runningRef.current = isRunning;
-      setAiProcessing(isRunning);
-      aiProcessingRef.current = isRunning;
+
+      if (!hasLiveAcpActivity) {
+        const isRunning = res.status === 'running';
+        setRunning(isRunning);
+        runningRef.current = isRunning;
+        setAiProcessing(isRunning);
+        aiProcessingRef.current = isRunning;
+      }
       setHasHydratedRunningState(true);
 
       // Restore persisted context usage data
@@ -353,14 +740,54 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
           setContextLimit(lastContextLimit);
         }
       }
+
+      if (
+        res.type === 'acp' &&
+        res.extra?.lastAcpStatus?.status &&
+        isTerminalAcpStatus(res.extra.lastAcpStatus.status) &&
+        !hasLiveAcpActivity
+      ) {
+        setAcpStatus(res.extra.lastAcpStatus.status);
+        setAcpStatusSource('hydrated');
+        setAcpStatusRevision(1);
+        setAcpLogs((currentLogs) => {
+          if (currentLogs.length > 0) {
+            return currentLogs;
+          }
+
+          return [
+            {
+              id: `${conversation_id}-acp-log-hydrated-status`,
+              kind: 'status',
+              level: 'error',
+              source: 'hydrated',
+              timestamp: res.extra.lastAcpStatus.updatedAt,
+              backend: res.extra.lastAcpStatus.backend,
+              agentName: res.extra.lastAcpStatus.agentName,
+              status: res.extra.lastAcpStatus.status,
+              disconnectCode: res.extra.lastAcpStatus.disconnectCode ?? null,
+              disconnectSignal: res.extra.lastAcpStatus.disconnectSignal ?? null,
+            },
+          ];
+        });
+        if (acpLogSequenceRef.current === 0) {
+          acpLogSequenceRef.current = 1;
+        }
+        setRunning(false);
+        runningRef.current = false;
+        setAiProcessing(false);
+        aiProcessingRef.current = false;
+      }
     });
 
     return () => {
       cancelled = true;
+      clearBufferedContent();
     };
-  }, [conversation_id]);
+  }, [clearBufferedContent, conversation_id]);
 
   const resetState = useCallback(() => {
+    clearBufferedContent();
     turnFinishedRef.current = true;
     setRunning(false);
     runningRef.current = false;
@@ -370,7 +797,7 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
     hasContentInTurnRef.current = false;
     hasThinkingMessageRef.current = false;
     setHasThinkingMessage(false);
-  }, []);
+  }, [clearBufferedContent]);
 
   return {
     thought,
@@ -378,6 +805,13 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
     running,
     hasHydratedRunningState,
     acpStatus,
+    acpStatusSource,
+    acpStatusRevision,
+    slashCommandsRevision,
+    acpLogs,
+    appendAcpUiLog,
+    primeRequestTraceFallback,
+    clearPendingRequestTraceFallback,
     aiProcessing,
     setAiProcessing,
     resetState,

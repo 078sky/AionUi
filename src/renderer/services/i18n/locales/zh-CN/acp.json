@@ -2,7 +2,13 @@
   "auth": {
     "failed": "{{backend}} 认证失败：\n\n{{error}}\n\n请检查本地CLI工具的认证状态",
     "console_error": "ACP认证错误详情:",
-    "failed_confirm": "ACP {{backend}} 认证失败：\n\n{{error}}\n\n是否现在前往设置页面配置？"
+    "failed_confirm": "ACP {{backend}} 认证失败：\n\n{{error}}\n\n是否现在前往设置页面配置？",
+    "requiredHint": "{{agent}} 需要先完成认证才能继续此线程。现在进行认证，或先刷新本地 CLI 登录状态。",
+    "authenticate": "立即认证",
+    "authenticateFailed": "无法完成 {{agent}} 认证。请重试，或先刷新本地 CLI 登录状态。"
+  },
+  "send": {
+    "failed": "向 {{backend}} 发送消息失败：\n\n{{error}}"
   },
   "sendbox": {
     "placeholder": "发送消息到 {{backend}}..."
@@ -12,8 +18,31 @@
     "connected": "已连接到 {{agent}}",
     "authenticated": "已通过 {{agent}} 身份验证",
     "session_active": "{{agent}} 会话活跃中",
+    "auth_required": "{{agent}} 需要认证",
+    "disconnected": "{{agent}} 已断开连接",
     "error": "连接错误",
     "unknown": "未知状态"
+  },
+  "connection": {
+    "disconnectedHint": "ACP 运行时已意外停止。你可以立即重试连接，或发送一条新消息来启动新的会话。",
+    "retryFailed": "无法预热 {{agent}}。请重试，或直接发送一条新消息。"
+  },
+  "logs": {
+    "title": "ACP 日志",
+    "requestStarted": "{{backend}} -> {{model}} 已开始",
+    "firstResponse": "{{backend}} -> {{model}} 在 {{duration}}ms 后返回首个响应",
+    "requestFinished": "{{backend}} -> {{model}} 在 {{duration}}ms 内完成",
+    "requestErrored": "{{backend}} -> {{model}} 在 {{duration}}ms 内失败",
+    "sendFailed": "{{agent}} 发送请求失败",
+    "authRequested": "已请求为 {{agent}} 重新认证",
+    "authReady": "{{agent}} 认证完成，连接已恢复",
+    "authFailed": "{{agent}} 认证失败",
+    "retryRequested": "已请求重试连接 {{agent}}",
+    "retryReady": "{{agent}} 连接预热已就绪",
+    "retryFailed": "{{agent}} 连接预热失败",
+    "sendNowRequested": "已请求立即发送 {{agent}} 的下一条指令",
+    "cancelRequested": "已请求停止",
+    "disconnectReason": "退出码: {{code}}, 信号: {{signal}}"
   },
   "config": {
     "reasoning_effort": "推理深度",

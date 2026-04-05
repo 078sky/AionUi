@@ -32,6 +32,7 @@ import AionrsChat from '../platforms/aionrs/AionrsChat';
 import AionrsModelSelector from '../platforms/aionrs/AionrsModelSelector';
 import { useAionrsModelSelection } from '../platforms/aionrs/useAionrsModelSelection';
 import { usePreviewContext } from '../Preview';
+import { resolveConversationBackend } from '../utils/resolveConversationBackend';
 import StarOfficeMonitorCard from '../platforms/openclaw/StarOfficeMonitorCard.tsx';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
 
@@ -246,6 +247,7 @@ const ChatConversation: React.FC<{
 
   const isGeminiConversation = conversation?.type === 'gemini';
   const isAionrsConversation = conversation?.type === 'aionrs';
+  const conversationBackend = resolveConversationBackend(conversation);
 
   const conversationNode = useMemo(() => {
     if (!conversation || isGeminiConversation || isAionrsConversation) return null;
@@ -256,7 +258,7 @@ const ChatConversation: React.FC<{
             key={conversation.id}
             conversation_id={conversation.id}
             workspace={conversation.extra?.workspace}
-            backend={conversation.extra?.backend || 'claude'}
+            backend={conversationBackend || 'claude'}
             sessionMode={conversation.extra?.sessionMode}
             cachedConfigOptions={conversation.extra?.cachedConfigOptions}
             agentName={(conversation.extra as { agentName?: string })?.agentName}
@@ -270,7 +272,7 @@ const ChatConversation: React.FC<{
             key={conversation.id}
             conversation_id={conversation.id}
             workspace={conversation.extra?.workspace}
-            backend='codex'
+            backend={conversationBackend || 'codex'}
             cachedConfigOptions={
               (
                 conversation.extra as {
@@ -311,7 +313,7 @@ const ChatConversation: React.FC<{
       default:
         return null;
     }
-  }, [conversation, isGeminiConversation, isAionrsConversation, hideSendBox]);
+  }, [conversation, conversationBackend, isGeminiConversation, isAionrsConversation, hideSendBox]);
 
   // 使用统一的 Hook 获取预设助手信息（ACP/Codex 会话）
   // Use unified hook for preset assistant info (ACP/Codex conversations)
@@ -369,27 +371,15 @@ const ChatConversation: React.FC<{
   // If preset assistant info exists, use preset logo/name; while loading, avoid fallback; otherwise use backend logo
   const chatLayoutProps = presetAssistantInfo
     ? {
+        backend: conversationBackend,
         agentName: presetAssistantInfo.name,
         agentLogo: presetAssistantInfo.logo,
         agentLogoIsEmoji: presetAssistantInfo.isEmoji,
       }
     : isLoadingPreset
-      ? {} // Still loading custom agents — avoid showing backend logo prematurely
+      ? { backend: conversationBackend } // Still loading custom agents — keep runtime identity stable
       : {
-          backend:
-            conversation?.type === 'acp'
-              ? conversation?.extra?.backend
-              : conversation?.type === 'aionrs'
-                ? 'aionrs'
-                : conversation?.type === 'codex'
-                  ? 'codex'
-                  : conversation?.type === 'openclaw-gateway'
-                    ? 'openclaw-gateway'
-                    : conversation?.type === 'nanobot'
-                      ? 'nanobot'
-                      : conversation?.type === 'remote'
-                        ? 'remote'
-                        : undefined,
+          backend: conversationBackend,
           agentName: (conversation?.extra as { agentName?: string })?.agentName,
         };
 
@@ -422,6 +412,7 @@ const ChatConversation: React.FC<{
       {...chatLayoutProps}
       headerLeft={modelSelector}
       headerExtra={headerExtraNode}
+      showAcpRuntimeDiagnostics={conversation?.type === 'acp' || conversation?.type === 'codex'}
       siderTitle={sliderTitle}
       sider={<ChatSider conversation={conversation} />}
       workspaceEnabled={workspaceEnabled}

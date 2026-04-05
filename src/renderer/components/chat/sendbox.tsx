@@ -68,6 +68,7 @@ const SendBox: React.FC<{
   enableBtw?: boolean;
   allowSendWhileLoading?: boolean;
   compactActions?: boolean;
+  autoFocus?: boolean;
 }> = ({
   onSend,
   onStop,
@@ -90,6 +91,7 @@ const SendBox: React.FC<{
   enableBtw = false,
   allowSendWhileLoading = false,
   compactActions = false,
+  autoFocus,
 }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -606,6 +608,13 @@ const SendBox: React.FC<{
       inputLength: input.length,
       domSnippetCount: domSnippets.length,
     });
+    if (warmupTimerRef.current) {
+      clearTimeout(warmupTimerRef.current);
+      warmupTimerRef.current = null;
+    }
+    if (conversationContext?.conversationId) {
+      warmedConversationRef.current = conversationContext.conversationId;
+    }
     setIsLoading(true);
     historyDraftRef.current = null;
     setHistoryNavigationIndex(null);
@@ -824,7 +833,7 @@ const SendBox: React.FC<{
             </div>
           )}
           <Input.TextArea
-            autoFocus={!isMobile}
+            autoFocus={autoFocus ?? !isMobile}
             disabled={disabled}
             value={input}
             placeholder={placeholder}

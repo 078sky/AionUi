@@ -1,0 +1,1963 @@
+# AionUi ACP 改造执行日志
+
+> 日期：2026-04-04
+> 分支：`feat/acp-optimization`
+> 关联方案：`acp-optimization-plan-final.md`
+> 关联流程：`acp-development-workflow.md`
+> 规则：append-only；每个切片收口时追加，不覆盖旧条目
+
+---
+
+## 决策日志
+
+### D-001 固定采用 `Driver + Reviewer + Automation`
+
+- Decision: ACP 改造期间固定采用 `Driver + Reviewer + Automation` 三方分工，不接受“单人实现后口头自证完成”。
+- Why: ACP 体验问题大多是事件时序问题，单一路径容易把“修复了一个表象”误判成“修复了用户问题”。
+- Evidence:
+  - `docs/research/acp-development-workflow.md`
+  - reviewer 裁决需要单独质疑“实现是否真的守住用户可见行为”
+- Impact: 后续每个切片都必须同时给出实现、反证审查、自动化结果。
+- Follow-up trigger: 如果后续某个切片没有 reviewer 裁决或自动化证据，则该切片不能进入下一阶段。
+
+### D-002 先补确定性测试实验室，再做更大范围 UX 改造
+
+- Decision: 优先建设 fake ACP CLI 和 ACP 专项门禁，而不是一上来改连接复用或大状态机。
+- Why: 当前的主要风险不是“没有想法”，而是“没有稳定办法证明这次改造没把另外一条时序打坏”。
+- Evidence:
+  - `package.json`
+  - `tests/fixtures/fake-acp-cli/index.js`
+  - `tests/integration/acp-smoke.test.ts`
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+- Impact: 后续任何 P0/P1 切片，必须先能在 fake CLI 下稳定复现，再谈修复。
+- Follow-up trigger: 当 fake CLI 无法表达新的失败模式时，再扩展场景轴，不引入自由形 DSL。
+
+### D-003 `finish -> ignore late content` 作为 renderer 最小不变量
+
+- Decision: renderer 侧先把“turn 已结束后，迟到 `content` 不得再落入消息列表”钉成最小不变量。
+- Why: 这是用户直接可见的 ghost text 问题，且修复点处于 `useAcpMessage` 最后一个仍掌握 turn 状态的关口。
+- Evidence:
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+  - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+- Impact: 之后即使底层 cancel/finish 的 timing 继续波动，UI 最外层仍有一条低成本防线。
+- Follow-up trigger: 如果后续发现合法新 turn 会在没有 `start` 的情况下直接发 `content`，需重新审查这条 guard。
+
+### D-004 fake CLI 场景接口改为 `AUTH_MODE + PROMPT_MODE`
+
+- Decision: 将 fake CLI 的测试控制从单枚举 `FAKE_ACP_SCENARIO` 收敛到两轴：`FAKE_ACP_AUTH_MODE` 与 `FAKE_ACP_PROMPT_MODE`，保留旧枚举兼容。
+- Why: 单枚举不利于组合场景扩展，也让“认证态”和“prompt 行为”耦合在一起。
+- Evidence:
+  - `tests/fixtures/fake-acp-cli/index.js`
+  - reviewer 对测试接口正交性的审查结论
+- Impact: 以后可以更稳定地扩展 `auth required + exit mid-stream` 之类复合场景。
+- Follow-up trigger: 当需要第三个独立维度时，再新增单独环境变量，不回退到大而全的 JSON 场景描述。
+
+### D-005 integration reader 必须是无损持久化消息队列
+
+- Decision: 不再为每个等待条件临时挂载/卸载 `stdout` listener，改为每个 fake CLI child 一个持久化 `MessageCollector`。
+- Why: 原先 `waitForMessage()` 命中即解绑 listener，会丢掉同一批 stdout 中后续的 JSON-RPC 消息，场景再丰富也会在 CI 上变脆。
+- Evidence:
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+  - reviewer 对有损读取的审查结论
+- Impact: `late_chunk_after_cancel`、`exit_mid_stream` 等需要顺序读取多个消息的场景现在具有确定性基础。
+- Follow-up trigger: 如果后续需要读取 stderr 或多路流，再扩展 collector，而不是回到一次性 listener。
+
+### D-006 当前 stop 语义先守“stop 完成后无幽灵文本”，暂不提前到“点击即生效”
+
+- Decision: 当前阶段先把 stop 语义收口到“`stop` 完成后 UI 不再被 late chunk 污染”，暂不把 gate 提前到用户点击瞬间。
+- Why: 立即关门会引入另一类误杀风险，即 stop IPC 失败或延迟时把仍属合法输出的旧 turn 内容也吞掉。
+- Evidence:
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+  - reviewer 对 stop 边界的裁决
+- Impact: 当前测试与实现口径一致，后续如果要升级成交互级即时 stop，需要作为单独切片处理。
+- Follow-up trigger: 如果产品明确要求“点击 stop 的瞬间绝不再显示任何后续 chunk”，需单开切片调整 `AcpSendBox` 时序。
+
+### D-007 增加最小 live ACP flow harness，而不是直接跳到重型 e2e
+
+- Decision: 先新增一层 `AcpSendBox + useAcpMessage + responseStream` 的最小 live flow DOM 测试，而不是直接上完整页面 e2e。
+- Why: 当前 stop 与 disconnected 的验证分散在 hook、send box、MessageAgentStatus、fake CLI integration 四层，中间缺一条真正把会话 UI 流串起来的低成本测试。
+- Evidence:
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - 现有 ACP e2e 仍主要覆盖设置页与 backend 切换
+- Impact: 后续只要有人改动 stop/disconnect 的 UI 接线，ACP unit 门禁就能在最早一层拦住回归。
+- Follow-up trigger: 如果后续需要验证完整页面上的 message list 增长与 badge 展示，再把这条 live flow 升级成更高层 conversation-flow e2e。
+
+### D-008 下一层真实链路测试选 `AcpAgent + fake CLI`，不直接跳完整页面
+
+- Decision: 在最小 DOM harness 之后，下一层新增测试放在 `AcpAgent + fake CLI`，而不是立刻扩展完整页面 e2e。
+- Why: 当前真正缺的是 `session/update -> AcpAdapter -> AcpAgent -> signal/stream event` 这段真实链路验证；如果直接跳整页 e2e，会把 Electron UI、导航、异步 hydration 一起拉进来，收益不如成本。
+- Evidence:
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+- Impact: 现在 stop race 与 mid-stream disconnect 各有三层防线：protocol fixture、agent integration、renderer/UI guard。
+- Follow-up trigger: 如果后续需要验证 queue 面板、badge、logs 面板等页面级可见结果，再新增更高层 e2e，不提前越级。
+
+### D-009 agent 级断言只钉稳定不变量，不把重复 finish 之类细节写死
+
+- Decision: 新增 agent integration 时，只断言 `late chunk 仍在链路中`、`disconnected 可见`、`至少有 finish 能解卡`、`sendMessage 最终可收口` 这些稳定不变量，不断言 finish 的精确次数或 error/disconnected 的先后微序。
+- Why: 当前 runtime disconnect 既会走 `handleDisconnect()`，也会让 `sendMessage()` 的 catch 路径补 error/finish；在真正重构状态机前，把这些实现细节写死只会制造脆弱测试。
+- Evidence:
+  - `src/process/agent/acp/index.ts`
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+- Impact: 这条测试能守住用户真正在乎的“不再卡住、能看到断连、stop race 仍可复现”，同时不给后续状态机收敛制造假回归。
+- Follow-up trigger: 当 P0 状态真相层收口、finish/disconnected/error 语义定版后，再补更严格的事件序列断言。
+
+### D-010 故障场景测试不得过拟合 fake CLI chunk 细节，race 必须显式放宽时窗
+
+- Decision: 故障场景测试不再把首个 chunk 文本写死为 `'Fake respo'`；需要 cancel race 的场景必须显式拉大 fake CLI 的 step delay，并在关键用户语义上补顺序断言。
+- Why: reviewer 发现默认 step delay 下存在“自然完成先于 cancel 落地”的潜在脆弱点，同时 chunk 大小只是 fixture 细节，不是要守的行为。
+- Evidence:
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+  - reviewer 对 `late cancel` 与 `disconnect ordering` 的审查结论
+- Impact: 现在 agent integration 测试更像行为合同，而不是对 fake CLI 当前实现的快照。
+- Follow-up trigger: 若后续再引入新的故障注入模式，默认先检查是否存在同类“时间窗太窄 / 断言绑死 fixture 文本”的问题。
+
+### D-011 场景卡必须独立建账，不能再混写在执行日志里
+
+- Decision: 从 `SC-004` 开始，ACP 改造切片必须先在 `acp-scenario-cards.md` 独立登记，再允许进入代码和测试阶段。
+- Why: 之前把目标、review、验证都混写在执行日志里，虽然有留痕，但 reviewer 很难精确指出“改的是哪一张合同、合同后来是否被改写”。
+- Evidence:
+  - `docs/research/acp-development-workflow.md`
+  - `docs/research/acp-scenario-cards.md`
+- Impact: 之后每个 batch 都必须显式引用 `SC-XXX`，reviewer 如需改写目标，也只能在原场景卡下追加 adjustment。
+- Follow-up trigger: 如果后续某个切片没有独立场景卡编号，则该切片不应进入 reviewer 和 automation 阶段。
+
+### D-012 线程级 disconnected 必须可恢复且可跨重开水合
+
+- Decision: `disconnected` 不能只停留在消息流里；它必须同时满足 3 个条件：线程级可见、可重试、重开对话后仍能从持久化状态恢复。
+- Why: 如果 disconnected 只是一条瞬时消息，用户切页或重开后会失去“当前线程已断开”的真相，只能靠下一次发送消息碰运气触发重建。
+- Evidence:
+  - `src/process/task/AcpAgentManager.ts`
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+- Impact: 之后任何 ACP 线程级状态都要先回答“是否需要持久化到 conversation extra，是否允许 hydration 恢复”。
+- Follow-up trigger: 如果后续新增 `auth_required` 或 `recovering` 这类线程级状态，也需要按同样标准审查是否持久化。
+
+### D-013 warmup 成功语义必须和真实连接状态对齐，不能靠过期 bootstrap 假装恢复
+
+- Decision: `conversation.warmup` 不再是“best-effort fire-and-forget”；它必须返回布尔结果，且 ACP 场景下只有在真实 warmup 成功并写入 ready 状态后，UI 才允许把当前 disconnected 事件视为已处理。
+- Why: 如果 warmup 复用的是一份过期 bootstrap，UI 会错误消掉 banner，让用户误以为连接已经恢复。
+- Evidence:
+  - `src/process/bridge/conversationBridge.ts`
+  - `src/process/task/AcpAgentManager.ts`
+  - reviewer 对 stale bootstrap false-positive 的裁决
+- Impact: 之后任何线程级 CTA 只要宣称“恢复成功”，都必须有 process 侧明确的成功信号，不能只靠 UI 本地猜测。
+- Follow-up trigger: 如果后续把 `Retry` 升级成自动 reconnect，需要继续沿用这条“真实成功信号先于 UI 成功提示”的约束。
+
+### D-014 `lastAcpStatus` 只在 `session_active` 后才允许清除
+
+- Decision: process 侧持久化的 `lastAcpStatus` 不再被 `connecting / connected / authenticated` 提前清空；只有确认进入 `session_active` 后才允许移除 stale disconnected。
+- Why: warmup bootstrap 期间这些状态会先于 UI 可见的 ready 信号到达。如果此时就清掉持久化 disconnected，用户在重开线程或 hydration 时会丢失“当前连接其实还没真正恢复”的真相。
+- Evidence:
+  - `src/process/task/AcpAgentManager.ts`
+  - `tests/unit/process/acpRuntimeStatusPersistence.test.ts`
+- Impact: disconnected banner 和 ACP logs 的 hydration 现在能跨“重连进行中但尚未 ready”的窗口保持诚实。
+- Follow-up trigger: 如果后续引入 `recovering` 等更细粒度线程状态，需要重新审查是否要单独持久化，而不是继续复用 `lastAcpStatus` 的终态语义。
+
+### D-014 `Retry` 成功只认 revision 前进后的 live `session_active`
+
+- Decision: `Retry` 成功提示与 disconnected banner 消失，必须绑定到“当前 retry 之后、revision 已前进的 live `session_active`”；`warmup=true`、以及中间态 `connected` / `authenticated` 都不能直接判定恢复成功。
+- Why: `warmup` 只是 process 侧 best-effort 结果，中间态连接事件也不等于线程已经可继续使用；如果 UI 过早宣布成功，用户会看到 banner 消失但发送仍失败的假恢复。
+- Evidence:
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+- Impact: 之后任何 ACP recover/retry 相关提示，都必须和可观察到的 live ready 状态绑定，不能只靠本地 promise resolve。
+- Follow-up trigger: 如果后续新增 `recovering` / 自动 reconnect，需要继续维护“pending recovery 期间 banner 与 logs 不提前报成功”的约束。
+
+### D-015 connection lifecycle status 不得驱动 turn loading
+
+- Decision: `agent_status.connected` / `authenticated` / `session_active` 这类 connection lifecycle 事件，不再被视作 turn generation signal；send box loading 只由 `start` / `content` / `finish` / `error` 驱动。
+- Why: 如果把连接状态也算作“正在生成”，UI 会出现 disconnected banner 被中间态事件提前消掉、send box 又回到 loading 的误导行为。
+- Evidence:
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+  - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+- Impact: 之后 ACP 状态机如果继续收口，必须继续把“连接状态”和“turn 生成状态”分开维护。
+- Follow-up trigger: 如果后续发现有真实 ACP provider 会用 `agent_status` 表示 turn 级繁忙，需要单独建切片重新审查该 provider 的语义，而不是回退成全局混用。
+
+### D-016 Hermetic ACP E2E 的界面基线是“当前分支本地构建”，不是 `main`
+
+- Decision: hermetic ACP 页面级 e2e 的视觉/行为基线必须按“当前工作树 + 当前分支本地构建”解释，不能把测试期间拉起的 Electron 界面误认成 `main` 最新 UI。
+- Why: 当前 hermetic helper 会先 `electron-vite build` 当前工作树，再从项目根目录用 `electron.launch({ args: ['.'], cwd: PROJECT_ROOT })` 启动 Electron；它既不是 `bun run start` 的 dev server，也不是 `main` 分支。
+- Evidence:
+  - `tests/e2e/helpers/electronBuild.ts`
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+  - `tests/e2e/fixtures.ts`
+  - `src/index.ts`
+- Impact: 之后所有 ACP e2e 截图/录屏都只能说明“当前 ACP 改造分支”的行为，不再拿它和 `main` 的肉眼印象混用。
+- Follow-up trigger: 如果后续确实需要和 `main` 做视觉对照，应单独切到 `main` 或单独构建 baseline，不复用当前 hermetic app。
+
+### D-017 send-level failure 不能伪装成一次真实 ACP request lifecycle
+
+- Decision: `AcpSendBox` 在发送前 prime 的 fallback request trace，只能用于“live request_trace/start 迟到但真实 turn 已经开始”的补位；如果 send/auth 在进入 ACP turn 前就失败，必须先清掉 fallback，再处理错误。
+- Why: 否则 synthetic `error` 会被 renderer 误记成 `request_error`，把“根本没进入 ACP runtime”的失败包装成一次看似真实的 request lifecycle。
+- Evidence:
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+  - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+- Impact: ACP logs 现在能区分“send/auth 被拒绝”和“真实 request 中途失败”，避免误导后续排障和体验判断。
+- Follow-up trigger: 如果后续还要给非 auth 的 send-level failure 做一等日志，需要单开新 log kind，而不是继续复用 `request_error`。
+
+### D-018 通用 SendBox 的 warmup 只属于“发送前预热”，真实 submit 后必须取消
+
+- Decision: `SendBox` 的 `conversation.warmup` debounce 只服务于“用户已 focus 但尚未发送”的预热窗口；一旦用户真实提交消息，就必须取消 pending warmup timer，并把当前 conversation 标记为已 warmed。
+- Why: 否则 warmup 会在真实 turn 之后补发 `markWarmupReadyStatus -> session_active`，把 disconnected 线程错误恢复成健康态；这是页面级 hermetic disconnect e2e 抓到的真实竞态。
+- Evidence:
+  - `src/renderer/components/chat/sendbox.tsx`
+  - `tests/unit/sendboxWarmup.dom.test.ts`
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+- Impact: 现在 prewarm 仍可覆盖“focus 后等待发送”的场景，但不再会在真实 send 后反向污染 ACP 线程状态机。
+- Follow-up trigger: 如果后续要对 warmup 做更细粒度 telemetry，需要把“预热成功”和“真实 turn 开始”分别记录，而不是继续共享 `session_active` 语义。
+
+### D-019 重型 Electron ACP E2E 必须串行运行，不能和其他门禁并行抢资源
+
+- Decision: 带 Electron 启动、`electron-vite build` 和 Playwright 页面回放的 ACP e2e，必须按串行批次运行，不再和 unit/integration 门禁并行混跑。
+- Why: 本轮 `SC-012` 扩充 hermetic e2e 时，disconnect 场景在与其他测试并行运行下出现过一次 60 秒假超时；相同测试单独串行复跑后稳定通过，说明问题来自资源争抢而不是产品回归。
+- Evidence:
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+  - `tests/e2e/helpers/electronBuild.ts`
+  - 本执行日志 `Batch 9`
+- Impact: 后续 ACP 页面级 e2e 继续保留在 `verify:acp` 的串行流水线里；临时调试时也不再用并行工具同时压 unit/e2e。
+- Follow-up trigger: 如果未来必须加速 e2e，只能通过独立 worker 池或独立构建缓存提速，不能回退到同机并行混跑。
+
+---
+
+## 执行日志
+
+### 2026-04-04 / Batch 1
+
+- Goal:
+  - 建立 ACP 改造的最小自循环测试基础。
+  - 先关闭 ghost text 的最外层风险，再收敛 fake CLI 与 integration 测试基座。
+- Changes:
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 增加 `turnFinishedRef` 下的 late `content` guard。
+  - 在 `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts` 补充 `disconnected`、`finish 后忽略 late content`、`start 后重新放行` 的 hook 级断言。
+  - 在 `tests/unit/renderer/platformSendBoxes.dom.test.tsx` 补充 ACP stop 完成后 `resetState` 的显式断言。
+  - 将 `tests/fixtures/fake-acp-cli/index.js` 收敛为 `AUTH_MODE + PROMPT_MODE` 两轴场景控制，并把 `late_chunk_after_cancel` 改成 cancel 驱动。
+  - 在 `tests/integration/acp-fixture-scenarios.test.ts` 引入持久化 `MessageCollector`，避免同批 stdout 消息丢失。
+- Reviewer:
+  - reviewer 裁决 hook 级防线是合适的最小防线，关键不变量是 `finish` 后不得再追加 `content`，只有新的 `start` 才能重新开启 turn。
+  - reviewer 裁决当前实现已关闭“finish 后 late content 继续显示”的缺口，但 stop 的“点击即生效”语义仍是后续可选升级项。
+  - reviewer 裁决 integration helper 原本存在有损读取，优先级高于继续堆新场景。
+- Verification:
+  - `bunx tsc --noEmit`
+  - `bun run test tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+  - `bun run test tests/unit/renderer/platformSendBoxes.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/integration/acp-fixture-scenarios.test.ts`
+  - `bun run verify:acp`
+  - 本轮 `verify:acp` 结果：
+    - ACP unit: `258 passed | 1 skipped`
+    - ACP integration: `15 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+    - 仓库仍有大量历史 lint warnings，但 `0 errors`，不阻塞 ACP 门禁
+- Open risks:
+  - 仍缺一条“真实 ACP 会话流”的 stop race 自动化，当前 stop 相关覆盖仍分散在 hook、send box、fake CLI integration 三层。
+  - 仍缺一条“mid-stream exit -> disconnected -> UI 解卡”的真实会话流自动化。
+  - 当前 stop 语义仍是“stop 完成后不再污染 UI”，不是“点击即刻硬切断所有后续 chunk”。
+- Next:
+  - 优先补一条 fake CLI 驱动的真实会话流：`stop -> late chunk after cancel -> UI 不增长`
+  - 然后补 `exit_mid_stream -> disconnected -> UI unstuck`
+  - 两条场景补齐后，再继续推进 P0 的 ACP logs 与状态真相层
+
+### 2026-04-04 / Batch 2
+
+- Goal:
+  - 把 stop/disconnect 从“分层各自通过”升级到“最小 live ACP 会话流通过”。
+  - 将新 flow test 正式纳入 ACP unit 门禁。
+- Changes:
+  - 新增 `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`。
+  - 该测试使用真实 `AcpSendBox` 与真实 `useAcpMessage`，只 mock 外围 UI 依赖，保留 `responseStream`、stop 调用与消息落库链路。
+  - 覆盖两条 live flow 行为：
+    - `stop` 完成后，late `content` 不再回流到消息层
+    - `agent_status: disconnected` 到来后，loading 归零且消息层收到可渲染的 disconnected 状态
+  - 将该文件加入 `package.json` 的 `test:acp:unit`。
+- Verification:
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+  - `bunx tsc --noEmit`
+  - `bun run test:acp:unit`
+  - `bun run verify:acp`
+  - 本轮 `verify:acp` 结果：
+    - ACP unit: `260 passed | 1 skipped`
+    - ACP integration: `15 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - 门禁过程中出现两次非逻辑性失败并已修复：
+    - lint 首次失败：`AcpSendBoxFlow.dom.test.tsx` 命中 `no-useless-spread`
+    - format 首次失败：`acp-development-workflow.md` 与 `AcpSendBoxFlow.dom.test.tsx` 需要格式化
+- Open risks:
+  - 这条 flow test 仍是最小 DOM harness，不等于完整页面 e2e。
+  - 目前仍未覆盖“stop 后若有 queue pending，只启动一次下一条”的真实流。
+- Next:
+  - 重新运行 `bun run test:acp:unit`
+  - 然后滚完整 `bun run verify:acp`
+  - 若门禁通过，再进入 fake CLI 驱动的更高层 conversation-flow 场景
+
+### 2026-04-04 / Batch 3
+
+- Goal:
+  - 补上 `AcpAgent` 这一层的真实 fake CLI 链路，让 stop race 与 mid-stream disconnect 不再只靠底层 JSON-RPC 或最小 DOM harness 间接覆盖。
+  - 继续把改造流程中的决策和门禁结果留痕。
+- Changes:
+  - 在 `tests/integration/acp-fixture-scenarios.test.ts` 新增通用 `EventCollector`，用于无损收集 `AcpAgent` 的 stream/signal 事件。
+  - 新增 `AcpAgent` + fake CLI 的 `late_chunk_after_cancel` 场景，验证：
+    - 首个 `content` 真正经过 agent 链路发出
+    - `cancelPrompt()` 后会先收到 `finish`
+    - fake CLI 的迟到 chunk 仍会继续出现在 agent 事件流中
+  - 新增 `AcpAgent` + fake CLI 的 `exit_mid_stream` 场景，验证：
+    - mid-stream exit 后会收到 `agent_status: disconnected`
+    - 至少有一个 `finish` signal 用于解卡
+    - `sendMessage()` 最终以失败结果收口，并带 runtime disconnect 错误
+  - 根据 reviewer 收敛测试口径：
+    - 为 `late_chunk_after_cancel` 显式拉大 `FAKE_ACP_STEP_DELAY_MS`
+    - 去掉对首个 chunk 文本 `'Fake respo'` 的硬编码依赖
+    - 为 disconnect 场景补 `disconnected` 先于第一个 `finish` 的顺序断言
+  - 在 `docs/research/acp-execution-log.md` 记录本轮决策和门禁结果。
+- Reviewer:
+  - reviewer 裁决下一层测试应该优先卡在 `AcpAgent`，而不是直接升级为整页 e2e；因为当前最缺的是中间链路真相，而不是页面导航覆盖。
+  - reviewer 裁决 agent 级测试不应写死重复 `finish` 的精确次数；当前最值钱的不变量是“断连可见、finish 可解卡、late chunk race 仍可复现”。
+  - reviewer 发现并推动修复 3 个测试问题：
+    - `late cancel` 在默认 step delay 下存在 race，需要显式拉大时窗
+    - disconnect 场景应该补 `disconnected -> finish` 的顺序约束
+    - 首个 chunk 断言不应绑定 fake CLI 的切片文本
+  - coverage reviewer 裁决这两条测试确实补上了 `AcpConnection` 与 renderer 之间的 `AcpAgent` 中间链路空档；当前剩余空档已收窄到 `AcpAgentManager / IPC / real UI subscription` 这一跳。
+- Verification:
+  - `bun run test tests/integration/acp-fixture-scenarios.test.ts`
+  - `bunx tsc --noEmit`
+  - `bun run test:acp:integration`
+  - `bun run verify:acp`
+  - 本轮 `verify:acp` 结果：
+    - ACP unit: `260 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - 门禁过程中出现一次非逻辑性失败并已修复：
+    - `format:check` 首次失败：`tests/integration/acp-fixture-scenarios.test.ts` 需要格式化
+  - reviewer 收敛后已再次完整复跑 `bun run verify:acp`，结果保持通过。
+- Open risks:
+  - 当前还没有“带 queue pending 的 stop race”真实链路测试，仍未覆盖 stop 后下一条只启动一次的约束。
+  - mid-stream disconnect 目前只守到 agent event 层，还没有 ACP logs / request trace 的可视化断言。
+  - 当前仍未覆盖 `AcpAgentManager / IPC responseStream / useAcpMessage` 真正串起来的一条单测试链路。
+- Next:
+  - 继续补 `queue pending + stop + next turn` 的真实链路场景。
+  - 开始推进 P0 的 ACP logs / request trace 可视化入口，并补相应测试。
+  - 若状态机开始收口，再把 disconnect/error/finish 的事件序列断言从“稳定不变量”升级到更严格口径。
+
+### 2026-04-04 / Batch 4
+
+- 对应 SC-XXX:
+  - `SC-004`
+- Goal:
+  - 把 `queue pending + stop + next turn` 这刀收紧到真正可审查的合同。
+  - 验证 queued command 会等待 `conversation.stop` settle 后才启动，且 stop 只放行下一条，不会多发。
+- Changes:
+  - 在 `docs/research/acp-development-workflow.md` 强化流程要求：场景卡必须独立登记在 `acp-scenario-cards.md`，不能只混写在执行日志里。
+  - 新增 `docs/research/acp-scenario-cards.md`，并登记 `SC-004 Queue Pending After Stop Starts Exactly Once`。
+  - 根据 reviewer 反证，在 `SC-004` 下追加 `Reviewer adjustment`，明确 3 条更严格合同：
+    - stop 必须先处于 pending，再验证 queued command 不会提前启动
+    - 至少要压入两条 queued command，验证 stop 只放行下一条
+    - “exactly once” 必须在组件收敛后再次断言
+  - 新增 `tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx`，使用真实 `useConversationCommandQueue` 和真实 `AcpSendBox`：
+    - 成功路径：`conversation.stop` pending 时 queue 维持 `2`、`sendMessage` 仍为 `0`；stop resolve 后只发送 `queued command 1`，queue 变为 `1`
+    - 失败路径：`conversation.stop` pending 时同样不放行；stop reject 后仍只发送 `queued command 1`，queue 变为 `1`
+    - 两条路径都在组件收敛后再次断言 `sendMessage` 仍只调用一次，且 `queued command 2` 未被误发
+  - 将 `AcpSendBoxQueueFlow.dom.test.tsx` 纳入 `package.json` 的 `test:acp:unit`
+- Reviewer:
+  - reviewer 首轮提出 3 个有效问题：
+    - 原测试没有证明 queued command 会等待 stop settle
+    - “exactly once” 只在第一次看到 `1 call` 时成立，未做收敛后二次断言
+    - 只压入一条 queued command，无法证明“下一条”的顺序语义
+  - Driver 根据 reviewer 结论重写了用例和场景卡。
+  - reviewer 二轮复核结果：`AcpSendBoxQueueFlow.dom.test.tsx` 与 `acp-scenario-cards.md` 已关闭上述 3 个问题，无剩余 findings。
+- Verification:
+  - `bun run test tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx`
+  - `bun run test:acp:unit`
+  - `bun run verify:acp`
+  - 本轮 `verify:acp` 结果：
+    - ACP unit: `262 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - 全量门禁期间 `lint` 仍为仓库历史 warning 集合，但保持 `0 errors`，未阻塞 ACP 切片收口。
+- Open risks:
+  - `SC-004` 当前守的是 send box / queue hook 层，不是完整页面 e2e。
+  - 仍未覆盖更高层的 `Send Now / interrupt-and-send` 语义。
+  - 仍缺 ACP logs / request trace 的 UI 可见层测试。
+- Next:
+  - 进入 P0 的下一个可见层切片：优先推进 ACP logs / request trace 入口，或者显式 disconnected 状态的 UI 闭环。
+  - 若继续走 queue 方向，下一刀应提升到页面级而不是继续堆同层 DOM harness。
+
+### 2026-04-04 / Batch 5
+
+- 对应 SC-XXX:
+  - `SC-005`
+- Goal:
+  - 把 `agent_status: disconnected` 从“消息层可见”收口到“线程级可见、可重试、跨重开可恢复”。
+  - 关闭 warmup 误报成功和 hydration 覆盖 live 状态这两个会直接伤到用户感知的风险点。
+- Changes:
+  - 在 `src/process/agent/acp/index.ts` 里真正透传 `disconnected`，并附带 `disconnectCode` / `disconnectSignal` 元数据。
+  - 在 `src/common/chat/chatLib.ts` 扩展 `IMessageAgentStatus`，允许 `disconnected` 及其诊断字段进入消息模型。
+  - 在 `src/renderer/pages/conversation/Messages/components/MessageAgentStatus.tsx` 恢复历史 `disconnected` 展示，并用 error badge 渲染。
+  - 新增 `src/renderer/pages/conversation/platforms/acp/AcpConnectionBanner.tsx`，在 `AcpSendBox` 上方提供线程级 disconnected banner 和 `Retry` CTA。
+  - 将 `conversation.warmup` 改为布尔返回，在 `src/process/bridge/conversationBridge.ts` 中仅在 ACP warmup 成功并写入 ready 状态后返回 `true`。
+  - 在 `src/process/task/AcpAgentManager.ts` 中增加 reconnect-aware `initAgent()`，避免复用失效 bootstrap；同时持久化 `lastAcpStatus` 到 conversation `extra`。
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 中增加 `acpStatusRevision`、hydrated disconnected 恢复，以及“live ACP status 优先于迟到 hydration”的保护。
+  - 更新多语种 `acp.connection.disconnectedHint` / `acp.connection.retryFailed` 文案，并补齐相关测试：
+    - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - `tests/unit/renderer/components/MessageAgentStatus.dom.test.tsx`
+    - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - `tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+    - `tests/unit/acpSlashCommandsUpdatedEvent.test.ts`
+    - `tests/unit/conversationBridge.test.ts`
+    - `tests/unit/acpTimeout.test.ts`
+- Reviewer:
+  - reviewer 首轮提出 3 个有效问题：
+    - `Retry` 可能因为复用过期 bootstrap 而假成功
+    - disconnected banner 只靠 live 消息，重开线程后无法恢复
+    - hydration 有可能把较新的 live ACP status 覆盖成旧的 disconnected
+  - Driver 根据 reviewer 结论补了 reconnect-aware bootstrap 失效逻辑、`lastAcpStatus` 持久化/水合链路，以及 hook 级 live-over-hydration 保护。
+  - reviewer 二轮复核结果：无剩余 findings；当前 workspace 状态已关闭上述 3 个问题。
+- Verification:
+  - `bunx tsc --noEmit`
+  - `bun run i18n:types`
+  - `node scripts/check-i18n.js`
+  - `bun run test tests/unit/acpSlashCommandsUpdatedEvent.test.ts tests/unit/conversationBridge.test.ts tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+  - 目标测试结果：`44 passed`
+  - `bun run test:acp:unit`
+  - `bun run verify:acp`
+  - 本轮 `verify:acp` 结果：
+    - ACP unit: `268 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - i18n 校验通过；仓库历史 lint warnings 仍存在，但保持 `0 errors`。
+- Open risks:
+  - 当前 `Retry` 只是线程级 warmup，不等于自动恢复到“用户完全无感”的 reconnect。
+  - 目前 ACP trace 仍主要落在 console，没有专用 logs 入口，排障成本仍高。
+  - `disconnected` 已经线程级可见，但 `auth required` / `recovering` 等其他线程级状态尚未形成统一可见层。
+- Next:
+  - 进入 `SC-006`，优先做 ACP logs / request trace 的最小可见版。
+  - 用同一套流程把 trace 真相从 console 提升到线程内 UI，支撑后续 `auth CTA` 和 `Send Now` 的调试与验收。
+
+### 2026-04-04 / Batch 6
+
+- 对应 SC-XXX:
+  - `SC-006`
+- Goal:
+  - 把 ACP request trace、stop/retry 留痕、disconnect diagnostics 收口到线程内最小 logs 面板。
+  - 关闭 reviewer 指出的 5 个状态机缺口：crash 误记 finish、retry 假成功、stale `session_active` hydration、disconnect diagnostics 丢失、warmup 期间过早清理 `lastAcpStatus`。
+- Changes:
+  - 新增 `src/renderer/pages/conversation/platforms/acp/AcpLogsPanel.tsx`，在 `AcpSendBox` 中提供最小 ACP logs 入口。
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 中新增：
+    - `acpLogs` / `appendAcpUiLog`
+    - request trace 的 `request_started / first_response / request_finished / request_error`
+    - `retry_requested / retry_ready / retry_failed / cancel_requested`
+    - disconnected/error 的 hydrated/live 状态合流
+  - 在 `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx` 中新增 retry/logs 接线，并将 retry 成功语义收紧为：
+    - 必须等到 revision 前进后的 live `session_active`
+    - 中间态 `connected` 不得消掉 banner
+    - 中间态不再把 turn 重新置为 loading
+  - 在 `src/common/config/storage.ts` 中扩展 `lastAcpStatus`，持久化 `disconnectCode` / `disconnectSignal`。
+  - 在 `src/process/task/AcpAgentManager.ts` 中：
+    - 只持久化终态 `error/disconnected`
+    - 仅在 `session_active` 时清除 stale `lastAcpStatus`
+    - `markWarmupReadyStatus()` 显式发出 live `agent_status(session_active)`
+  - 新增/更新测试：
+    - `tests/unit/renderer/components/AcpLogsPanel.dom.test.tsx`
+    - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - `tests/unit/process/acpRuntimeStatusPersistence.test.ts`
+    - `tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+  - 更新 `package.json`，将 manager 级 runtime status persistence 测试纳入 `test:acp:unit`。
+- Reviewer:
+  - reviewer 首轮提出 4 个有效问题：
+    - traced disconnect 会被错误记成 `request_finished`
+    - `warmup === true` 会让 UI 过早报 `retry_ready`
+    - stale `session_active` 可能被 hydration 误恢复
+    - persisted disconnected 会丢失 `disconnectCode` / `disconnectSignal`
+  - Driver 修复后，最小 live flow 复跑暴露了第 5 个问题：
+    - `agent_status.connected` 不应把 send box 再次打回 loading
+  - 进一步的 skeptical review 又暴露了 process 侧隐藏边界：
+    - warmup bootstrap 期间 `connecting / connected / authenticated` 过早清理 `lastAcpStatus`，会让重开线程时丢失 disconnected 真相
+  - 本轮裁决后的最终口径：
+    - retry 成功以 live `session_active` 为准
+    - connection lifecycle status 不再驱动 turn loading
+    - `lastAcpStatus` 只在 `session_active` 后清除
+- Verification:
+  - `bun run i18n:types`
+  - `node scripts/check-i18n.js`
+  - `bunx tsc --noEmit`
+  - `bun run test tests/unit/renderer/components/AcpLogsPanel.dom.test.tsx tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+  - `bun run test tests/unit/process/acpRuntimeStatusPersistence.test.ts tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+  - `bun run test:acp:unit`
+  - `bun run verify:acp`
+  - 本轮最终 `verify:acp` 结果：
+    - ACP unit: `281 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - 说明：
+    - 全局 `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `check-i18n.js` 仍有仓库历史 unknown-key warning，但校验通过
+- Open risks:
+  - 当前 ACP logs 仍是最小版，尚未做过滤、复制、导出或和更高层调试入口整合。
+  - 当前 `Retry` 仍是显式 CTA，不是后台自动 reconnect。
+  - `auth required`、`recovering`、`Send Now / interrupt-and-send` 还未进入同一套线程级状态/CTA 模型。
+- Next:
+  - 进入下一批产品层改造，优先 `auth CTA` 与 `Send Now / interrupt-and-send`。
+  - 在更高层 conversation flow 或 e2e 里补“真实会话 send/stop/disconnect/logs”闭环，而不是只停留在最小 DOM harness。
+
+### 2026-04-04 / Batch 6
+
+- 对应 SC-XXX:
+  - `SC-006`
+- Goal:
+  - 把 ACP request trace、disconnect reason、stop/retry 留痕提升为线程内可见的最小 logs 面板。
+  - 关闭 4 个会直接误导用户的风险点：crash 被记成 finish、`Retry` 假成功、stale `session_active` 水合成健康态、`connected` 把 send box 重新置为 loading。
+- Changes:
+  - 新增 `src/renderer/pages/conversation/platforms/acp/AcpLogsPanel.tsx`，在 `AcpSendBox` 上方提供最小 ACP logs 入口。
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 中引入 `AcpLogEntry` / `appendAcpUiLog`，把 `request_trace`、first response、finish、error、status、stop/retry 行为收敛为线程内可渲染日志。
+  - 让 traced turn 在 `agent_status: disconnected` 时立即记为 `request_error`，并带上 `disconnectCode` / `disconnectSignal`，避免后续 `finish` 误记成成功完成。
+  - 将 hydration 收紧为只恢复 terminal status；对 persisted `disconnected` 保留诊断字段，对 stale `session_active` 不做水合恢复。
+  - 在 `src/process/task/AcpAgentManager.ts` / `src/common/config/storage.ts` 中补齐 `lastAcpStatus.disconnectCode` / `disconnectSignal` 的持久化字段，并让 `markWarmupReadyStatus()` 发出 live `agent_status(session_active)`。
+  - 在 `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx` 中引入 `pendingRetryReadyRevision` 状态机：
+    - `Retry` 先记 `retry_requested`
+    - 只有 revision 前进后的 live `session_active` 才记 `retry_ready`
+    - 中间态 `connected` / `authenticated` 期间 banner 继续可见，不提前报成功
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 中切断 `agent_status` 对 turn loading 的驱动，send box loading 仅由 turn 级事件控制。
+  - 新增/扩展测试：
+    - `tests/unit/renderer/components/AcpLogsPanel.dom.test.tsx`
+    - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - `tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+- Reviewer:
+  - reviewer 在本切片前半轮提出 4 个有效问题：
+    - mid-stream disconnect 的 traced turn 仍可能被 `finish` 误记成 `request_finished`
+    - `warmup=true` 被 UI 直接当成 `Retry` 成功
+    - persisted `session_active` 会把 stale 健康态水合回线程
+    - persisted `disconnected` 丢失了 `disconnectCode` / `disconnectSignal`
+  - Driver 依次补上 crash-path `request_error`、live-ready gating、terminal-only hydration、disconnect diagnostics 持久化。
+  - Automation 在本轮回归中又打出一个新增问题：
+    - `agent_status.connected` 会把 send box 重新置为 loading，并提前消掉 disconnected banner
+  - Driver 根据自动化失败把 connection lifecycle status 从 turn loading 信号里剥离，并补上 hook + live flow 断言。
+  - 本轮之后，`SC-006` 下已无新增已知缺口；下一阶段不再围绕 ACP logs 的基础真相层反复返工，而是进入更高层交互能力。
+- Verification:
+  - `bunx oxfmt --write src/common/config/storage.ts src/process/task/AcpAgentManager.ts src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx src/renderer/pages/conversation/platforms/acp/AcpLogsPanel.tsx src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts tests/unit/renderer/components/AcpLogsPanel.dom.test.tsx tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+  - `bun run i18n:types`
+  - `node scripts/check-i18n.js`
+  - `bunx tsc --noEmit`
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/platformSendBoxes.dom.test.tsx tests/unit/renderer/components/AcpLogsPanel.dom.test.tsx`
+  - 目标测试结果：`34 passed`
+  - `bun run test:acp:unit`
+  - `bun run verify:acp`
+  - 本轮 `verify:acp` 结果：
+    - ACP unit: `278 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - `node scripts/check-i18n.js` 仍报告仓库历史 unknown key warnings，但本轮新增 ACP i18n 变更校验通过。
+  - `verify:acp` 期间仓库历史 lint warnings 仍存在，但保持 `0 errors`，未阻塞本切片。
+- Open risks:
+  - 当前 ACP logs 仍是最小面板版，尚未提供独立调试视图、筛选或复制诊断信息的能力。
+  - `Retry` 现在保证“不会假报成功”，但还不是自动 reconnect；用户仍然需要显式触发重试。
+  - 真实页面级 E2E 仍未覆盖 ACP logs 面板和 disconnected banner 的完整交互链路。
+- Next:
+  - 进入下一层可见层改造：优先评估 `auth required` 线程级 CTA 或 `Send Now / interrupt-and-send`。
+  - 在 ACP logs 真相层稳定后，再决定是否补更高层 conversation-flow e2e，而不是继续堆低层 harness。
+
+### 2026-04-04 / Batch 7
+
+- 对应 SC-XXX:
+  - `SC-008`
+- Goal:
+  - 收敛 ACP renderer 的恢复语义，确保 delayed hydration、slash command refresh、以及迟到 lifecycle event 都不会伪装成“线程已恢复”。
+  - 关闭 reviewer 提出的 4 个状态机缺口：
+    - live turn 仍可能被 delayed hydration 覆盖
+    - stale `disconnected/auth_required` 在 fresh successful turn 后可能残留
+    - late `authenticated/session_active` 可能错误解锁 running
+    - `retry -> auth_required` / `auth -> disconnected` 可能留下错误 pending banner
+- Changes:
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 中收紧 live/runtime 语义：
+    - 任何 live ACP event 都会标记 live activity，迟到 hydration 不再回写 running / aiProcessing / terminal status
+    - fresh `start` 会把 stale terminal status 提升为 `session_active`
+    - terminal `auth_required` / `disconnected` 会立即关闭当前 turn gate，迟到 `content` 被忽略
+    - late `authenticated/session_active` 不再清掉 active turn 的 running 状态
+    - `slash_commands_updated` 降级为纯 cache invalidation，不再伪装成线程 ready
+  - 在 `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx` 中收紧 auth/retry CTA 状态机：
+    - pending auth/retry 只在 live `session_active` 时记成功
+    - 遇到新的 terminal status 时清理错误 pending，并把 banner 正确交接到新的终态
+    - banner 显隐不再被中间态 `connected/authenticated` 或旧 pending 误驱动
+  - 在 `src/renderer/hooks/chat/useSlashCommands.ts` 中增加 `agentRevision` 依赖，让 slash command 刷新和 ACP visible status 解耦。
+  - 新增 `tests/unit/renderer/hooks/useSlashCommands.dom.test.ts`，并将其纳入 `package.json` 的 `test:acp:unit`。
+  - 扩展现有测试：
+    - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+- Reviewer:
+  - 本批次基于上一轮 skeptical review 的 4 个 findings 收口。
+  - Driver 在修复过程中补出了第 5 个实际缺口：
+    - `slash_commands_updated` 既然不再抬高 `agentStatus`，就必须有独立 revision 驱动 `useSlashCommands` 重取；否则 slash commands 刷新会静默失效。
+  - 本轮收敛后的最终口径：
+    - live turn activity 优先于任何 delayed hydration
+    - terminal status 会立即关掉当前 turn gate
+    - `slash_commands_updated` 不是 ready signal
+    - auth/retry CTA 成功只认 live `session_active`
+- Verification:
+  - `bunx oxfmt --write package.json src/renderer/hooks/chat/useSlashCommands.ts src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx tests/unit/renderer/hooks/useSlashCommands.dom.test.ts tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - `bun run test tests/unit/renderer/hooks/useSlashCommands.dom.test.ts tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - `bun run i18n:types`
+  - `node scripts/check-i18n.js`
+  - `bunx tsc --noEmit`
+  - `bun run test:acp:unit`
+  - `bun run verify:acp`
+  - 本轮最终 `verify:acp` 结果：
+    - ACP unit: `303 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - 说明：
+    - `check-i18n.js` 仍报告仓库历史 unknown-key warnings，但本轮变更未新增 i18n 问题
+    - 全局 `lint` 仍为仓库历史 warning 集合，保持 `0 errors`
+- Open risks:
+  - 当前还没有页面级 ACP 会话 e2e 去真实覆盖 `disconnected -> retry -> auth_required -> authenticate -> session_active` 这种完整链路。
+  - `recovering` 仍未成为线程级一等状态，用户只能看到 disconnected / auth required 两个终态。
+  - 现在的 ACP logs 仍是最小面板，尚未提供复制、筛选和导出能力。
+- Next:
+  - 进入下一刀页面级体验闭环：优先补“真实 ACP 会话 send/stop/disconnect/auth/send-now/logs”的 e2e 或集成流。
+  - 在状态机稳定后，再考虑引入 `recovering` 显式状态和更强的自动 reconnect 体验。
+
+### 2026-04-04 / Batch 8
+
+- 对应 SC-XXX:
+  - `SC-008`
+- Goal:
+  - 关闭 `SC-008` 最后一批 reviewer 反例，把“live turn / hydration / retry-auth recovery”的真相语义收成稳定闭环。
+  - 补上本轮最值钱的 3 类缺口：
+    - `request_trace` 到达后的 delayed hydration 让位
+    - retry/auth 在中间态 `connected` / `authenticated` 时仍保持正确 banner
+    - retry 抛异常时 ACP logs 保留真实错误原因
+- Changes:
+  - 在 `docs/research/acp-scenario-cards.md` 追加 `SC-008` 正式场景卡和 reviewer adjustment，固定这轮验收口径。
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 中最终收口：
+    - `slash_commands_updated` 只做 `slashCommandsRevision` invalidation，不再伪造 `session_active`
+    - `conversation.get` hydration 会向任意 live ACP activity 让位，不再回写 running / aiProcessing / terminal status
+    - fresh `start` / `content` 会把 stale terminal status 恢复为 `session_active`
+  - 在 `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx` 中最终收口：
+    - auth/retry banner 改为优先绑定 live terminal status，其次绑定 action in-flight/pending
+    - 中间态 `connected` / `authenticated` 不再让 banner/spinner 提前消失
+    - retry catch 改为透传真实异常文本，ACP logs 与 toast 不再只给泛化文案
+  - 在 `src/renderer/hooks/chat/useSlashCommands.ts` 中保留独立 `agentRevision` 依赖，让 slash command refresh 和 ACP visible status 彻底解耦。
+  - 扩展测试：
+    - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+      - `slash_commands_updated` 只增 revision、不清 terminal status
+      - live `start` / `request_trace` 先到时，hydration 不得回写
+      - late `authenticated/session_active` 不得清掉 active turn
+    - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+      - retry warmup 未完成时收到 `connected`，disconnected banner 仍需保留
+      - authenticate 未完成时收到 `authenticated`，auth banner 仍需保留
+      - retry thrown error 要进入 ACP logs / toast
+- Reviewer:
+  - 本批次直接消费了前面 reviewer 提出的 4 个状态机 findings，以及 1 个 retry diagnostics finding。
+  - Driver 完成修复后，额外发起了两轮独立 reviewer sign-off 请求，但 reviewer agent 均超时未返回最终结论。
+  - 按 `acp-development-workflow.md` 的兜底规则，本轮最终裁决退化为 `Driver self-review after green automation`：
+    - 已逐项核对 delayed hydration、fresh turn recovery、late lifecycle、retry/auth cross-terminal 4 条合同
+    - 在本轮代码范围内未再发现新的 renderer-side 反例
+  - 本轮之后剩余已知风险不在这次 renderer 状态机 diff 本身，而在更高层：
+    - process-side bootstrap persistence 仍可能把 warmup 失败持久化成线程 terminal status
+    - 页面级真实 ACP 会话 e2e 还没有覆盖完整 `disconnect -> retry/auth -> session_active` 链路
+- Verification:
+  - `bunx oxfmt --write docs/research/acp-scenario-cards.md src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx src/renderer/hooks/chat/useSlashCommands.ts tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - `bun run test tests/unit/renderer/hooks/useAcpMessage.dom.test.ts tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - 定向测试结果：`33 passed`
+  - `bun run i18n:types`
+  - `node scripts/check-i18n.js`
+  - `bunx tsc --noEmit`
+  - `bun run test:acp:unit`
+  - `bun run verify:acp`
+  - 本轮最终 `verify:acp` 结果：
+    - ACP unit: `306 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `10 passed | 3 skipped`
+  - 说明：
+    - `check-i18n.js` 仍报告仓库历史 unknown-key warnings，但本轮未新增 i18n 问题
+    - 全局 `lint` 仍为仓库历史 warning 集合，保持 `0 errors`
+- Open risks:
+  - `AcpAgentManager.saveAcpRuntimeStatus()` 仍在 bootstrap UI 抑制之前执行，warmup 失败有机会被线程 reopen 水合成 terminal banner。
+- 真实 ACP 会话链路仍缺少页面级 e2e，当前主要靠 DOM / integration harness 守回归。
+  - `recovering` 仍未成为线程级显式状态，用户只能感知 disconnected/auth required 两种终态。
+- Next:
+  - 进入下一批更高层闭环：优先补真实 ACP 会话 e2e，覆盖 `send -> stop -> disconnect -> retry/auth -> session_active -> logs`。
+  - 在 process side 再开一个独立切片，处理 bootstrap persistence 与 thread hydration 的边界。
+
+### 2026-04-04 / Batch 9
+
+- 对应 SC-XXX:
+  - `SC-012`
+- Goal:
+  - 关闭 reviewer 在 `SC-011` 后留下的最后 3 条合同：
+    - pre-request 非 auth send failure 也必须有唯一、可见的错误反馈
+    - hermetic happy-path e2e 必须证明 assistant 内容与 `finish` 真正到达
+    - hermetic disconnect e2e 必须证明 `disconnected` 之后没有 late `session_active`
+  - 同时把“hermetic 界面不是 `main` 基线”的裁决落实到执行留痕，避免后续再把当前工作树界面误认成 `main` 最新 UI。
+- Changes:
+  - 在 `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx` 中补齐 pre-request 失败可见性：
+    - 发送前仍可 prime fallback request trace
+    - send/auth 在真正进入 ACP request 前失败时，先清掉 fallback，再分别写入 `auth_failed` 或新的 `send_failed` UI log
+    - 同时发出 synthetic `error`，确保用户消息区有唯一的 terminal 错误提示，但不伪装成真实 request lifecycle
+  - 在 `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts` 中新增 `send_failed` 日志种类，保持 ACP logs 与 tips message 语义一致。
+  - 在 `src/renderer/pages/conversation/platforms/acp/AcpLogsPanel.tsx` 中新增 `send_failed` 的 summary/detail 格式化。
+  - 在多语言资源中补入：
+    - `acp.send.failed`
+    - `acp.logs.sendFailed`
+  - 扩展 `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`：
+    - auth failure 现在显式断言只产生一次用户可见 terminal error
+    - 新增普通 send failure 用例，断言写 UI log、写 tips/error，且不出现 fake request lifecycle
+  - 扩展 `tests/e2e/specs/acp-agent.e2e.ts`：
+    - happy path 现在显式等待 `request_trace -> content -> finish`
+    - happy path 校验 ACP logs collapsed summary 与 expanded list，避免“只弹出面板但没完成 turn”的假阳性
+    - disconnect path 现在显式等待 `agent_status(disconnected)`，并在流结束后验证同一 conversation 不存在 `disconnected -> session_active`
+  - 在 `docs/research/acp-scenario-cards.md` 中追加 `SC-012`，把这批合同正式建卡。
+- Reviewer:
+  - 独立 reviewer 本轮给出了 3 条有效质疑：
+    - pre-request 非 auth send failure 仍有静默分支
+    - happy-path hermetic e2e 只等 `request_trace`，合同太弱
+    - disconnect hermetic e2e 没把“late `session_active` 不得出现”写成硬断言
+  - Driver 逐条修复后，reviewer 二次 sign-off 无 blocking findings。
+  - reviewer 额外提出 2 条改进建议，也已吸收进当前结果：
+    - happy-path 同时校验 ACP logs collapsed summary，而不只校验 expanded list
+    - 断连场景里不保留临时 `console.log`，避免污染调试输出
+- Verification:
+  - `bunx oxfmt --write docs/research/acp-scenario-cards.md docs/research/acp-execution-log.md src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx src/renderer/pages/conversation/platforms/acp/AcpLogsPanel.tsx src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts src/renderer/services/i18n/locales/en-US/acp.json src/renderer/services/i18n/locales/ja-JP/acp.json src/renderer/services/i18n/locales/ko-KR/acp.json src/renderer/services/i18n/locales/tr-TR/acp.json src/renderer/services/i18n/locales/zh-CN/acp.json src/renderer/services/i18n/locales/zh-TW/acp.json tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/e2e/specs/acp-agent.e2e.ts`
+  - `bun run i18n:types`
+  - `node scripts/check-i18n.js`
+  - `bunx tsc --noEmit`
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "renders a real ACP response and logs on the conversation page" --reporter=list`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "surfaces a disconnected banner and disconnect detail after mid-stream exit" --reporter=list`
+  - `bun run verify:acp`
+  - 本轮最终 `verify:acp` 结果：
+    - ACP unit: `323 passed | 1 skipped`
+    - ACP integration: `17 passed | 3 skipped`
+    - ACP e2e: `12 passed | 3 skipped`
+  - 说明：
+    - `verify:acp` 本轮完整通过，ACP e2e 已包含 `acp-agent.e2e.ts` 与 `ext-acp.e2e.ts`
+    - `check-i18n.js` 仍报告仓库历史 unknown-key warnings，但本轮未新增 i18n 问题
+    - 全局 `lint` 仍为仓库历史 warning 集合，保持 `0 errors`
+- Open risks:
+  - hermetic ACP e2e 只能证明当前工作树的行为，不能代替 `main` 基线视觉对照；如果要比较“和 `main` 是否一样”，必须单独切 `main` 或单独建 clean baseline。
+  - 页面级真实会话还没覆盖 `disconnect -> retry/auth -> session_active` 完整恢复链。
+  - `recovering` 仍未成为线程级一等状态，当前用户仍只能看到 disconnected/auth required 两个终态。
+- Next:
+  - 继续下一刀页面级恢复链：优先补 `disconnect -> retry/auth -> session_active -> logs` 的 hermetic e2e。
+  - 任何视觉对照需求都先切 clean `main` baseline，再和当前 `feat/acp-optimization` 分支对照，不再复用当前 hermetic app 截图当作 `main`。
+
+### 2026-04-05 / Batch 10
+
+- 对应 SC-XXX:
+  - `SC-013`
+- Goal:
+  - 把 auth recovery 这条页面级 hermetic 恢复链真正闭环，不只证明 banner 出现/消失，而是证明：
+    - `auth_required` 能被首轮用户发送实时看到
+    - 点击 `Authenticate` 后能恢复成 live `session_active`
+    - 恢复后下一条消息能真正完成 turn
+  - 同时把 retry/auth 这两条 recovery action 的状态机缺口钉成自动化合同，避免后面再回退成“状态到了但下一轮还是死”。
+- Changes:
+  - `src/process/task/AcpAgentManager.ts`
+    - bootstrap 期间不再吞掉 terminal ACP status，`auth_required/disconnected/error` 可以在 warmup 中实时透传到 renderer。
+    - `authenticate()` 明确视为用户可见 recovery action，执行前关闭 bootstrap UI 抑制。
+    - `authenticate()` 成功后把 `bootstrap` 重置为当前 agent 的 resolved promise，避免下一次 send 命中第一次失败留下的 stale rejected bootstrap。
+  - `src/process/agent/acp/index.ts`
+    - 修正 `getInitializeResponse()` 的结构认知：它返回的是 initialize `result` 本体，不是 JSON-RPC envelope。
+    - `performAuthentication()` 和显式 `authenticate()` 现在都直接从 initialize result 读取 `authMethods`，不再误判为“没有 auth methods”。
+    - `sendMessage()` 的鉴权错误归类改成大小写无关，并补上 `Authentication required` / `auth required`。
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - auth/retry CTA 在 in-flight 期间先挂 pending revision，再等 live `session_active` 结清；失败时显式清 pending，避免 action 状态悬挂。
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+    - 新增 `AcpAgent authenticate recovers from auth_required and restores the next turn`，直接证明 backend/auth/session 这条链路在 fake CLI 下可恢复。
+  - `tests/unit/acpSlashCommandsUpdatedEvent.test.ts`
+    - 新增 bootstrap terminal-status passthrough。
+    - 新增 explicit authenticate 后 `session_active` 可透传。
+    - 新增 explicit authenticate 成功后 stale bootstrap 必须被替换。
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 新增 CTA race 场景：`session_active` 先于 promise resolve 到达时，ready log 仍要被保留，最终 banner 必须在 action settle 后收口。
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - hermetic auth recovery 现在以 `auth_required -> session_active -> next request_trace/finish` 作为最终合同。
+    - 去掉“点击 CTA 后 banner 仍要短暂可见”这种过窄假设，改为只要求 live recovery 真正发生并且下一轮可完成。
+- Reviewer:
+  - Driver 先发起了一轮 skeptical review，结论超时未返回。
+  - 为满足 workflow 的 team 要求，Driver 又向第二个现成 agent 发起独立 review 请求；同样超时未返回最终 finding。
+  - 按 `acp-development-workflow.md` 的兜底规则，本轮最终裁决退化为 `Driver self-review after green automation`。
+  - 本轮 self-review 的 4 个关键裁决：
+    - `D-017`：首轮 auth recovery 的首个缺口不是 renderer banner，而是 process-side bootstrap 抑制吞掉了 terminal status。
+    - `D-018`：显式 `authenticate()` 失败的根因不是 fake CLI，而是 `getInitializeResponse()` 被错误当成 JSON-RPC envelope 读取。
+    - `D-019`：第二条消息再次掉回 `Authentication required` 的根因不是 send box，而是 `AcpAgentManager.bootstrap` 仍然指向第一次失败留下的 rejected promise。
+    - `D-020`：页面级 e2e 合同不应要求“点击 CTA 后 banner 继续停留一段时间”，只应要求 live `session_active` 和下一轮 turn 成功。
+- Verification:
+  - `bunx oxfmt --write src/process/task/AcpAgentManager.ts src/process/agent/acp/index.ts src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx tests/integration/acp-fixture-scenarios.test.ts tests/unit/acpSlashCommandsUpdatedEvent.test.ts tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx tests/e2e/specs/acp-agent.e2e.ts`
+  - `bun run test tests/unit/acpSlashCommandsUpdatedEvent.test.ts`
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+  - `bun run test tests/integration/acp-fixture-scenarios.test.ts --testNamePattern "AcpAgent authenticate recovers from auth_required and restores the next turn"`
+  - `bunx tsc --noEmit`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "authenticates after auth_required and completes the next turn" --reporter=list --timeout 120000`
+  - ACP gate split verification:
+    - `bun run test:acp:unit` -> `329 passed | 1 skipped`
+    - `bun run test:acp:integration` -> `19 passed | 3 skipped`
+    - `bun run test:acp:e2e` -> `14 passed | 3 skipped`
+  - Supplementary gate context:
+    - `lint` 仍是仓库历史 warning 集合，本轮保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - explicit auth/retry 的 reviewer sign-off 这轮没有拿到机器返回，最终仍靠 `Driver self-review + green automation` 收口。
+  - 当前恢复链已经覆盖 hermetic ACP，但还没有对真实外部 CLI（比如 Claude/Codex 本机登录态）做 nightly canary。
+- Next:
+  - 继续扩大真实体验对齐项，优先进入下一批可见层改造：
+    - ACP logs 入口与 `request_trace` 面板的产品化
+    - queue / busy 真相源继续收敛
+    - `Send Now / interrupt-and-send`
+  - 在你准备体验前，先由我把当前分支的改造点整理成一份简短体验清单，避免你走偏路径。
+
+### 2026-04-05 / Batch 11
+
+- 对应 SC-XXX:
+  - `SC-015`
+- Goal:
+  - 解决“打开 ACP 会话就像一进来先报错”这条体验歧义。
+  - 让 ACP runtime 真相继续保留在 banner + ACP logs，但历史 `agent_status` 和已知基础设施错误不再回放成聊天正文。
+- Changes:
+  - `src/renderer/pages/conversation/Messages/hooks.ts`
+    - 为 `useMessageLstCache()` 增加 `sanitize` 入口，让平台层可以在 hydration 时对历史消息做兼容过滤，而不影响其他平台。
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+    - 新增 `sanitizeAcpTimelineMessages()`：
+      - 去掉历史 `agent_status`
+      - 去掉旧版本留下的已知 ACP 基础设施错误 tips（如 `ACP process exited unexpectedly ...`、`Failed to send message. Please try again.`）
+    - 这一步只作用于 ACP timeline hydration，不改数据库原始数据。
+  - `src/renderer/pages/conversation/platforms/acp/AcpChat.tsx`
+    - ACP 会话加载消息缓存时显式启用 `sanitizeAcpTimelineMessages()`，把兼容过滤收口在 ACP 平台自身。
+  - `src/common/chat/chatLib.ts`
+    - `transformMessage()` 现在为 `error` / `agent_status` 也保留 `hidden` 字段，避免 hidden runtime 消息在 renderer 端重新变成可见 timeline 噪音。
+  - `src/process/agent/acp/index.ts`
+    - `emitStatusMessage()` 产出的 ACP lifecycle status 改为默认 `hidden`。
+    - `emitMessage()` 透传 `message.hidden` 到 `IResponseMessage.hidden`。
+    - `sendPrompt()` 出错时，对 auth/disconnect 类基础设施错误改成 hidden tips；generic runtime error 仍保留原来的可见策略。
+  - `src/process/task/AcpAgentManager.ts`
+    - `markWarmupReadyStatus()` 透传 hidden，避免 warmup `session_active` 作为聊天正文冒出来。
+    - `sendMessage()` catch 路径现在对 auth/disconnect/connection 类失败打 hidden，防止 init/send 失败重新生成首屏红条。
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - synthetic send/auth failure `error` 改为 hidden，继续保留 ACP logs 作为用户反馈入口。
+    - `useAcpInitialMessage()` 不再为了 initial send failure 注入可见 tips。
+  - `src/renderer/pages/conversation/platforms/acp/useAcpInitialMessage.ts`
+    - initial message 失败改为：
+      - 清理 fallback trace
+      - 写 `send_failed` ACP ui log
+      - 停止 loading
+    - 不再额外插入 `Failed to send message. Please try again.` 可见消息。
+  - Tests:
+    - `tests/unit/chatLib.test.ts`
+      - 新增 hidden 透传到 `error` / `agent_status`
+    - `tests/unit/renderer/messageHooks.dom.test.tsx`
+      - 新增 `useMessageLstCache().sanitize` 合同
+    - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+      - 新增 `sanitizeAcpTimelineMessages()` 对历史 ACP 状态/基础设施错误的过滤断言
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-015`
+- Reviewer:
+  - 本轮发起了两轮独立 reviewer 请求：
+    - reviewer A：`Banach`
+    - reviewer B：`Euler`
+  - 两轮 reviewer 都在超时时间内没有返回最终 finding。
+  - 按 `acp-development-workflow.md` 的兜底规则，本轮最终裁决退化为 `Driver self-review after green automation`。
+  - 本轮 self-review 的 3 个关键裁决：
+    - `D-021`：ACP lifecycle status 的一等呈现位置应是 thread banner + ACP logs，不应再是 timeline 正文。
+    - `D-022`：对旧噪音的修复应优先做 renderer hydration compatibility filter，而不是直接改数据库内容。
+    - `D-023`：guid initial message 失败应写 ACP logs，而不是再插入一条通用 `tips/error` 把首屏污染成“刚打开就报错”。
+- Verification:
+  - `bunx oxfmt --write src/renderer/pages/conversation/Messages/hooks.ts src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts src/renderer/pages/conversation/platforms/acp/AcpChat.tsx src/common/chat/chatLib.ts src/process/agent/acp/index.ts src/process/task/AcpAgentManager.ts src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx src/renderer/pages/conversation/platforms/acp/useAcpInitialMessage.ts tests/unit/chatLib.test.ts tests/unit/renderer/messageHooks.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts docs/research/acp-scenario-cards.md`
+  - `bun run test tests/unit/chatLib.test.ts tests/unit/renderer/messageHooks.dom.test.tsx tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 结果：`54 passed`
+  - `bunx tsc --noEmit`
+  - `bun run test:acp:unit`
+    - 结果：`331 passed | 1 skipped`
+  - `bun run verify:acp`
+    - 最终结果：
+      - ACP unit: `331 passed | 1 skipped`
+      - ACP integration: `19 passed | 3 skipped`
+      - ACP e2e: `14 passed | 3 skipped`
+  - 补充说明：
+    - `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - 旧的 timeline 噪音只是 renderer 兼容过滤，没有回写数据库；如果未来其他页面直接读 message DB 而不复用 ACP sanitize，仍可能看到旧噪音。
+  - `sanitizeAcpTimelineMessages()` 目前依赖已知错误字符串模式；如果后续又出现新的 ACP 基础设施错误文案，需要补充模式或改成更结构化的 metadata。
+  - 两轮 reviewer 均超时，本轮仍然没有拿到独立 sign-off。
+- Next:
+  - 进入下一批更靠近 Zed 体验的改造：
+    - `Send Now / interrupt-and-send`
+    - queue / busy 真相源进一步收敛
+    - ACP logs 的入口和可诊断性继续产品化
+  - 在你开始体验前，优先请你验证：
+    - reopen 旧 ACP 会话时，timeline 是否还会冒出红色状态块/红色错误条
+    - 若线程本身真处于 `disconnected` / `auth_required`，是否只剩 banner + ACP logs，而不再混入聊天正文
+
+### 2026-04-05 / Batch 12
+
+- 对应 SC-XXX:
+  - `SC-016`
+- Goal:
+  - 让 ACP 权限确认卡与底层 pending permission request 的生命周期严格一致。
+  - 修掉“请求已经失效，但 UI 里还残留一张可点击确认卡”的 stale confirmation 风险。
+- Changes:
+  - `src/process/task/BaseAgentManager.ts`
+    - 抽出 `removeConfirmationByCallId(callId)`，让 manager 可以在“请求失效”时主动移除 confirmation，而不是伪装成用户已经点了 confirm。
+  - `src/process/agent/acp/index.ts`
+    - `AcpAgentConfig` 新增 `onPermissionRequestInvalidated` 回调。
+    - 引入统一的 invalidation 路径，覆盖 4 类失效原因：
+      - `replaced`
+      - `timeout`
+      - `cancelled`
+      - `disconnected`
+    - `cancelPrompt()`、duplicate permission request、permission timeout、`handleDisconnect()` 现在都会走同一条 invalidation 路径，统一 reject promise、清理 metadata，并向 manager 发出“移除 stale confirmation”的信号。
+  - `src/process/task/AcpAgentManager.ts`
+    - `initAgent()` 构造 `AcpAgent` 时接入 `onPermissionRequestInvalidated`，收到失效通知后按 `callId` 移除 confirmation，并记录 process log。
+  - Tests:
+    - `tests/unit/BaseAgentManagerDecouple.test.ts`
+      - 新增 `removeConfirmationByCallId()` 合同测试。
+    - `tests/unit/acpTimeout.test.ts`
+      - 新增 4 条 ACP process 单测，分别覆盖：
+        - stop/cancel
+        - disconnect
+        - duplicate permission request replacement
+        - timeout
+    - `tests/unit/process/acpPermissionInvalidation.test.ts`
+      - 新增 manager wiring 测试，证明 invalidation callback 会真正驱动 confirmation 列表收口。
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-016`
+- Reviewer:
+  - 本轮发起了一轮 skeptical reviewer 请求：
+    - reviewer：`Raman`
+  - reviewer 在超时时间内没有返回最终 finding。
+  - 按 `acp-development-workflow.md` 的兜底规则，本轮最终裁决退化为 `Driver self-review after green automation`。
+  - 本轮 self-review 的 3 个关键裁决：
+    - `D-024`：权限确认的真正真相源应是 ACP pending permission request，而不是 renderer 侧残留的 confirmation 列表。
+    - `D-025`：`cancelled / disconnected / replaced / timeout` 必须共享同一条 remove 路径，否则 stale confirmation 会在后续分支再次漂移。
+    - `D-026`：manager 侧需要独立证明 invalidation callback 会真正移除 confirmation，不能只靠 process 单测推断 UI 已闭环。
+- Verification:
+  - `bunx oxfmt --write src/process/task/BaseAgentManager.ts src/process/agent/acp/index.ts src/process/task/AcpAgentManager.ts tests/unit/BaseAgentManagerDecouple.test.ts tests/unit/acpTimeout.test.ts tests/unit/process/acpPermissionInvalidation.test.ts docs/research/acp-scenario-cards.md`
+  - `bunx oxlint src/process/task/BaseAgentManager.ts src/process/agent/acp/index.ts src/process/task/AcpAgentManager.ts tests/unit/BaseAgentManagerDecouple.test.ts tests/unit/acpTimeout.test.ts tests/unit/process/acpPermissionInvalidation.test.ts`
+    - 结果：`0 errors`
+  - `bun run test tests/unit/BaseAgentManagerDecouple.test.ts tests/unit/acpTimeout.test.ts tests/unit/process/acpPermissionInvalidation.test.ts`
+    - 结果：`46 passed`
+  - `bunx tsc --noEmit`
+  - `bun run test:acp:unit`
+    - 结果：`335 passed | 1 skipped`
+  - `bun run verify:acp`
+    - 最终结果：
+      - ACP unit: `335 passed | 1 skipped`
+      - ACP integration: `19 passed | 3 skipped`
+      - ACP e2e: `14 passed | 3 skipped`
+  - 补充说明：
+    - `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - 本轮没有拿到独立 reviewer sign-off，最终仍靠 `Driver self-review + green automation` 收口。
+  - 当前自动化已经证明 stale confirmation 会随 request invalidation 消失，但还没有补到页面级 e2e；后续若加入真实 permission UI 流，需要再补一条 hermetic e2e 合同。
+- Next:
+  - 继续推进更靠近 Zed 体验的交互差距，优先从以下两项中择一：
+    - `Send Now / interrupt-and-send` 的产品可见性与自循环回归
+    - queue / busy 真相源继续收敛，减少“看起来空闲但下一条仍被排队”的错觉
+
+### 2026-04-05 / Batch 13
+
+- 对应 SC-XXX:
+  - `SC-017`
+- Goal:
+  - 把 ACP 的 `Send Now / interrupt-and-send` 从局部 DOM 合同升级成 hermetic ACP e2e 合同。
+  - 确保真实 Electron + ACP bridge + fake CLI 链路下，`Send Now` 会中断当前 turn，并且只释放一条 queued command。
+- Changes:
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-017 ACP Send Now Must Interrupt The Current Turn And Release Exactly One Queued Command`
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - 新增 hermetic ACP e2e：
+      - 用 `FAKE_ACP_PROMPT_MODE=late_chunk_after_cancel`
+      - first turn 进入 running
+      - second message 被排队
+      - 点击 `Send Now`
+      - 验证：
+        - 下一条 queued command 自动启动
+        - `request_trace` 只新增一次
+        - `finish` 总数按真实链路只补齐一次当前 cancel 后的 queued turn，不发生双发
+        - ACP logs list 中包含 `Send Now requested for Fake ACP Agent`
+    - 过程中修正了两处过窄断言：
+      - 事件计数基线必须取在点击 `Send Now` 之前，不能把 cancel 后的 first-turn `finish` 重复计数
+      - ACP logs 主面板默认只展示最新 summary，`Send Now requested` 应在展开后的 logs list 中断言，而不是强行要求出现在面板封面
+- Reviewer:
+  - 本轮向 reviewer 发起了一轮独立审查请求：
+    - reviewer：`Banach`
+  - reviewer 在超时时间内没有返回最终 finding。
+  - 按 `acp-development-workflow.md` 的兜底规则，本轮最终裁决退化为 `Driver self-review after green automation`。
+  - 本轮 self-review 的 3 个关键裁决：
+    - `D-027`：`Send Now` 这刀当前更值钱的是页面级真实链路合同，而不是再追加一层局部单测。
+    - `D-028`：`finish` 计数必须以点击前的 response-stream 基线为准，否则会把 cancel 触发的 first-turn finish 重复算进 queued turn。
+    - `D-029`：ACP logs 面板当前是“最新 summary + 展开列表”的二层结构，`Send Now requested` 应在 logs list 里验，不应把 summary 文案固定死。
+- Verification:
+  - `bunx oxfmt --write tests/e2e/specs/acp-agent.e2e.ts docs/research/acp-scenario-cards.md docs/research/acp-execution-log.md`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "interrupts the current turn with Send Now and starts exactly one queued ACP command" --reporter=list --timeout 120000`
+    - 首次失败后已修正测试合同
+    - 最终结果：`1 passed`
+  - `bunx tsc --noEmit`
+  - `bun run verify:acp`
+    - 最终结果：
+      - ACP unit: `335 passed | 1 skipped`
+      - ACP integration: `19 passed | 3 skipped`
+      - ACP e2e: `15 passed | 3 skipped`
+  - 补充说明：
+    - `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - 这轮补强的是 hermetic fake-CLI 链路，仍未覆盖真实外部 CLI 的 nightly canary。
+  - reviewer 仍然没有在时限内返回，最终裁决继续依赖 `Driver self-review + green automation`。
+- Next:
+  - 继续推进更接近 Zed 的用户体验差距，优先在以下两项中择一：
+    - queue / busy 真相源继续收敛，减少“UI 看起来空闲但消息仍排队”的错觉
+    - ACP runtime 状态/日志的噪音继续产品化收口，但按你的要求先保留 logs 可见
+
+### 2026-04-05 / Batch 14
+
+- 对应 SC-XXX:
+  - `SC-018`
+- Goal:
+  - 把 “当前 turn 自然结束后 queued command 自动接力” 这条主路径升级成 hermetic ACP e2e 合同。
+  - 确保真实 Electron + ACP bridge + fake CLI 链路下，queue/busy gate 不会双发、漏发或卡在假 busy 状态。
+- Changes:
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-018 ACP Queue Must Auto-Release Exactly One Command After A Natural Turn Finish`
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - 新增 hermetic ACP e2e：
+      - 使用 `FAKE_ACP_PROMPT_MODE=late_chunk_after_cancel`
+      - first turn 进入 running
+      - second message 进入 queue
+      - 不触发 `Send Now`，仅等待 first turn 自然 `finish`
+      - 验证：
+        - queued command 自动启动
+        - `request_trace` / `finish` 只各新增一次
+        - second turn 的响应真实落到页面
+        - queue 的 `Send Now` 按钮在 second turn 接管后消失
+- Reviewer:
+  - 本轮向 reviewer 发起了一轮独立审查请求：
+    - reviewer：`Euler`
+  - reviewer 在超时时间内没有返回最终 finding。
+  - 按 `acp-development-workflow.md` 的兜底规则，本轮最终裁决退化为 `Driver self-review after green automation`。
+  - 本轮 self-review 的 3 个关键裁决：
+    - `D-030`：必须证明 auto-release 发生在 natural finish 后，而不是由 stop/cancel 或别的隐式 reset 误触发。
+    - `D-031`：`request_trace` / `finish` 的计数基线必须取在 first turn 自然结束前，避免把 queued turn 与 first turn 尾事件混算。
+    - `D-032`：仅验证 queue CTA 消失不够，必须同时看到 second turn 的真实响应落地，才能证明 queued command 真正启动。
+- Verification:
+  - `bunx oxfmt --write tests/e2e/specs/acp-agent.e2e.ts docs/research/acp-scenario-cards.md docs/research/acp-execution-log.md`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "auto-releases exactly one queued ACP command after a natural turn finish" --reporter=list --timeout 120000`
+    - 结果：`1 passed`
+  - `bun run verify:acp`
+    - 后续在 `SC-019` 完成后再次全量验证，最终结果保持绿色：
+      - ACP unit: `335 passed | 1 skipped`
+      - ACP integration: `20 passed | 3 skipped`
+      - ACP e2e: `17 passed | 3 skipped`
+  - 补充说明：
+    - `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - 这轮证明了自然 finish 后 queue 会自动接力，但还没有覆盖“切换会话 / hydrate 后 queue 状态恢复”的页面级合同。
+  - reviewer 继续超时，最终裁决仍依赖 `Driver self-review + green automation`。
+- Next:
+  - 继续补 ACP 会话的跨重启恢复合同，直接验证“关闭再打开后，同一会话能否恢复到底层记忆”。
+
+### 2026-04-05 / Batch 15
+
+- 对应 SC-XXX:
+  - `SC-019`
+- Goal:
+  - 把 “关闭再打开后，同一 ACP 会话能恢复到底层 session 记忆” 这条体验收口成可重复的自动化合同。
+  - 避免把“本地 DB 还能看到旧消息”误判成“ACP runtime resume 成功”。
+- Changes:
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-019 ACP Reopen Must Resume The Same Conversation Memory After App Restart`
+  - `tests/fixtures/fake-acp-cli/index.js`
+    - 新增 shared-state session persistence：
+      - `resumeSessionId`
+      - `session/load`
+      - session-bound remembered codeword memory
+      - shared session counter / persisted session state
+    - 新增 `[User Request]` 提取逻辑，避免真实 ACP prompt 包装污染 fake fixture 的记忆判断。
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+    - 新增 fixture integration：
+      - 跨进程重启后复用同一个 `resumeSessionId`
+      - second process 能回答 first process 记住的 codeword
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - 新增 hermetic sandbox helper，允许两次 Electron launch 复用同一 `AIONUI_DEV_PROFILE` 和 fake ACP state file。
+    - 新增 hermetic ACP e2e：
+      - first launch 发送 `Remember codeword: kiwi`
+      - 关闭 app
+      - relaunch 同一个 sandbox/profile
+      - reopen 同一 conversation
+      - 发送 `What codeword did I ask you to remember?`
+      - 验证 second turn 回答 `Remembered codeword is: kiwi`
+      - 验证 persisted `acpSessionId` 在重启前后保持一致
+- Reviewer:
+  - 本轮向 reviewer 发起了一轮独立审查请求：
+    - reviewer：`Einstein`
+  - reviewer 返回了 3 条有效 finding，且全部被采纳。
+  - 本轮关键裁决：
+    - `D-033`：页面级合同不能只证明 DB 历史还在；必须证明重启后的**新一轮请求**真的引用了 prior ACP session memory。
+    - `D-034`：fake CLI 必须实现 session-bound resume contract，而不是仅仅“接受 resumeSessionId 也能正常回复”。
+    - `D-035`：restart 合同必须复用同一个 hermetic dev profile / shared state，并确保旧 app 已完全退出，再启动新 app。
+- Verification:
+  - `bunx oxfmt --write docs/research/acp-scenario-cards.md tests/fixtures/fake-acp-cli/index.js tests/integration/acp-fixture-scenarios.test.ts tests/e2e/specs/acp-agent.e2e.ts docs/research/acp-execution-log.md`
+  - `bunx tsc --noEmit`
+  - `bun run test tests/integration/acp-fixture-scenarios.test.ts --testNamePattern "resumes remembered codeword memory across process restarts when resumeSessionId is reused"`
+    - 结果：`1 passed | 8 skipped`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "reopens the same ACP conversation after app restart and resumes remembered memory" --reporter=list --timeout 180000`
+    - 首次失败后已修正 fake fixture 的 `[User Request]` 提取逻辑
+    - 最终结果：`1 passed`
+  - `bun run verify:acp`
+    - 最终结果：
+      - ACP unit: `335 passed | 1 skipped`
+      - ACP integration: `20 passed | 3 skipped`
+      - ACP e2e: `17 passed | 3 skipped`
+  - 补充说明：
+    - `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - 当前页面级 resume 合同覆盖的是 `custom` backend 的 generic `resumeSessionId` 路径；`codex` 的 `session/load` 页面级合同仍未单独补齐。
+  - 这轮验证的是 fake CLI 的 deterministic resume；真实外部 CLI 的 nightly canary 仍然值得补，以防 bridge 差异。
+- Next:
+  - 优先补以下两项中的一条：
+    - `codex session/load` 的页面级 hermetic 合同
+    - 真实外部 CLI 的 nightly canary，验证 reopen/resume 不只在 fake fixture 上成立
+
+### 2026-04-05 / Batch 16
+
+- 对应 SC-XXX:
+  - `SC-020`
+- Goal:
+  - 把 `backend === 'codex'` 的 reopen/resume 路径收口成可重复的自动化合同。
+  - 证明 AionUi 在 Codex 路径上确实走了 `session/load`，而不是 generic `resumeSessionId` 或本地 DB 历史回放。
+- Changes:
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-020 Codex Reopen Must Resume Through ACP session/load After App Restart`
+  - `src/process/agent/acp/acpConnectors.ts`
+    - 新增 `AIONUI_E2E_CODEX_ACP_CLI_PATH` 测试注入：
+      - 仅在 `AIONUI_E2E_TEST=1` 且显式 env 存在时生效
+      - 生产默认 `connectCodex()` 路径保持不变
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - hermetic launcher 现在会显式清掉继承来的 `AIONUI_E2E_CODEX_ACP_CLI_PATH`，只有当前测试显式传入时才注入
+  - `tests/unit/acpConnectors.test.ts`
+    - 新增 connector unit coverage：
+      - E2E mode 下会使用 override CLI
+      - 非 E2E mode 下即使 env 存在也会忽略 override，继续走真实 Codex package 解析
+      - E2E mode 下如果没有 explicit override，仍然走默认 Codex connector
+  - `tests/fixtures/fake-acp-cli/index.js`
+    - 新增 `methodCalls` shared-state 记录
+    - 在 `initialize` / `authenticate` / `session/new` / `session/load` / `session/prompt` / `session/cancel` 上留痕
+    - `session/prompt` 额外记录 `promptText`
+    - `session/load` 不再回显 `sessionId`，更贴近真实 ACP contract
+  - `tests/integration/acp-fixture-scenarios.test.ts`
+    - 新增 fixture integration：
+      - 跨进程重启后通过 `session/load` 恢复 remembered codeword
+      - 断言 shared-state 里真的记录到了 `session/load`
+      - 断言 fake `session/load` response 不依赖 `sessionId` echo
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - 扩展 hermetic conversation helper，允许 built-in `codex` backend 复用同一套 restart harness
+    - 新增 hermetic Codex e2e：
+      - first launch 创建 `codex` ACP conversation
+      - first turn 发送 `Remember codeword: kiwi`
+      - close app
+      - relaunch 同一个 sandbox/profile，并注入 `AIONUI_E2E_CODEX_ACP_CLI_PATH`
+      - reopen 同一 conversation
+      - second turn 发送 `What codeword did I ask you to remember?`
+      - 断言回答 `Remembered codeword is: kiwi`
+      - 断言 fake shared-state 里在 recall prompt 之前存在 `session/load(sessionId)`
+      - 断言 recall prompt 之前不存在 `session/new` with `resumeSessionId === persistedSessionId`
+- Reviewer:
+  - 本轮尝试了两轮独立 reviewer：
+    - reviewer 1：`Einstein`
+    - reviewer 2：`Banach`
+  - `Einstein` 在超时窗口后返回了 3 条有效 finding，且全部被采纳。
+  - `Banach` 未在超时窗口内返回 final finding。
+  - 本轮关键裁决：
+    - `D-036`：Codex 页面级合同必须直接证明 `session/load` 发生在 recall prompt 之前，不能只证明“记忆还在”。
+    - `D-037`：hermetic launcher 不能继承父进程的 `AIONUI_E2E_CODEX_ACP_CLI_PATH`；Codex fake bridge 必须由当前测试显式 opt-in。
+    - `D-038`：fake `session/load` contract 不能依赖 `sessionId` echo；integration 必须验证 AionUi 走的是 `response.sessionId || requestedSessionId` 回退语义。
+    - `D-039`：Codex e2e 的 reopen 证明应绑定到“`session/load` 在 recall prompt 之前发生”，而不是绑定到同一个 CLI pid，避免把内部 reconnect 误判成失败。
+- Verification:
+  - `bunx oxfmt --write docs/research/acp-scenario-cards.md src/process/agent/acp/acpConnectors.ts tests/unit/acpConnectors.test.ts tests/fixtures/fake-acp-cli/index.js tests/integration/acp-fixture-scenarios.test.ts tests/e2e/specs/acp-agent.e2e.ts docs/research/acp-execution-log.md`
+  - `bunx tsc --noEmit`
+  - `bun run test tests/unit/acpConnectors.test.ts`
+    - 结果：`27 passed`
+  - `bun run test tests/integration/acp-fixture-scenarios.test.ts --testNamePattern "session/load|resumeSessionId"`
+    - 结果：`2 passed | 8 skipped`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "reopens the same Codex ACP conversation after app restart through session/load" --reporter=list --timeout 180000`
+    - 结果：`1 passed`
+  - `bun run test:acp:e2e`
+    - 结果：`18 passed | 3 skipped`
+  - `bun run verify:acp`
+    - 最终结果：
+      - ACP unit: `338 passed | 1 skipped`
+      - ACP integration: `21 passed | 3 skipped`
+      - ACP e2e: `18 passed | 3 skipped`
+  - 补充说明：
+    - `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - 当前 `AIONUI_E2E_CODEX_ACP_CLI_PATH` 的 hermetic 注入主要覆盖了 macOS/Linux 风格的 `node path/to/fake-cli.js` 命令字符串；Windows 的 inline-args 形态没有单独补 E2E coverage。
+  - 这轮验证的是 fake CLI 的 deterministic Codex resume；真实外部 Codex CLI 的 nightly canary 仍然值得补，以防 bridge 行为漂移。
+- Next:
+  - 优先补真实外部 CLI 的 nightly canary，验证 Codex reopen/session-load 不只在 fake fixture 上成立。
+
+### 2026-04-05 / Batch 17
+
+- 对应 SC-XXX:
+  - `SC-022`
+- Goal:
+  - 收口 `SC-020` 在完整 `test:acp:e2e` / `verify:acp` 里偶发失败的 full-suite-only flake。
+  - 证明这次失败不是 Codex `session/load` 语义回退，而是 hermetic relaunch 没有严格证明前一个 Electron 实例已退出。
+- Changes:
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-022 Hermetic Relaunch Must Prove The Prior Electron App Is Fully Closed Before Reusing The Same ACP Profile`
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - hermetic app cleanup 现在支持 `requireClose`
+    - strict relaunch 路径改成：
+      - 先通过 `electronApp.evaluate(() => app.exit(0))` 显式退出 app
+      - 再等待 `close` 事件
+      - 如果 `close` 没发生，则抛出显式错误：`Hermetic Electron app did not emit close before relaunch`
+    - `SC-019` / `SC-020` / real Codex canary 的 first launch cleanup 现在都使用 `cleanup({ requireClose: true })`
+  - 说明：
+    - 这轮没有修改 ACP 产品逻辑
+    - 修改范围仅限 hermetic E2E relaunch 基建与执行留痕
+- Reviewer:
+  - 本轮复用了 reviewer：`Boole`
+  - reviewer 返回了 1 个核心结论，已采纳：
+    - `D-040`：当前 full-suite-only 失败更可能是“第二次 launch 开始前没有证明上一实例已真正退出”，而不是 warmup / `session/load` 语义错误。
+  - reviewer 关键证据：
+    - hermetic cleanup 之前只做了 `electronApp.close()`，且吞掉了 missed `close`
+    - 共享 fixture 的 close 流程其实更严格，已经使用 `app.exit(0)` + wait-for-close
+    - E2E 模式关闭了 single-instance lock，同 profile relaunch 时如果上一实例未退干净，更容易出现竞态
+    - 超时发生在 `launchHermeticAcpApp()` 内、真实 reopen conversation 之前，所以不应先归咎于 Codex `session/load`
+- Verification:
+  - `bunx oxfmt tests/e2e/specs/acp-agent.e2e.ts docs/research/acp-scenario-cards.md docs/research/acp-execution-log.md`
+  - `bun run test:acp:e2e`
+    - 最终结果：`18 passed | 4 skipped`
+    - 关键点：
+      - `reopens the same ACP conversation after app restart and resumes remembered memory` 通过
+      - `reopens the same Codex ACP conversation after app restart through session/load` 通过
+  - `bun run verify:acp`
+    - 最终结果：
+      - ACP unit: `345 passed | 1 skipped`
+      - ACP integration: `21 passed | 3 skipped`
+      - ACP e2e: `18 passed | 4 skipped`
+  - 补充说明：
+    - `lint` 仍是仓库历史 warning 集合，保持 `0 errors`
+    - `format:check` 通过
+    - `tsc` 通过
+- Open risks:
+  - 当前修复命中的是 hermetic relaunch 基建，不能替代真实外部 CLI 的 live drift 检查；`SC-021` 仍然有价值。
+  - `launchHermeticAcpApp()` 仍然使用 `bodyText.length > 20` 作为 renderer-ready 启发式；如果未来再出现 blank-window 类 flake，这里仍然是下一个优先诊断点。
+- Next:
+  - 回到产品主线，优先推进：
+    - `SC-021` real Codex nightly canary
+    - 或 ACP 产品层剩余差距项（如 logs 最终收口、queue/busy 真相源继续收束）
+
+### 2026-04-05 / Batch 18
+
+- 对应 SC-XXX:
+  - `SC-021`
+- Goal:
+  - 在 `Batch 17` 收紧 hermetic relaunch cleanup 之后，再次验证真实外部 Codex canary 没被误伤。
+  - 把“fake / full-suite 绿”和“live Codex reopen/resume 绿”拆开留痕。
+- Changes:
+  - 本轮没有新增代码改动。
+  - 本轮只做 live canary 回归验证。
+- Reviewer:
+  - 本轮未再拉新的 reviewer。
+  - 裁决沿用 `SC-021` 既有口径：这条 canary 的职责是发现真实 bridge / CLI / login state 漂移，不参与日常 `verify:acp` 阻塞。
+- Verification:
+  - `bun run test:acp:e2e:canary:codex`
+    - 最终结果：`1 passed`
+    - 关键点：
+      - `reopens the same live Codex ACP conversation after app restart @real-codex-canary` 通过
+      - 说明刚才的 hermetic relaunch cleanup 收紧没有破坏真实 Codex reopen/resume
+- Open risks:
+  - 当前 live canary 仍然依赖本机真实 Codex 登录态与外部环境，不能替代 deterministic 主回归。
+  - ACP 产品层剩余差距仍在：
+    - `ACP logs` 目前按你的要求暂时保留在主界面
+    - streaming reveal / queue-busy 真相源这类结构项还没有继续推进
+- Next:
+  - 可以开始邀请你做一轮真实体验回归。
+  - 之后根据你的实际体验反馈，再决定优先切产品层收口还是结构层优化。
+
+### 2026-04-05 / Batch 19
+
+- 对应 SC-XXX:
+  - `SC-023`
+- Goal:
+  - 修复用户真实反馈的 ACP 状态分裂：
+    - 侧边栏/消息列表仍显示会话生成中
+    - 但切回会话后发送框已经恢复成普通发送按钮，而不是 `stop`
+  - 把 ACP active-turn 的真相源重新收口，避免 renderer 详情页和全局 sidebar 使用不同的“是否还在运行”语义。
+- Root cause:
+  - `useConversationListSync` 的侧边栏 spinner 使用的是全局 `generatingConversationIds`，它只会在 `finish/error/terminal agent_status` 时清除。
+  - ACP 详情页恢复运行态时，`useAcpMessage` 会调用 `conversation.get`，而 `conversation.get` 又返回 `workerTaskManager.getTask(id)?.status || 'finished'`。
+  - 旧实现里，`AcpAgentManager` 会在中途 `content / agent_status / acp_tool_call / plan` 事件一到就把 `status` 提前写成 `finished`。
+  - 结果：active turn 还没真正结束，侧边栏仍认为在运行，但详情页重新挂载后已经按 `finished` 恢复，发送框退回 `send`。
+- Changes:
+  - `src/process/task/AcpAgentManager.ts`
+    - `start` 事件现在会显式把 `task.status` 设回 `running`
+    - 删除“收到中途 `content/agent_status/tool/plan` 就提前 finished”的逻辑
+    - 只在真正的终态上把 ACP task 置 `finished`：
+      - `finish`
+      - `error`
+      - terminal `agent_status`（`disconnected / auth_required / error`）
+  - `tests/unit/process/acpActiveTurnStatus.test.ts`
+    - 新增 ACP active-turn status lifecycle 进程层回归：
+      - `content` 期间保持 `running`
+      - 非终态 `session_active` 保持 `running`
+      - `disconnected` 终态会转 `finished`
+      - `auth_required` 终态会转 `finished`
+      - 新一轮 `start` 会重新变成 `running`
+      - `stop -> cancelPrompt -> finish` 链路会在终态信号到达后清掉 `running`
+  - `package.json`
+    - `test:acp:unit` 从单个 process 文件扩展为 `tests/unit/process/acp*.test.ts`
+    - 避免这类 ACP 主进程回归只能靠手动单跑
+  - `docs/research/acp-scenario-cards.md`
+    - 新增 `SC-023 Returning To A Running ACP Conversation Must Restore The Stop Button`
+- Reviewer:
+  - 本轮先由 reviewer `Boole` 做首轮审查，返回了 2 条中风险提醒，已全部采纳：
+    - `D-041`：`auth_required` 也必须纳入 terminal status 合同，不能只测 `disconnected`
+    - `D-042`：虽然 stop 主逻辑没改，但这次状态修正后它更依赖 `cancelPrompt -> finish` 契约，测试里必须明确守住这条链
+  - 采纳后再次请 reviewer 复核：
+    - 结论：`No remaining findings`
+    - reviewer 认可当前实现与测试已经把 `auth_required`、`stop -> finish`、以及 ACP unit gate 纳入正式回归
+- Verification:
+  - `bunx oxfmt --check package.json src/process/task/AcpAgentManager.ts tests/unit/process/acpActiveTurnStatus.test.ts docs/research/acp-scenario-cards.md`
+  - `bun run test tests/unit/process/acpActiveTurnStatus.test.ts`
+    - 结果：`6 passed`
+  - `bun run test:acp:unit`
+    - 最终结果：`352 passed | 1 skipped`
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run verify:acp`
+    - 单测和 integration 通过
+    - 首次完整跑时在既有 `SC-022` 路径上再次遇到一次 hermetic relaunch flake：
+      - 失败点：`reopens the same Codex ACP conversation after app restart through session/load`
+      - 失败位置：`launchHermeticAcpApp()` 第二次启动的 body-ready 等待超时
+      - 这不是本轮 status 语义改动的直接断言失败，而是已知 relaunch 基建的偶发波动
+  - 针对 flake 的复验：
+    - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "reopens the same Codex ACP conversation after app restart through session/load" --reporter=list --timeout 180000`
+      - 结果：`1 passed`
+    - `bun run test:acp:e2e`
+      - 最终结果：`18 passed | 4 skipped`
+- Open risks:
+  - `SC-023` 这条逻辑修复已经成立，process + unit + full e2e 都证明它没有直接引入 stop/auth/retry/queue 回归。
+  - 但 `SC-022` 的 hermetic relaunch 基建仍然存在偶发 full-suite-only 波动，当前应继续记作独立 flaky 风险，而不是归因到本轮 ACP status 语义修复。
+- Next:
+  - 邀请用户重点回归：
+    - 中途流式输出时切到别的对话再切回
+    - 确认发送框仍是 `stop`
+    - 侧边栏 spinner 与详情页按钮不再分裂
+  - 若用户确认体验已对齐，再继续推进下一批产品层优化项。
+
+### 2026-04-05 / Batch 20
+
+- 对应 SC-XXX:
+  - `SC-024`
+- Goal:
+  - 收口 ACP 侧栏 generating store 与线程详情页 terminal 状态的最后一个明显语义缺口。
+  - 修复 `auth_required` 仍未被视为 terminal sidebar state 的问题，避免“详情页已要求认证，但侧栏仍转圈”的分裂。
+- Root cause:
+  - `useConversationListSync` 的 terminal `agent_status` 分类只包含 `error` 和 `disconnected`。
+  - 但 ACP 详情页、runtime status 持久化和 `AcpAgentManager` 已经把 `auth_required` 当成 terminal outcome。
+  - 结果是：同一个 ACP turn 在 detail view 已结束，而 sidebar generating store 仍可能保留运行中语义。
+- Changes:
+  - `src/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync.ts`
+    - 将 `auth_required` 纳入 terminal `agent_status` 分类。
+  - `tests/unit/renderer/hooks/useConversationListSync.dom.test.ts`
+    - 新增 renderer hook 级回归，覆盖 4 条行为合同：
+      - active conversation: `auth_required` clears generating without unread
+      - inactive conversation: `auth_required` clears generating and marks unread
+      - `auth_required` without prior generating does not create unread
+      - `session_active` remains non-terminal until `finish`
+  - `package.json`
+    - `test:acp:unit` 新增 `tests/unit/renderer/hooks/useConversationListSync.dom.test.ts`
+- Reviewer:
+  - reviewer：`Boole`
+  - 首轮审查返回 3 条有效提醒，已全部采纳：
+    - 不能只测 spinner 清除，还要覆盖 inactive conversation 的 unread dot 分支
+    - 必须保留 non-terminal `session_active` 的 negative control
+    - 需要守住“没有 prior generating 时，`auth_required` 不凭空制造 unread”
+  - 复核结果：
+    - `no remaining findings`
+- Verification:
+  - `bun run test tests/unit/renderer/hooks/useConversationListSync.dom.test.ts`
+    - 结果：`4 passed`
+  - `bunx oxfmt --check src/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync.ts tests/unit/renderer/hooks/useConversationListSync.dom.test.ts package.json`
+    - 通过
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run test:acp:unit`
+    - 结果：`356 passed | 1 skipped`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "authenticates after auth_required and completes the next turn" --reporter=list --timeout 120000`
+    - 结果：`1 passed`
+    - 说明本次 sidebar terminal 语义修补没有破坏既有 auth recovery 页面级主链路
+- Open risks:
+  - 当前 fake auth fixture 主要在 pre-turn/session bootstrap 阶段触发 `auth_required`，所以页面级 E2E 还不能直接证明“已经在 sidebar 上转圈的会话，随后 auth_required 会立刻灭灯”。
+  - 不过 renderer store 的 deterministic hook 回归已经覆盖了 generating->auth_required 的分支语义；若未来需要更强用户级合同，再补一个“mid-turn auth_required” fixture 即可。
+- Next:
+  - 继续回到产品主线剩余项：
+    - `ACP logs` 最终收口
+    - queue / busy 真相源继续收束
+    - streaming reveal buffer
+
+### 2026-04-05 / Batch 21
+
+- 对应 SC-XXX:
+  - `SC-025`
+- Goal:
+  - 把 ACP queue 的自动出队和 recovery banner 真相源真正绑在一起，避免 queued command 在 `disconnected` / `auth_required` 障碍态里偷跑。
+  - 用 deterministic contract 证明 queue 只会在 recovery action 真正完成后，释放 exactly one next command。
+- Root cause:
+  - `useConversationCommandQueue` 旧逻辑只看 `isBusy / isPaused / isHydrated / interactionLocked`，不知道 conversation 当前是否还被 `Retry` / `Authenticate` barrier 卡住。
+  - ACP sendbox 侧虽然已经有更细的 recovery gating：
+    - `pendingRetryReadyRevision`
+    - `pendingAuthReadyRevision`
+    - banner 只在 CTA 真正完成后才消失
+  - 但 queue auto-dequeue 如果不复用这套 gating，就可能在以下场景里提前放行：
+    - `session_active` 早于 warmup/auth promise settle
+    - `disconnected -> auth_required` 这类 terminal handoff
+    - reopen 时 hydrate 出 persisted queue + terminal ACP status
+- Changes:
+  - `src/renderer/pages/conversation/platforms/useConversationCommandQueue.ts`
+    - 新增 `isExecutionBlocked` gate。
+    - queue 自动出队 effect 现在在 `isExecutionBlocked === true` 时直接冻结，不再启动下一条 queued command。
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - 将 ACP queue 的执行 gate 显式绑定到 recovery banner 真相源：
+      - `shouldShowAuthBanner`
+      - `shouldShowDisconnectedBanner`
+    - 只要任一 banner 仍在，queue 就保持 blocked。
+  - `tests/unit/renderer/conversationCommandQueue.dom.test.tsx`
+    - 新增 hook 层 gate 合同：
+      - `isExecutionBlocked` 时不自动出队
+      - unblock 后恢复自动出队
+  - `tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx`
+    - 扩大 queue-flow 覆盖面，新增 6 条 recovery 合同：
+      - `disconnected + Retry + early session_active before warmup resolves`
+      - `auth_required + Authenticate + early session_active before auth resolves`
+      - `disconnected -> auth_required` handoff 期间 queue 继续冻结
+      - barrier 挂着时继续发送新消息，会继续排到队尾且保持冻结
+      - persisted queue + hydrated `disconnected` on reopen
+      - persisted queue + hydrated `auth_required` on reopen
+    - 同时守住 `Send Now` 在 barrier 态下必须隐藏。
+- Reviewer:
+  - reviewer：`Boole`
+  - 首轮审查返回 4 条有效边界，已全部采纳：
+    - `session_active` 不能被当成独立放行信号，必须与 pending recovery revision 一起判断
+    - barrier 挂着且 queue 已存在时，用户继续发送新消息的合同要钉死
+    - persisted queue + hydrated terminal ACP status 的 reopen 路径也要测
+    - `disconnected -> auth_required` 这种 handoff 要验证 queue 继续冻结，并且 `Send Now` 仍隐藏
+  - 采纳后再次请 reviewer 复核：
+    - 结论：`no remaining findings`
+- Verification:
+  - `bunx oxfmt --check tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx tests/unit/renderer/conversationCommandQueue.dom.test.tsx src/renderer/pages/conversation/platforms/useConversationCommandQueue.ts src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - 通过
+  - `bun run test tests/unit/renderer/conversationCommandQueue.dom.test.tsx tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx`
+    - 结果：`45 passed`
+  - `bun run verify:acp`
+    - lint：仍是仓库既有 warning-only，`0 errors`
+    - typecheck：通过
+    - ACP unit：`364 passed | 1 skipped`
+    - ACP integration：`21 passed | 3 skipped`
+    - ACP e2e：`18 passed | 4 skipped`
+    - 说明 queue barrier 改造没有破坏既有 reopen/resume、disconnect/retry、auth/authenticate、Send Now 和 ext ACP 页面级链路
+- Open risks:
+  - 当前 queue barrier 语义已经被 ACP renderer/unit/e2e 三层守住，但它仍然基于 detail view 的 recovery banner 真相源，而不是更底层的主进程 queue coordinator。
+  - 这已经足够保证当前用户链路正确；更深一层的 queue / busy 单一真相源收束，仍属于后续结构优化项。
+- Next:
+  - 继续收口 ACP 产品层剩余项：
+    - `ACP logs` 最终从默认主界面撤到二级诊断入口
+    - streaming reveal buffer
+    - queue / busy 真相源进一步回收到更统一的 runtime contract
+
+### 2026-04-05 / Batch 22
+
+- 类型:
+  - 文档收口 / 产品口径统一
+- Goal:
+  - 将“当前 AionUi 用户到底会看到什么 UI”“Zed 用户会看到什么 UI”“哪些优化已完成、哪些仍未完成”沉淀成唯一文档口径。
+  - 避免这些判断继续散落在对话记录中，后续讨论产品取舍时出现多套说法。
+- Changes:
+  - `docs/research/acp-optimization-plan-final.md`
+    - 新增：
+      - `当前完成度判断（2026-04-05）`
+      - `AionUi 当前用户可见 UI 状态`
+      - `Zed 当前用户可见 UI 状态`
+      - `当前与 Zed 的用户感知差距`
+    - 明确区分：
+      - 已完成的主链路能力
+      - 尚未产品化收口的项
+      - 普通用户会看到的 UI
+      - 仅开发调试时应该看到的 UI
+- Final product judgement:
+  - AionUi 当前已经不属于“不可用/体验混乱”阶段。
+  - 但也不应宣称“全部优化都做完了”。
+  - 准确状态应为：
+    - 主链路已基本稳定
+    - 产品化收口仍剩 `ACP logs`、streaming reveal、以及更深层 runtime contract 收束
+- Verification:
+  - `bunx oxfmt --check docs/research/acp-optimization-plan-final.md docs/research/acp-execution-log.md`
+    - 通过
+- Open risks:
+  - 当前“普通用户是否应该默认看到 ACP logs”已经有清晰判断，但尚未真正改代码收掉。
+  - 这意味着文档口径已经先统一，实际产品表现仍需后续一刀完成。
+- Next:
+  - 优先继续收：
+    - `ACP logs` 从默认主界面撤到二级诊断入口
+    - ACP streaming reveal buffer
+
+### 2026-04-05 / Batch 23
+
+- 对应 SC-XXX:
+  - `SC-026`
+- Goal:
+  - 落地 ACP renderer 最小版 streaming reveal buffer，让高频 `content` chunk 以小批次 reveal，而不是每个 raw chunk 都直接打到消息流。
+  - 同时确保 stop / Send Now / finish / unmount 不会因为 reveal timer 而出现新的 ghost text 或乱序。
+- Root cause:
+  - AionUi 的消息列表 hook 本身已有通用 batching，但 ACP 缺少专用的 content reveal cadence；连续小 chunk 仍然会让主消息流显得过于密集和生硬。
+  - 首版实现后，reviewer 及时抓出了两个真实边界：
+    - `resetState()` 之后 pending reveal buffer 仍可能晚到落屏，破坏 `Stop` / `Send Now` 语义
+    - cleanup 阶段试图 `flushBufferedContent()` 到 message-list batching hook，并不能保证 teardown 时真的同步提交
+- Changes:
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+    - 新增 ACP 专用 `content` reveal buffer，默认以 `40ms` cadence 合并同一 `msg_id` 的连续 `content` chunk。
+    - 非 `content` 事件到来前会先 flush pending buffered content，保证 `request_trace / finish / error / agent_status` 等事件的可见顺序不被打乱。
+    - `resetState()` 现在会显式清掉 pending reveal buffer 和 timer，避免 stop / Send Now 后 reveal buffer 里的内容晚到落屏。
+    - conversation switch / unmount cleanup 改成显式 `clearBufferedContent()`，不再依赖异步 message-list batching 去“碰运气 flush 成功”。
+  - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 新增 / 更新 5 组合同：
+      - rapid `content` chunks merge + timer flush
+      - `finish` arrives before reveal timer -> immediate flush
+      - `resetState` drops pending buffered content
+      - unmount clears pending buffered content
+      - 既有 “new start reopens late-content gate” 测试适配 reveal timer
+- Reviewer:
+  - reviewer：`Boole`
+  - 首轮审查返回 2 条有效 finding，均已采纳：
+    - `resetState` 未清 reveal buffer，会让 stop / Send Now 后出现晚到文本
+    - cleanup flush 依赖 message-list batching，不能保证 teardown 时真正提交
+  - 修复后再次复核：
+    - 结论：`no remaining findings`
+- Verification:
+  - `bunx oxfmt --check src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 通过
+  - `bun run test tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 结果：`30 passed`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "reopens the same Codex ACP conversation after app restart through session/load"`
+    - 结果：`1 passed`
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run verify:acp`
+    - lint：仍是仓库既有 warning-only，`0 errors`
+    - ACP unit：`368 passed | 1 skipped`
+    - ACP integration：`21 passed | 3 skipped`
+    - ACP e2e：`18 passed | 4 skipped`
+- Note:
+  - 本批第一次完整 `verify:acp` 曾单次命中过一次 hermetic Codex reopen 的 `request_trace` 超时，但未能在定向 replay 或第二次完整 `verify:acp` 中复现。
+  - 这次没有把它归因为 streaming reveal 改动，因为失败点发生在 raw `chat.response.stream` probe，而该探针绕过了 `useAcpMessage`。
+  - 当前处理口径是：保留观察，不把一次性 flake 伪装成“已经修复的 reveal regression”。
+- Open risks:
+  - 当前已完成的是最小版 reveal buffer，不是最终的“16ms tick / frame-budget”细腻调优版。
+  - 这已经足够把最明显的高频 chunk 噪音压下去，同时守住 stop/finish 语义；后续如果要继续追求更接近 Zed 的观感，再迭代 cadence 即可。
+- Next:
+  - 继续收产品化剩余项：
+    - `ACP logs` 从默认主界面撤到二级诊断入口
+    - `queue / busy` 更底层单一真相源继续回收到统一 runtime contract
+
+### 2026-04-06 / Batch 24
+
+- 对应 SC-XXX:
+  - `SC-027`
+- Goal:
+  - 让 ACP recovery CTA 在 remount 后仍然保持同一进行中语义，并抑制 terminal barrier handoff 后的 stale failure toast/log。
+  - 具体覆盖：
+    - `Retry` / `Authenticate` 切走再回来
+    - `disconnected -> auth_required`
+    - `auth_required -> disconnected`
+- Root cause:
+  - 旧版 `Retry` / `Authenticate` pending 状态只依赖组件实例，remount 后会失去“已经在进行中”的语义。
+  - 第一版修复虽然把 pending revision 持久到了 conversation-scoped store，但 stale-failure 抑制仍只依赖 passive effect 清 `pending*Revision`。
+  - reviewer 抓到的真实窗口是：
+    - 新 terminal barrier 的 banner 已按 `acpStatus` 切到 UI
+    - 旧 promise 在 passive effect 清理前先一步 settle
+    - 于是 `auth_failed` / `retry_failed` 仍可能按旧 barrier 语义冒出来
+- Changes:
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - 新增 conversation-scoped recovery UI store，并通过 `useSyncExternalStore` hydrate：
+      - `authenticatingRevision`
+      - `pendingAuthReadyRevision`
+      - `retryingDisconnectedRevision`
+      - `pendingRetryReadyRevision`
+      - `sendNowPending`
+    - `Authenticate` / `Retry` / `Send Now` 现在基于该 external store 去重，remount 后不会重复触发同一个 recovery action。
+    - 新增 latest-status stale guard：
+      - failure path 不再只看 pending revision，也会结合最新 `acpStatus/acpStatusRevision` 判断当前 barrier 是否已 handoff。
+    - 新增 response-stream handoff listener：
+      - 收到另一种 terminal barrier 时，同步清掉对应 `pending*Revision`
+      - 不再依赖 passive effect 才完成 stale-failure 抑制
+    - 对 `responseStream.on` 做 capability guard，避免平台级 send box 测试桩未提供该订阅时直接崩掉
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 新增 remount recovery 合同：
+      - `Retry` across remount + duplicate click ignored
+      - `Authenticate` across remount + duplicate click ignored
+    - 新增 stale-failure 合同：
+      - `Retry` handoff to `auth_required` + same-act stale failure settle
+      - `Authenticate` handoff to `disconnected` + same-act stale failure settle
+    - 这两条用例都刻意把 handoff 和旧 promise settle 放在同一个 `act()` 中，直接覆盖 reviewer 指出的窗口，而不是等 banner 稳定后再 settle
+- Reviewer:
+  - reviewer：`Boole`
+  - 首轮审查返回 1 条高优先级 finding：
+    - stale-failure 抑制仍可能漏掉“UI 已 handoff，但 passive effect 尚未清理 pending revision”的窗口
+  - 我先补了 latest-status guard 和 same-act 测试，但 reviewer 再次指出：
+    - 仅依赖 `acpStatus` render/ref 仍可能晚于 raw response stream，本质上还没彻底封住该窗口
+  - 第二轮修复后改为同步 response-stream handoff listener，再次请 reviewer 复核：
+    - 结论：`no remaining findings`
+- Verification:
+  - `bunx oxfmt --check src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 通过
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 结果：`22 passed`
+  - `bun run test tests/unit/renderer/platformSendBoxes.dom.test.tsx`
+    - 结果：`16 passed`
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run test:acp:unit`
+    - 结果：`372 passed | 1 skipped`
+  - `bun run verify:acp`
+    - lint：仍是仓库既有 warning-only，`0 errors`
+    - ACP unit：`372 passed | 1 skipped`
+    - ACP integration：`21 passed | 3 skipped`
+    - ACP e2e：`18 passed | 4 skipped`
+- Open risks:
+  - 当前已完成的是 `Authenticate / Retry / Send Now` 这条 recovery UI 的 remount-safe 收口。
+  - `waiting permission` / `cancelling` 这类更细的 ACP phase，仍未纳入同一套 persisted recovery contract。
+  - 这不影响当前主链路的 auth/retry/reopen/queue correctness，但仍属于 `P2.4` 的后续扩展面。
+- Next:
+  - 继续收产品化剩余项：
+    - `ACP logs` 从默认主界面撤到二级诊断入口
+    - `queue / busy` 更底层单一真相源继续回收到统一 runtime contract
+
+### 2026-04-06 / Batch 25
+
+- 对应 SC:
+  - `SC-028`
+- Goal:
+  - 将 `ACP logs` 从主界面默认展示改为右上角 runtime status dot 的二级诊断入口。
+  - 同时补齐 legacy ACP fallback、preset assistant loading/resolved 这几条 header identity 边界，并让 hermetic ACP e2e 合同跟上新的 UI 形态。
+- Root cause:
+  - 第一版 diagnostics-dot 改造只解决了“入口位置”，但仍留下两类真实回归：
+    - `presetAssistantInfo` / `isLoadingPreset` 路径会丢失 `backend`，导致 status dot 身份退化成 generic `ACP`
+    - hermetic ACP e2e 还在按旧 UI 假设默认可见的 `[data-testid="acp-logs-panel"]`
+  - reviewer 先后识别出的关键点都成立：
+    - preset assistant 路径会让 diagnostics button 丢失或失真
+    - legacy ACP 会话若没有 `extra.backend`，必须继续回退到 `claude`，否则 header diagnostics 与实际 runtime 不一致
+- Changes:
+  - `src/renderer/pages/conversation/platforms/acp/acpRuntimeDiagnostics.ts`
+    - 保留 conversation-scoped diagnostics snapshot store，供 header diagnostics 与 sendbox 共享 runtime status/logs 真相。
+  - `src/renderer/pages/conversation/components/ChatLayout/AcpRuntimeStatusButton.tsx`
+    - 保持右上角 status dot + click-to-open diagnostics popover 形态。
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - 不再默认内联渲染 `AcpLogsPanel`。
+  - `src/renderer/pages/conversation/utils/resolveConversationBackend.ts`
+    - 新增统一 backend resolver，明确 legacy ACP 默认回退到 `claude`。
+  - `src/renderer/pages/conversation/components/ChatConversation.tsx`
+    - `AcpChat` 与 header diagnostics 统一复用 `resolveConversationBackend()`
+    - `presetAssistantInfo` resolved / loading 两条路径都继续传递 backend，不再出现 generic header diagnostics
+  - `tests/unit/renderer/components/ChatConversationAcpRuntimeStatus.dom.test.tsx`
+    - 新增 ACP conversation 级合同，覆盖：
+      - legacy ACP + loading preset -> header/backend 仍是 `claude`
+      - legacy ACP + resolved preset -> header/backend 仍是 `claude`
+  - `tests/e2e/specs/acp-agent.e2e.ts`
+    - hermetic ACP 页面用例统一改为：
+      - 默认不再看到 `acp-logs-panel`
+      - 点击 `[data-testid="acp-runtime-status-button"]`
+      - 再在 diagnostics popover 中断言 logs
+- Reviewer:
+  - reviewer：`Boole`
+  - 首轮审查返回 2 条有效 finding：
+    - legacy ACP 缺少 `extra.backend` 时，status dot 会失去与实际 runtime 一致的身份
+    - preset loading 期间 diagnostics entry 会短暂退回 generic 状态
+  - 修复后再次复核：
+    - 结论：`no remaining findings`
+- Verification:
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run test tests/unit/renderer/components/ChatConversationAcpRuntimeStatus.dom.test.tsx tests/unit/renderer/components/ChatLayoutAcpRuntimeStatus.dom.test.tsx tests/unit/renderer/components/AcpRuntimeStatusButton.dom.test.tsx`
+    - 结果：`9 passed`
+  - `bunx playwright test tests/e2e/specs/acp-agent.e2e.ts --grep "ACP conversation page \\(hermetic\\)" --reporter=list --workers=1`
+    - 结果：`8 passed | 1 skipped`
+  - `bun run verify:acp`
+    - lint：仍是仓库既有 warning-only，`0 errors`
+    - ACP unit：`381 passed | 1 skipped`
+    - ACP integration：`21 passed | 3 skipped`
+    - ACP e2e：`18 passed | 4 skipped`
+- Product judgement:
+  - `ACP logs` 已经从普通用户主界面撤下，AionUi 的 ACP 主线程终于不再把 runtime chatter 当正文 UI 默认暴露。
+  - 当前对普通用户保留的是：
+    - `Authenticate` / `Retry` banner
+    - queue / Send Now
+    - 右上角细小 status dot 作为 diagnostics 二级入口
+  - 这一版的产品气质已经明显更接近 Zed。
+- Open risks:
+  - 当前 diagnostics 入口仍然是线程 header 中的 status dot，而不是像 Zed 那样完全收在 dev palette / logs 面板中。
+  - 这已经足够解决“默认太吵”的产品问题；是否继续把 diagnostics 再向更深层调试入口收，只是下一阶段的产品取舍，不再是当前 blocker。
+- Next:
+  - 继续收口剩余项：
+    - `queue / busy` 更底层单一真相源继续回收到统一 runtime contract
+    - 连接复用拓扑 / capability-based degrade / runtime 托管是否进入下一阶段
+
+### 2026-04-06 / Batch 26
+
+- 对应 SC:
+  - `SC-029`
+- Goal:
+  - 将右上角 ACP runtime status dot 从 agent pill 左侧调整到右侧，贴近用户对“状态点附着在 agent 身上”的视觉预期。
+- Root cause:
+  - 第一版 diagnostics-dot 改造虽然已经将 `ACP logs` 收为二级入口，但 dot 落在了 agent pill 左侧。
+  - 这会让用户把 dot 看成独立控件，而不是“agent runtime 状态”的附属标记。
+- Changes:
+  - `src/renderer/pages/conversation/components/ChatLayout/index.tsx`
+    - 将 header runtime group 顺序改为：
+      - `AgentModeSelector`
+      - `AcpRuntimeStatusButton`
+    - 保持紧凑的 `gap-4px`，让 dot 视觉上贴附在 agent pill 右侧。
+  - `tests/unit/renderer/components/ChatLayoutAcpRuntimeStatus.dom.test.tsx`
+    - 新增 DOM 顺序合同，显式守住 `agent-mode-selector` 出现在 `acp-runtime-status-button` 之前。
+- Reviewer:
+  - reviewer：`Boole`
+  - 复核要点：
+    - 顺序调整不能打坏 header runtime group 的已有显示条件
+    - 顺序断言要锁住用户可见行为，而不是具体 className
+  - 复核结论：
+    - `no remaining findings`
+- Verification:
+  - `bun run test tests/unit/renderer/components/ChatLayoutAcpRuntimeStatus.dom.test.tsx`
+    - 结果：`5 passed`
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run verify:acp`
+    - lint：仍是仓库既有 warning-only，`0 errors`
+    - ACP unit：`382 passed | 1 skipped`
+    - ACP integration：`21 passed | 3 skipped`
+    - ACP e2e：`18 passed | 4 skipped`
+- Product judgement:
+  - status dot 现在更像“agent 胶囊附属的运行时状态点”，比左侧布局更自然，也更接近用户直觉。
+  - 这属于成品化细调，不改变 diagnostics 的交互语义。
+- Open risks:
+  - 当前 diagnostics 入口仍然显式存在于线程 header；是否进一步下沉到更深的调试入口，仍属于下一阶段产品取舍。
+- Next:
+  - 继续收口剩余项：
+    - `queue / busy` 更底层单一真相源继续回收到统一 runtime contract
+    - streaming reveal buffer
+
+### 2026-04-06 / Batch 27
+
+- 对应 SC:
+  - `SC-030`
+- Goal:
+  - 收掉“历史 ACP 会话一打开就直接看到红/黄 banner”的噪音。
+  - 对齐 Zed 的历史线程产品感：历史 terminal status 继续保留给状态点/diagnostics，但只有当前 live failure 或确实存在待恢复 queue 时，才升格为线程 banner。
+- Root cause:
+  - AionUi 当前会把 `conversation.extra.lastAcpStatus` 直接 hydrate 成 `acpStatus`，而 sendbox 再把 terminal status 直接映射成 `Authenticate / Retry` banner。
+  - 这对 correctness 有用，但对普通历史线程过于激进，用户会在切历史会话时频繁看到红/黄 callout，随后状态又可能被 warmup 改写，主观体验很脏。
+  - reviewer 还补出了 3 条真实边界：
+    - 若简单去掉 hydrated banner，会打坏 queue barrier，历史 pending queue 会失去恢复语义
+    - remount 后 opposite barrier handoff 可能留下 stale recovery state
+    - unmounted auth/retry promise settle 后，可能冒 stale toast 或把 recovery 卡成假“进行中”
+- Changes:
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+    - 新增 `acpStatusSource: 'live' | 'hydrated' | null`
+    - 历史 `lastAcpStatus` hydrate 时显式标记为 `hydrated`
+    - live `start / content / agent_status` 到来时统一切回 `live`
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - sendbox banner 逻辑改为：
+      - live `auth_required / disconnected` -> banner
+      - hydrated terminal status -> 默认不 banner
+      - hydrated terminal status + pending queue -> 继续 banner
+      - in-flight auth/retry -> 继续 banner
+    - queue barrier 不再绑定 banner 可见性，而是继续由 historical barrier / live barrier / in-flight recovery 统一阻塞
+    - recovery state 增强：
+      - hydrated opposite barrier handoff 会清理冲突的 `authenticating/pendingAuthReady/retrying/pendingRetry`
+      - unmounted stale auth/retry promise settle 时不再弹 toast，同时会正确清掉同 revision 的 pending recovery state
+  - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 新增/更新 hydrated vs live source 合同
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 改为验证：
+      - 无 queue 的 hydrated `disconnected / auth_required` 不再默认出现 banner
+      - remount + opposite barrier handoff 不冒 stale toast
+      - remount + same-barrier failure after unmount 不留下假“recovery in flight”
+  - `tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx`
+    - 保留 hydrated queue barrier 合同，确保带 pending queue 的历史线程依旧会展示恢复 banner 并冻结 queue
+- Reviewer:
+  - reviewer：`Boole`
+  - 首轮审查命中 3 条真实风险：
+    - opposite barrier remount handoff 清理不足
+    - unmounted stale promise 仍可能冒失败提示
+    - same-barrier failure after unmount 可能留下假 recovery active
+  - 处理方式：
+    - 逐条转成自动化合同并修复状态机
+  - 最终 reviewer 结论：
+    - 本批次收口时 reviewer 最后一轮未在超时时间内返回；当前以 `green automation + addressed reviewer findings` 作为收尾依据
+- Verification:
+  - `bun run test tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 结果：`30 passed`
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 结果：`27 passed`
+  - `bun run test tests/unit/renderer/components/AcpSendBoxQueueFlow.dom.test.tsx`
+    - 结果：`10 passed`
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run verify:acp`
+    - lint：仍是仓库既有 warning-only，`0 errors`
+    - ACP unit：`387 passed | 1 skipped`
+    - ACP integration：`21 passed | 3 skipped`
+    - ACP e2e：`18 passed | 4 skipped`
+- Product judgement:
+  - 现在的产品规则更接近 Zed：
+    - 普通历史 ACP 会话默认安静，只剩状态点/diagnostics
+    - 当前 live failure 仍明确可见
+    - 带 pending queue 的历史线程仍保留恢复 banner，避免 correctness 回退
+  - 这比“全部都弹 banner”更克制，也比“全部都藏掉”更稳。
+- Open risks:
+  - diagnostics 入口仍然显式位于 header status dot，而不是完全收进更深的 dev-only 入口。
+  - streaming reveal buffer 与更深层 `queue / busy` 真相源统一，仍属于下一阶段。
+- Next:
+  - 继续收口剩余项：
+    - `queue / busy` 更底层单一真相源继续回收到统一 runtime contract
+    - streaming reveal buffer
+
+### 2026-04-06 / Batch 28
+
+- 对应 SC:
+  - `SC-031`
+  - `SC-032`
+- Goal:
+  - 继续把 ACP 历史线程做得更像 Zed：
+    - 历史 hydrated terminal status 不再把 header runtime dot 渲染成“当前故障”
+    - send 后到首包前的过渡不再显得过于安静，而是给出明确但克制的 loading affordance
+- Root cause:
+  - `SC-030` 完成后，历史线程虽然不再默认弹红/黄 banner，但 header dot 仍然只看 `status`，不看 hydrated/live 来源，所以历史 `disconnected / auth_required / error` 仍会变成红/橙点。
+  - reviewer 之前已经指出：如果没有显式 provenance，就不能安全地区分“历史 terminal status”与“当前 runtime failure”。
+  - 另一方面，ACP 发送期虽然已有 stop 按钮与 `ThoughtDisplay` 基座，但缺少显式的 send-time waiting phase；界面在“已发送、尚未首包”这段仍偏冷静。
+  - 本批对照 Zed 后确认：
+    - Zed 会在 loading/thread warmup 阶段明确显示 loading affordance
+    - 发送后到首包前，也有可感知的 loading/generating 反馈，而不是完全静止
+- Changes:
+  - `src/renderer/pages/conversation/platforms/acp/acpRuntimeDiagnostics.ts`
+    - diagnostics snapshot 新增：
+      - `statusSource`
+      - `activityPhase`
+  - `src/renderer/pages/conversation/platforms/acp/useAcpMessage.ts`
+    - 发布 diagnostics snapshot 时同步带出 `acpStatusSource`
+    - 基于现有 `aiProcessing / running` 推导：
+      - `idle`
+      - `waiting`
+      - `streaming`
+  - `src/renderer/pages/conversation/components/ChatLayout/AcpRuntimeStatusButton.tsx`
+    - hydrated terminal status 会被 demote 成中性 diagnostics dot，不再直接显示成 live error/warning 色
+    - `waiting` 阶段会用 accent color + pulse，作为 send-time warmup affordance
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - 复用现有 `ThoughtDisplay`
+    - 在 `waiting` 阶段显示：
+      - `Processing`
+      - `Connecting to {agent}...`
+    - 不新增新的 timeline 假消息
+  - `tests/unit/renderer/components/AcpRuntimeStatusButton.dom.test.tsx`
+    - 新增 hydrated terminal status demotion 合同
+    - 新增 waiting phase pulse 合同
+  - `tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 新增 diagnostics `activityPhase` 发布合同
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 新增 send-time warmup affordance 合同
+- Reviewer:
+  - reviewer：`Boole`
+  - 先前有效 finding 已全部体现在本批实现：
+    - hydrated/live provenance 不能靠 logs 猜
+    - hydrated `error` 也要一起 demote
+    - demote 后的 button label 也要转成 diagnostics 语义
+- Verification:
+  - `bun run test tests/unit/renderer/components/AcpRuntimeStatusButton.dom.test.tsx`
+    - 结果：`5 passed`
+  - `bun run test tests/unit/renderer/hooks/useAcpMessage.dom.test.ts`
+    - 结果：`31 passed`
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 结果：`29 passed`
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run test:acp:unit`
+    - 结果：`392 passed | 1 skipped`
+  - `bun run verify:acp`
+    - 结果：
+      - lint：仍是仓库既有 warning-only，`0 errors`
+      - format / tsc：通过
+      - ACP unit：`392 passed | 1 skipped`
+      - ACP integration：`21 passed | 3 skipped`
+      - ACP e2e：`18 passed`
+      - `verify:acp`：通过
+- Product judgement:
+  - 历史 ACP 线程现在更接近 Zed：
+    - 过去的断连/认证状态默认只进 diagnostics，不再用红点持续强调“当前故障”
+  - send 后到首包前也不再是“只有 stop 按钮”的静态等待：
+    - header dot 会 pulse
+    - sendbox 上方会明确显示 `Processing / Connecting to {agent}`
+    - 如果 ACP 已经开始输出 inline `thinking`，则由 inline `thinking` 接管等待感，而不是和 fallback affordance 叠加
+  - 这属于产品气质上的继续收口，不改变已有 correctness 合同。
+- Open risks:
+  - 这批对齐的是“可感知的等待态”，还不是 Zed 那种完整的 thread-level generating row。
+  - 如果后续还要继续追求更像 Zed 的生成期观感，可以再决定是否引入更明确的 list-level generating affordance。
+- Next:
+  - 等完整 `verify:acp` 结束并确认 E2E 绿灯后，继续推进：
+    - 更深层 `queue / busy` runtime contract 收束
+    - 是否继续把 diagnostics 入口下沉得比 header dot 更深
+
+### 2026-04-06 / Batch 29
+
+- 对应 SC:
+  - `SC-031`
+  - `SC-032`
+- Goal:
+  - 关闭 `SC-031 / SC-032` 剩余 reviewer gap，把 send-time fallback 与 inline `thinking` 的关系写成明确合同，而不是依赖偶然实现。
+- Changes:
+  - `src/renderer/pages/conversation/platforms/acp/AcpSendBox.tsx`
+    - 明确注释：`Processing / Connecting` 只覆盖 pre-first-response gap；一旦 ACP 已发出 inline `thinking`，就让 inline `thinking` 接管等待态
+  - `tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - `ThoughtDisplay` 测试桩改成更接近真实组件：inactive 且无 thought 时返回 `null`
+    - 新增合同：inline `thinking` 会替代 fallback 连接提示，而 header waiting pulse 仍保留
+  - `tests/unit/renderer/components/AcpRuntimeStatusButton.dom.test.tsx`
+    - 新增合同：live terminal `disconnected` 仍保持 danger 色，不会被 hydrated demotion 误伤
+- Reviewer:
+  - reviewer：`Boole`
+  - 结论：`no remaining findings`
+- Verification:
+  - `bun run test tests/unit/renderer/components/AcpSendBoxFlow.dom.test.tsx`
+    - 结果：`29 passed`
+  - `bun run test tests/unit/renderer/components/AcpRuntimeStatusButton.dom.test.tsx`
+    - 结果：`5 passed`
+  - `bunx tsc --noEmit`
+    - 通过
+  - `bun run test:acp:unit`
+    - 结果：`392 passed | 1 skipped`
+  - `bun run verify:acp`
+    - 结果：
+      - ACP integration：`21 passed | 3 skipped`
+      - ACP e2e：`18 passed`
+      - `verify:acp`：通过
+- Product judgement:
+  - 当前 send-time 过渡已经不是“静止等待”，而是两层收口明确的等待态：
+    - header runtime dot 的 waiting pulse
+    - sendbox 的 fallback `Processing / Connecting`
+  - 当 ACP 更具体的 inline `thinking` 已出现时，fallback 自动退场，避免形成双重 loading 语义。
+- Next:
+  - 继续评估是否需要在消息线程本身补更接近 Zed 的 generating affordance，还是把当前 `pulse dot + warmup thought` 维持为更克制的 AionUi 方案。

@@ -9,7 +9,7 @@ import http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import os from 'os';
-import { getDevAppName } from '@/common/platform';
+import { getDevAppName } from '@/common/config/devProfile';
 
 // ============ Environment Separation ============
 // Set app name before any getPath() call so userData is isolated from production.

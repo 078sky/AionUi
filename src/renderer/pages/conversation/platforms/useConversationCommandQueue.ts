@@ -307,6 +307,7 @@ type UseConversationCommandQueueOptions = {
   conversationId: string;
   isBusy: boolean;
   isHydrated?: boolean;
+  isExecutionBlocked?: boolean;
   onExecute: (item: ConversationCommandQueueItem) => Promise<void>;
 };
 
@@ -343,6 +344,7 @@ export const useConversationCommandQueue = ({
   conversationId,
   isBusy,
   isHydrated = true,
+  isExecutionBlocked = false,
   onExecute,
 }: UseConversationCommandQueueOptions) => {
   const { t } = useTranslation();
@@ -593,6 +595,7 @@ export const useConversationCommandQueue = ({
   useEffect(() => {
     if (
       !isHydrated ||
+      isExecutionBlocked ||
       pausedRef.current ||
       isBusy ||
       waitingForTurnStartRef.current ||
@@ -638,6 +641,7 @@ export const useConversationCommandQueue = ({
     data.items,
     executionGateVersion,
     isBusy,
+    isExecutionBlocked,
     isHydrated,
     isInteractionLocked,
     onExecute,

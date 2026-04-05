@@ -244,6 +244,39 @@ describe('transformMessage - hidden field', () => {
     expect(result.hidden).toBe(true);
   });
 
+  it('preserves hidden field from error message', () => {
+    const input: IResponseMessage = {
+      type: 'error',
+      conversation_id: 'conv-error',
+      msg_id: 'msg-error',
+      data: 'Hidden runtime error',
+      hidden: true,
+    };
+
+    const result = transformMessage(input) as TMessage;
+
+    expect(result).toBeDefined();
+    expect(result.hidden).toBe(true);
+  });
+
+  it('preserves hidden field from agent_status message', () => {
+    const input: IResponseMessage = {
+      type: 'agent_status',
+      conversation_id: 'conv-status',
+      msg_id: 'msg-status',
+      data: {
+        backend: 'claude',
+        status: 'disconnected',
+      },
+      hidden: true,
+    };
+
+    const result = transformMessage(input) as TMessage;
+
+    expect(result).toBeDefined();
+    expect(result.hidden).toBe(true);
+  });
+
   it('does not add hidden field when not present', () => {
     const input: IResponseMessage = {
       type: 'content',

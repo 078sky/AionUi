@@ -29,9 +29,6 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
     ACP_BACKENDS_ALL[backend as keyof typeof ACP_BACKENDS_ALL]?.name ||
     backend.charAt(0).toUpperCase() + backend.slice(1);
 
-  // Hide disconnected status from historical messages (no longer emitted but may exist in DB)
-  if ((status as string) === 'disconnected') return null;
-
   const getStatusBadge = () => {
     switch (status) {
       case 'connecting':
@@ -42,6 +39,10 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
         return <Badge status='success' text={t('acp.status.authenticated', { agent: displayName })} />;
       case 'session_active':
         return <Badge status='success' text={t('acp.status.session_active', { agent: displayName })} />;
+      case 'auth_required':
+        return <Badge status='warning' text={t('acp.status.auth_required', { agent: displayName })} />;
+      case 'disconnected':
+        return <Badge status='error' text={t('acp.status.disconnected', { agent: displayName })} />;
       case 'error':
         return <Badge status='error' text={t('acp.status.error')} />;
       default:
@@ -49,7 +50,8 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
     }
   };
 
-  const isError = status === 'error';
+  const isError = status === 'error' || status === 'disconnected';
+  const isWarning = status === 'auth_required';
   const isSuccess = status === 'connected' || status === 'authenticated' || status === 'session_active';
 
   return (
@@ -58,11 +60,25 @@ const MessageAgentStatus: React.FC<MessageAgentStatusProps> = ({ message }) => {
       style={{
         backgroundColor: isError
           ? 'var(--color-danger-light-1)'
-          : isSuccess
-            ? 'var(--color-success-light-1)'
-            : 'var(--color-primary-light-1)',
-        borderColor: isError ? 'rgb(var(--danger-3))' : isSuccess ? 'rgb(var(--success-3))' : 'rgb(var(--primary-3))',
-        color: isError ? 'rgb(var(--danger-6))' : isSuccess ? 'rgb(var(--success-6))' : 'rgb(var(--primary-6))',
+          : isWarning
+            ? 'var(--color-warning-light-1)'
+            : isSuccess
+              ? 'var(--color-success-light-1)'
+              : 'var(--color-primary-light-1)',
+        borderColor: isError
+          ? 'rgb(var(--danger-3))'
+          : isWarning
+            ? 'rgb(var(--warning-3))'
+            : isSuccess
+              ? 'rgb(var(--success-3))'
+              : 'rgb(var(--primary-3))',
+        color: isError
+          ? 'rgb(var(--danger-6))'
+          : isWarning
+            ? 'rgb(var(--warning-6))'
+            : isSuccess
+              ? 'rgb(var(--success-6))'
+              : 'rgb(var(--primary-6))',
       }}
     >
       <div className='flex items-center gap-2'>

@@ -82,19 +82,7 @@ class BaseAgentManager<Data, ConfirmationOption extends any = any>
     this.emitter.emitConfirmationAdd(this.conversation_id, data);
   }
   confirm(_msg_id: string, callId: string, _data: ConfirmationOption) {
-    // 查找要移除的确认项（根据 callId 匹配）
-    // Find the confirmation to remove (match by callId)
-    const confirmationToRemove = this.confirmations.find((p) => p.callId === callId);
-
-    // 从缓存中移除
-    // Remove from cache
-    this.confirmations = this.confirmations.filter((p) => p.callId !== callId);
-
-    // 通知前端移除确认项
-    // Notify frontend to remove the confirmation
-    if (confirmationToRemove) {
-      this.emitter.emitConfirmationRemove(this.conversation_id, confirmationToRemove.id);
-    }
+    this.removeConfirmationByCallId(callId);
   }
   getConfirmations() {
     return this.confirmations;
@@ -126,6 +114,22 @@ class BaseAgentManager<Data, ConfirmationOption extends any = any>
    */
   async ensureYoloMode(): Promise<boolean> {
     return false;
+  }
+
+  protected removeConfirmationByCallId(callId: string): void {
+    // 查找要移除的确认项（根据 callId 匹配）
+    // Find the confirmation to remove (match by callId)
+    const confirmationToRemove = this.confirmations.find((p) => p.callId === callId);
+
+    // 从缓存中移除
+    // Remove from cache
+    this.confirmations = this.confirmations.filter((p) => p.callId !== callId);
+
+    // 通知前端移除确认项
+    // Notify frontend to remove the confirmation
+    if (confirmationToRemove) {
+      this.emitter.emitConfirmationRemove(this.conversation_id, confirmationToRemove.id);
+    }
   }
 }
 

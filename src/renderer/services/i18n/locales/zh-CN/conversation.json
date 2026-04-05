@@ -255,6 +255,7 @@
     "remove": "移除",
     "files": "{{count}} 个文件",
     "pausedAfterFailure": "下一条排队指令启动失败。请编辑、调整顺序或移除后再继续。",
+    "sendNow": "立即发送",
     "emptyInput": "排队指令不能为空。",
     "queueFull": "队列已满，请先移除部分指令再继续添加。",
     "inputTooLong": "排队指令内容过长，请缩短后再发送。",

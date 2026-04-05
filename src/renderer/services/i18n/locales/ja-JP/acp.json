@@ -2,7 +2,13 @@
   "auth": {
     "failed": "{{backend}} 認証が失敗しました：\n\n{{error}}\n\nローカルCLIツールの認証状態を確認してください",
     "console_error": "ACP認証エラー詳細:",
-    "failed_confirm": "ACP {{backend}} 認証が失敗しました：\n\n{{error}}\n\n設定ページで設定しますか？"
+    "failed_confirm": "ACP {{backend}} 認証が失敗しました：\n\n{{error}}\n\n設定ページで設定しますか？",
+    "requiredHint": "{{agent}} をこのスレッドで続行するには認証が必要です。今すぐ認証するか、ローカル CLI のログイン状態を更新してください。",
+    "authenticate": "認証する",
+    "authenticateFailed": "{{agent}} の認証に失敗しました。再試行するか、ローカル CLI のログイン状態を更新してください。"
+  },
+  "send": {
+    "failed": "{{backend}} にメッセージを送信できませんでした：\n\n{{error}}"
   },
   "sendbox": {
     "placeholder": "{{backend}}にメッセージを送信..."
@@ -12,8 +18,31 @@
     "connected": "{{agent}} に接続しました",
     "authenticated": "{{agent}} 認証が完了しました",
     "session_active": "{{agent}} セッション実行中",
+    "auth_required": "{{agent}} は認証が必要です",
+    "disconnected": "{{agent}} との接続が切断されました",
     "error": "接続エラー",
     "unknown": "不明な状態"
+  },
+  "connection": {
+    "disconnectedHint": "ACP ランタイムが予期せず停止しました。今すぐ接続を再試行するか、新しいメッセージを送って新しいセッションを開始できます。",
+    "retryFailed": "{{agent}} のウォームアップに失敗しました。再試行するか、新しいメッセージを送信してください。"
+  },
+  "logs": {
+    "title": "ACP ログ",
+    "requestStarted": "{{backend}} -> {{model}} を開始しました",
+    "firstResponse": "{{backend}} -> {{model}} の最初の応答は {{duration}}ms",
+    "requestFinished": "{{backend}} -> {{model}} は {{duration}}ms で完了しました",
+    "requestErrored": "{{backend}} -> {{model}} は {{duration}}ms で失敗しました",
+    "sendFailed": "{{agent}} への送信要求に失敗しました",
+    "authRequested": "{{agent}} の認証を要求しました",
+    "authReady": "{{agent}} の認証が完了し、接続が復旧しました",
+    "authFailed": "{{agent}} の認証に失敗しました",
+    "retryRequested": "{{agent}} の再接続を要求しました",
+    "retryReady": "{{agent}} の接続ウォームアップが完了しました",
+    "retryFailed": "{{agent}} の接続ウォームアップに失敗しました",
+    "sendNowRequested": "{{agent}} の次のコマンドを今すぐ送信するよう要求しました",
+    "cancelRequested": "停止を要求しました",
+    "disconnectReason": "終了コード: {{code}}, シグナル: {{signal}}"
   },
   "config": {
     "reasoning_effort": "推論の深さ",

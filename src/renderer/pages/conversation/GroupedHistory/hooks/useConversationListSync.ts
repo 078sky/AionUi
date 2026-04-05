@@ -35,7 +35,7 @@ const isTerminalAgentStatus = (data: unknown): boolean => {
   }
 
   const { status } = data as { status?: string };
-  return status === 'error' || status === 'disconnected';
+  return status === 'error' || status === 'disconnected' || status === 'auth_required';
 };
 
 const isTerminalStreamMessage = (message: { type: string; data: unknown }): boolean => {

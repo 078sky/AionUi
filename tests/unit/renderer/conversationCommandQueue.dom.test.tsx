@@ -178,6 +178,52 @@ describe('useConversationCommandQueue', () => {
     );
   });
 
+  it('blocks auto-dequeue while execution is explicitly blocked and resumes once unblocked', async () => {
+    const conversationId = createConversationId();
+    const onExecute = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ isBusy, isExecutionBlocked }) =>
+        useConversationCommandQueue({
+          conversationId,
+          isBusy,
+          isExecutionBlocked,
+          onExecute,
+        }),
+      {
+        initialProps: { isBusy: true, isExecutionBlocked: false },
+      }
+    );
+
+    act(() => {
+      result.current.enqueue({
+        input: 'blocked queued command',
+        files: [],
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.items).toHaveLength(1);
+    });
+
+    rerender({ isBusy: false, isExecutionBlocked: true });
+
+    await waitFor(() => {
+      expect(onExecute).not.toHaveBeenCalled();
+      expect(result.current.items).toHaveLength(1);
+    });
+
+    rerender({ isBusy: false, isExecutionBlocked: false });
+
+    await waitFor(() => {
+      expect(onExecute).toHaveBeenCalledTimes(1);
+    });
+    expect(onExecute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: 'blocked queued command',
+      })
+    );
+  });
+
   it('keeps queued commands paused until resumed', async () => {
     const conversationId = createConversationId();
     const onExecute = vi.fn().mockResolvedValue(undefined);
@@ -908,6 +954,51 @@ describe('CommandQueuePanel', () => {
 
     expect(onReorder).not.toHaveBeenCalled();
     expect(onRemove).toHaveBeenCalledWith('2');
+  });
+
+  it('renders Send Now only when an interrupt callback is provided', async () => {
+    const user = userEvent.setup();
+    const onSendNow = vi.fn();
+
+    const { rerender } = render(
+      <CommandQueuePanel
+        items={baseItems}
+        paused={false}
+        interactionLocked={false}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onInteractionLock={vi.fn()}
+        onInteractionUnlock={vi.fn()}
+        onUpdate={vi.fn(() => true)}
+        onReorder={vi.fn()}
+        onRemove={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Send Now' })).not.toBeInTheDocument();
+
+    rerender(
+      <CommandQueuePanel
+        items={baseItems}
+        paused={false}
+        interactionLocked={false}
+        onSendNow={onSendNow}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onInteractionLock={vi.fn()}
+        onInteractionUnlock={vi.fn()}
+        onUpdate={vi.fn(() => true)}
+        onReorder={vi.fn()}
+        onRemove={vi.fn()}
+        onClear={vi.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Send Now' }));
+
+    expect(onSendNow).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('command-queue-header')).toBeInTheDocument();
   });
 
   it('uses theme tokens for queue chrome instead of hard-coded light colors', () => {

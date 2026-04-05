@@ -50,7 +50,7 @@ export const conversation = {
     'update-conversation'
   ), // 更新对话信息
   reset: bridge.buildProvider<void, IResetConversationParams>('reset-conversation'), // 重置对话
-  warmup: bridge.buildProvider<void, { conversation_id: string }>('conversation.warmup'), // 预热对话 bootstrap
+  warmup: bridge.buildProvider<boolean, { conversation_id: string }>('conversation.warmup'), // 预热对话 bootstrap
   stop: bridge.buildProvider<IBridgeResponse<{}>, { conversation_id: string }>('chat.stop.stream'), // 停止会话
   sendMessage: bridge.buildProvider<IBridgeResponse<{}>, ISendMessageParams>('chat.send.message'), // 发送消息（统一接口）
   getSlashCommands: bridge.buildProvider<
@@ -476,6 +476,9 @@ export const acpConversation = {
   getMode: bridge.buildProvider<IBridgeResponse<{ mode: string; initialized: boolean }>, { conversationId: string }>(
     'acp.get-mode'
   ),
+  // Trigger an explicit ACP authentication flow for the current thread
+  // 为当前 ACP 线程触发显式鉴权流程
+  authenticate: bridge.buildProvider<IBridgeResponse, { conversationId: string }>('acp.authenticate'),
   // Get model info for ACP agents (model name and available models)
   // 获取 ACP 代理的模型信息（模型名称和可用模型）
   getModelInfo: bridge.buildProvider<IBridgeResponse<{ modelInfo: AcpModelInfo | null }>, { conversationId: string }>(

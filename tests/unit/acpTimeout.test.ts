@@ -279,18 +279,32 @@ describe('AcpConnection resume timeout after permission pause', () => {
 // ─── AcpAgent.cancelPrompt ─────────────────────────────────────────────────
 
 /** Create an AcpAgent with minimal mocked internals */
-function makeAgent() {
+function makeAgent(overrides?: { onPermissionRequestInvalidated?: (callId: string, reason: string) => void }) {
   const onStreamEvent = vi.fn();
   const onSignalEvent = vi.fn();
   const agent = new AcpAgent({
     id: 'test-agent',
     onStreamEvent,
     onSignalEvent,
+    onPermissionRequestInvalidated: overrides?.onPermissionRequestInvalidated,
     extra: { backend: 'claude' as any, workspace: '/tmp' },
   } as any);
   // Mock the connection's cancelPrompt to avoid real stdin writes
   vi.spyOn((agent as any).connection, 'cancelPrompt').mockImplementation(() => {});
   return { agent, onSignalEvent };
+}
+
+function makePermissionRequest(requestId = 'tool-call-1') {
+  return {
+    sessionId: 'session-1',
+    options: [{ optionId: 'allow_once', name: 'Allow once', kind: 'allow_once' }],
+    toolCall: {
+      toolCallId: requestId,
+      title: 'Read file',
+      kind: 'read',
+      rawInput: { description: 'Read a file from disk' },
+    },
+  };
 }
 
 describe('AcpAgent.cancelPrompt', () => {
@@ -332,6 +346,21 @@ describe('AcpAgent.cancelPrompt', () => {
       })
     );
   });
+
+  it('invalidates pending permission confirmations when canceling the turn', () => {
+    const onPermissionRequestInvalidated = vi.fn();
+    const { agent } = makeAgent({ onPermissionRequestInvalidated });
+    const pendingPermissions = (agent as any).pendingPermissions as Map<string, any>;
+
+    pendingPermissions.set('perm-1', { resolve: vi.fn(), reject: vi.fn() });
+    pendingPermissions.set('perm-2', { resolve: vi.fn(), reject: vi.fn() });
+
+    agent.cancelPrompt();
+
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledTimes(2);
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledWith('perm-1', 'cancelled');
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledWith('perm-2', 'cancelled');
+  });
 });
 
 // ─── AcpAgent.kill ──────────────────────────────────────────────────────────
@@ -364,7 +393,7 @@ describe('AcpAgent.kill', () => {
 });
 
 describe('AcpAgent disconnect messaging', () => {
-  it('does not emit status or error messages on idle-timeout disconnect', () => {
+  it('emits disconnected status and finish on idle-timeout disconnect', () => {
     const onStreamEvent = vi.fn();
     const onSignalEvent = vi.fn();
     const agent = new AcpAgent({
@@ -376,15 +405,21 @@ describe('AcpAgent disconnect messaging', () => {
 
     (agent as any).handleDisconnect({ code: null, signal: 'SIGTERM' });
 
-    // Should NOT emit disconnected status or error messages
-    const statusCalls = onStreamEvent.mock.calls.filter(
-      ([evt]: [any]) => evt.type === 'agent_status' && evt.data?.status === 'disconnected'
-    );
+    const statusCalls = onStreamEvent.mock.calls.filter(([evt]: [any]) => evt.type === 'agent_status');
     const errorCalls = onStreamEvent.mock.calls.filter(([evt]: [any]) => evt.type === 'error');
-    expect(statusCalls).toHaveLength(0);
+    expect(statusCalls).toHaveLength(1);
+    expect(statusCalls[0][0]).toEqual(
+      expect.objectContaining({
+        type: 'agent_status',
+        data: expect.objectContaining({
+          status: 'disconnected',
+          disconnectCode: null,
+          disconnectSignal: 'SIGTERM',
+        }),
+      })
+    );
     expect(errorCalls).toHaveLength(0);
 
-    // Should still emit finish signal to reset UI loading state
     expect(onSignalEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'finish',
@@ -394,7 +429,7 @@ describe('AcpAgent disconnect messaging', () => {
     );
   });
 
-  it('does not emit status or error messages on unexpected disconnect', () => {
+  it('emits disconnected status and finish on unexpected disconnect', () => {
     const onStreamEvent = vi.fn();
     const onSignalEvent = vi.fn();
     const agent = new AcpAgent({
@@ -404,17 +439,23 @@ describe('AcpAgent disconnect messaging', () => {
       extra: { backend: 'opencode' as any, workspace: '/tmp' },
     } as any);
 
-    (agent as any).handleDisconnect({ code: null, signal: 'SIGTERM' });
+    (agent as any).handleDisconnect({ code: 42, signal: null });
 
-    // Should NOT emit disconnected status or error messages
-    const statusCalls = onStreamEvent.mock.calls.filter(
-      ([evt]: [any]) => evt.type === 'agent_status' && evt.data?.status === 'disconnected'
-    );
+    const statusCalls = onStreamEvent.mock.calls.filter(([evt]: [any]) => evt.type === 'agent_status');
     const errorCalls = onStreamEvent.mock.calls.filter(([evt]: [any]) => evt.type === 'error');
-    expect(statusCalls).toHaveLength(0);
+    expect(statusCalls).toHaveLength(1);
+    expect(statusCalls[0][0]).toEqual(
+      expect.objectContaining({
+        type: 'agent_status',
+        data: expect.objectContaining({
+          status: 'disconnected',
+          disconnectCode: 42,
+          disconnectSignal: null,
+        }),
+      })
+    );
     expect(errorCalls).toHaveLength(0);
 
-    // Should still emit finish signal to reset UI loading state
     expect(onSignalEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'finish',
@@ -443,6 +484,68 @@ describe('AcpAgent disconnect messaging', () => {
     // Internal state should be cleared
     expect((agent as any).pendingPermissions.size).toBe(0);
     expect((agent as any).statusMessageId).toBeNull();
+  });
+
+  it('invalidates pending permission confirmations when the backend disconnects', () => {
+    const onPermissionRequestInvalidated = vi.fn();
+    const agent = new AcpAgent({
+      id: 'disconnect-agent',
+      onStreamEvent: vi.fn(),
+      onSignalEvent: vi.fn(),
+      onPermissionRequestInvalidated,
+      extra: { backend: 'opencode' as any, workspace: '/tmp' },
+    } as any);
+
+    (agent as any).pendingPermissions.set('perm-1', { resolve: vi.fn(), reject: vi.fn() });
+    (agent as any).pendingPermissions.set('perm-2', { resolve: vi.fn(), reject: vi.fn() });
+
+    (agent as any).handleDisconnect({ code: null, signal: 'SIGTERM' });
+
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledTimes(2);
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledWith('perm-1', 'disconnected');
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledWith('perm-2', 'disconnected');
+  });
+});
+
+describe('AcpAgent permission request invalidation lifecycle', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('invalidates the old confirmation when a duplicate permission request replaces it', async () => {
+    const onPermissionRequestInvalidated = vi.fn();
+    const { agent } = makeAgent({ onPermissionRequestInvalidated });
+    const pendingPermissions = (agent as any).pendingPermissions as Map<string, any>;
+    const firstReject = vi.fn();
+
+    pendingPermissions.set('tool-call-1', { resolve: vi.fn(), reject: firstReject });
+
+    const nextRequestPromise = (agent as any).handlePermissionRequest(makePermissionRequest('tool-call-1'));
+    const nextRequestExpectation = expect(nextRequestPromise).rejects.toThrow('Cancelled');
+
+    expect(firstReject).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Replaced by new permission request' })
+    );
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledWith('tool-call-1', 'replaced');
+
+    agent.cancelPrompt();
+    await nextRequestExpectation;
+  });
+
+  it('invalidates the confirmation when a permission request times out', async () => {
+    const onPermissionRequestInvalidated = vi.fn();
+    const { agent } = makeAgent({ onPermissionRequestInvalidated });
+
+    const requestPromise = (agent as any).handlePermissionRequest(makePermissionRequest('tool-call-1'));
+    const requestExpectation = expect(requestPromise).rejects.toThrow('Permission request timed out');
+    await vi.advanceTimersByTimeAsync(1800000);
+
+    await requestExpectation;
+    expect(onPermissionRequestInvalidated).toHaveBeenCalledWith('tool-call-1', 'timeout');
   });
 });
 

@@ -13,6 +13,7 @@ import HOC from '@renderer/utils/ui/HOC';
 import React from 'react';
 import ConversationChatConfirm from '../../components/ConversationChatConfirm';
 import AcpSendBox from './AcpSendBox';
+import { sanitizeAcpTimelineMessages } from './useAcpMessage';
 
 const AcpChat: React.FC<{
   conversation_id: string;
@@ -37,7 +38,7 @@ const AcpChat: React.FC<{
   teamId,
   agentSlotId,
 }) => {
-  useMessageLstCache(conversation_id);
+  useMessageLstCache(conversation_id, { sanitize: sanitizeAcpTimelineMessages });
 
   return (
     <ConversationProvider value={{ conversationId: conversation_id, workspace, type: 'acp', cronJobId, hideSendBox }}>

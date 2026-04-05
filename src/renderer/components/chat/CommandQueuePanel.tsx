@@ -47,6 +47,8 @@ type CommandQueuePanelProps = {
   items: ConversationCommandQueueItem[];
   paused: boolean;
   interactionLocked: boolean;
+  onSendNow?: () => void;
+  sendNowLoading?: boolean;
   onPause: () => void;
   onResume: () => void;
   onInteractionLock: () => void;
@@ -392,6 +394,8 @@ const CommandQueuePanel: React.FC<CommandQueuePanelProps> = ({
   items,
   paused,
   interactionLocked,
+  onSendNow,
+  sendNowLoading = false,
   onPause,
   onResume,
   onInteractionLock,
@@ -522,6 +526,25 @@ const CommandQueuePanel: React.FC<CommandQueuePanelProps> = ({
           background: 'var(--color-bg-1)',
         }}
       >
+        {onSendNow ? (
+          <div
+            className='flex items-center justify-between gap-8px border-b border-[color:var(--color-border-2)] px-8px py-6px'
+            data-testid='command-queue-header'
+          >
+            <Typography.Text className='text-11px leading-16px text-t-secondary font-600'>
+              {t('conversation.commandQueue.title', { defaultValue: 'Queued Commands' })}
+            </Typography.Text>
+            <Button
+              type='primary'
+              size='mini'
+              loading={sendNowLoading}
+              onClick={onSendNow}
+              data-testid='command-queue-send-now'
+            >
+              {t('conversation.commandQueue.sendNow', { defaultValue: 'Send Now' })}
+            </Button>
+          </div>
+        ) : null}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -536,7 +559,7 @@ const CommandQueuePanel: React.FC<CommandQueuePanelProps> = ({
               data-command-queue-list='true'
               data-drag-axis='vertical'
               data-drag-bounds='queue'
-              className='p-4px flex flex-col gap-3px'
+              className={`${onSendNow ? 'px-4px pb-4px pt-3px' : 'p-4px'} flex flex-col gap-3px`}
             >
               {items.map((item) => {
                 const preview = getCommandPreview(item.input);

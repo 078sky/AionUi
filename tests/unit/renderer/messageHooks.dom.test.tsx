@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { TMessage } from '@/common/chat/chatLib';
 import {
   MessageListProvider,
   useAddOrUpdateMessage,
@@ -33,8 +34,14 @@ type TestMessage = {
   createdAt?: number;
 };
 
-const CacheProbe = ({ conversationId }: { conversationId: string }) => {
-  useMessageLstCache(conversationId);
+const CacheProbe = ({
+  conversationId,
+  sanitize,
+}: {
+  conversationId: string;
+  sanitize?: (messages: TMessage[]) => TMessage[];
+}) => {
+  useMessageLstCache(conversationId, { sanitize });
   const messages = useMessageList();
   return <pre data-testid='messages'>{JSON.stringify(messages)}</pre>;
 };
@@ -143,6 +150,43 @@ describe('message hooks cache merge', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('mutated-messages').textContent).not.toContain('msg-1');
+    });
+  });
+
+  it('applies the sanitize callback to cached messages before hydrating the list', async () => {
+    const dbMessages: TestMessage[] = [
+      {
+        id: 'keep-me',
+        msg_id: 'keep-me',
+        conversation_id: 'conv-1',
+        type: 'text',
+        content: { content: 'keep' },
+      },
+      {
+        id: 'drop-me',
+        msg_id: 'drop-me',
+        conversation_id: 'conv-1',
+        type: 'tips',
+        position: 'center',
+        content: { content: 'drop' },
+      },
+    ];
+
+    mockGetConversationMessagesInvoke.mockResolvedValue(dbMessages);
+
+    render(
+      <MessageListProvider value={[]}>
+        <CacheProbe
+          conversationId='conv-1'
+          sanitize={(messages) => messages.filter((message) => message.id !== 'drop-me')}
+        />
+      </MessageListProvider>
+    );
+
+    await waitFor(() => {
+      const content = screen.getByTestId('messages').textContent;
+      expect(content).toContain('keep-me');
+      expect(content).not.toContain('drop-me');
     });
   });
 });

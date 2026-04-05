@@ -76,6 +76,24 @@ type BufferedStreamTextMessage = {
   timer: ReturnType<typeof setTimeout>;
 };
 
+const shouldHideAcpTimelineError = (errorMessage: unknown): boolean => {
+  const detail =
+    typeof errorMessage === 'string'
+      ? errorMessage
+      : errorMessage instanceof Error
+        ? errorMessage.message
+        : String(errorMessage);
+  const lowerErrorMessage = detail.toLowerCase();
+  return (
+    lowerErrorMessage.includes('authentication required') ||
+    lowerErrorMessage.includes('authentication failed') ||
+    detail.includes('[ACP-AUTH-') ||
+    detail.includes('认证失败') ||
+    detail.includes('ACP process exited unexpectedly') ||
+    lowerErrorMessage.includes('connection')
+  );
+};
+
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
   workspace: string;
   agent: AcpAgent;
@@ -167,7 +185,37 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   }
 
   initAgent(data: AcpAgentManagerData = this.options) {
-    if (this.bootstrap) return this.bootstrap;
+    const hasConnectionState =
+      !!this.agent &&
+      typeof this.agent === 'object' &&
+      'isConnected' in this.agent &&
+      'hasActiveSession' in this.agent &&
+      typeof this.agent.isConnected === 'boolean' &&
+      typeof this.agent.hasActiveSession === 'boolean';
+
+    if (
+      this.bootstrap &&
+      (this.bootstrapping ||
+        !this.agent ||
+        !hasConnectionState ||
+        (this.agent.isConnected && this.agent.hasActiveSession))
+    ) {
+      return this.bootstrap;
+    }
+
+    if (
+      this.bootstrap &&
+      !this.bootstrapping &&
+      this.agent &&
+      hasConnectionState &&
+      (!this.agent.isConnected || !this.agent.hasActiveSession)
+    ) {
+      void Promise.resolve(this.agent.kill?.()).catch((error) => {
+        mainWarn('[AcpAgentManager]', 'Failed to clean up stale ACP agent before reconnect warmup', error);
+      });
+      this.bootstrap = undefined;
+    }
+
     this.bootstrapping = true;
     this.bootstrap = (async () => {
       let cliPath = data.cliPath;
@@ -339,40 +387,53 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             data: null,
           });
         },
+        onPermissionRequestInvalidated: (callId, reason) => {
+          this.removeConfirmationByCallId(callId);
+          mainLog('[AcpAgentManager]', 'Removed stale ACP permission confirmation', {
+            conversationId: this.conversation_id,
+            callId,
+            reason,
+          });
+        },
         onStreamEvent: (message) => {
-          // During bootstrap (warmup), suppress UI stream events to avoid
-          // triggering sidebar loading spinner before user sends a message.
-          if (this.bootstrapping) {
-            return;
-          }
+          const terminalStatus =
+            message.type === 'agent_status' ? ((message.data as { status?: string } | null)?.status ?? null) : null;
+          const isTerminalStatusEvent =
+            terminalStatus === 'error' || terminalStatus === 'disconnected' || terminalStatus === 'auth_required';
 
-          const pipelineStart = Date.now();
-
-          // Reduce status noise: show full lifecycle only for the first turn.
-          // After first turn, only keep failure statuses to avoid reconnect chatter.
           if (message.type === 'agent_status') {
-            const status = (message.data as { status?: string } | null)?.status;
-            const shouldDisplayStatus = this.isFirstMessage || status === 'error' || status === 'disconnected';
-            if (!shouldDisplayStatus) {
-              return;
+            const statusData = message.data as {
+              backend?: AcpBackend;
+              status?:
+                | 'connecting'
+                | 'connected'
+                | 'authenticated'
+                | 'session_active'
+                | 'auth_required'
+                | 'disconnected'
+                | 'error';
+              agentName?: string;
+              disconnectCode?: number | null;
+              disconnectSignal?: string | null;
+            } | null;
+            if (statusData?.backend && statusData.status) {
+              void this.saveAcpRuntimeStatus({
+                backend: statusData.backend,
+                status: statusData.status,
+                agentName: statusData.agentName,
+                disconnectCode: statusData.disconnectCode ?? null,
+                disconnectSignal: statusData.disconnectSignal ?? null,
+              });
             }
           }
 
-          // Handle preview_open event (chrome-devtools navigation interception)
-          // 处理 preview_open 事件（chrome-devtools 导航拦截）
-          if (handlePreviewOpenEvent(message)) {
-            return; // Don't process further / 不需要继续处理
-          }
+          const isStartEvent = message.type === 'start';
 
-          // Mark as finished when content is output (visible to user)
-          // ACP uses: content, agent_status, acp_tool_call, plan
-          const contentTypes = ['content', 'agent_status', 'acp_tool_call', 'plan'];
-          if (contentTypes.includes(message.type)) {
-            this.status = 'finished';
-          }
-
-          // Emit request trace on each model generation start
-          if (message.type === 'start') {
+          // Emit request trace on each model generation start.
+          // A real user turn may begin while warmup is still finishing, so start/request_trace
+          // must not be swallowed by bootstrap UI suppression.
+          if (isStartEvent) {
+            this.status = 'running';
             const modelInfo = this.agent?.getModelInfo();
             const traceData = {
               agentType: 'acp' as const,
@@ -388,6 +449,42 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
               msg_id: uuid(),
               data: traceData,
             });
+          }
+
+          // During bootstrap (warmup), suppress UI stream events to avoid
+          // triggering sidebar loading spinner before user sends a message.
+          // Real user-turn `start` events and terminal failure statuses must still pass through.
+          if (this.bootstrapping && !isStartEvent && !isTerminalStatusEvent) {
+            return;
+          }
+
+          const pipelineStart = Date.now();
+
+          // Reduce status noise: show full lifecycle only for the first turn.
+          // After first turn, only keep failure statuses to avoid reconnect chatter.
+          if (message.type === 'agent_status') {
+            const shouldDisplayStatus =
+              this.isFirstMessage ||
+              terminalStatus === 'error' ||
+              terminalStatus === 'disconnected' ||
+              terminalStatus === 'auth_required';
+            if (!shouldDisplayStatus) {
+              return;
+            }
+          }
+
+          // Handle preview_open event (chrome-devtools navigation interception)
+          // 处理 preview_open 事件（chrome-devtools 导航拦截）
+          if (handlePreviewOpenEvent(message)) {
+            return; // Don't process further / 不需要继续处理
+          }
+
+          // Keep the task in a running state until the active turn reaches a
+          // real terminal event. Mid-turn content/tool/status updates must not
+          // make the detail view forget that the conversation is still busy
+          // when the user switches away and comes back.
+          if (message.type === 'error' || isTerminalStatusEvent) {
+            this.status = 'finished';
           }
 
           // Persist config options to DB so AcpConfigSelector can render from cache
@@ -688,9 +785,6 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     msg?: string;
     message?: string;
   }> {
-    // Allow stream events through once user actually sends a message,
-    // so initAgent progress (agent_status) is visible during the wait.
-    this.bootstrapping = false;
     this._lastActivityAt = Date.now();
 
     const managerSendStart = Date.now();
@@ -734,7 +828,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         ipcBridge.acpConversation.responseStream.emit(userResponseMessage);
       }
 
+      // If a warmup bootstrap is already in flight, join it first instead of
+      // flipping bootstrapping off early and misclassifying it as stale.
       await this.initAgent(this.options);
+      this.bootstrapping = false;
 
       if (data.msg_id && data.content) {
         let contentToSend = data.content;
@@ -794,13 +891,16 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       }
       return result;
     } catch (e) {
+      this.bootstrapping = false;
       this.flushBufferedStreamTextMessages();
       this.clearBusyState();
+      const errorDetail = parseError(e);
       const message: IResponseMessage = {
         type: 'error',
         conversation_id: this.conversation_id,
         msg_id: data.msg_id || uuid(),
-        data: parseError(e),
+        data: errorDetail,
+        hidden: shouldHideAcpTimelineError(errorDetail),
       };
 
       // Backend handles persistence before emitting to frontend
@@ -1133,6 +1233,35 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     };
   }
 
+  async authenticate(): Promise<{ success: boolean; msg?: string }> {
+    if (!this.agent) {
+      try {
+        await this.initAgent(this.options);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        return {
+          success: false,
+          msg: `Agent initialization failed: ${errorMsg}`,
+        };
+      }
+    }
+
+    if (!this.agent) {
+      return { success: false, msg: 'Agent not initialized' };
+    }
+
+    try {
+      // Explicit auth is a user-visible recovery action, not passive warmup.
+      this.bootstrapping = false;
+      await this.agent.authenticate();
+      this.bootstrap = Promise.resolve(this.agent);
+      return { success: true };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      return { success: false, msg: errorMsg };
+    }
+  }
+
   /** Check if a mode value represents YOLO mode for any backend */
   private isYoloMode(mode: string): boolean {
     return mode === 'yolo' || mode === 'bypassPermissions' || isCodexAutoApproveMode(mode);
@@ -1208,6 +1337,74 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     } catch {
       // Non-critical metadata, silently ignore errors
     }
+  }
+
+  private async saveAcpRuntimeStatus(status: {
+    backend: AcpBackend;
+    status:
+      | 'connecting'
+      | 'connected'
+      | 'authenticated'
+      | 'session_active'
+      | 'auth_required'
+      | 'disconnected'
+      | 'error';
+    agentName?: string;
+    disconnectCode?: number | null;
+    disconnectSignal?: string | null;
+  }): Promise<void> {
+    try {
+      const db = await getDatabase();
+      const result = db.getConversation(this.conversation_id);
+      if (result.success && result.data && result.data.type === 'acp') {
+        const conversation = result.data;
+        const isTerminalStatus =
+          status.status === 'disconnected' || status.status === 'error' || status.status === 'auth_required';
+        const shouldIgnoreBootstrapNoise = this.bootstrapping && this.isFirstMessage && isTerminalStatus;
+        const shouldClearLastAcpStatus = status.status === 'session_active';
+        if (shouldIgnoreBootstrapNoise || (!isTerminalStatus && !shouldClearLastAcpStatus)) {
+          return;
+        }
+        const { lastAcpStatus: _lastAcpStatus, ...restExtra } = conversation.extra || {};
+        const updatedExtra = isTerminalStatus
+          ? {
+              ...restExtra,
+              lastAcpStatus: {
+                backend: status.backend,
+                status: status.status,
+                ...(status.agentName ? { agentName: status.agentName } : {}),
+                ...(status.disconnectCode !== undefined ? { disconnectCode: status.disconnectCode } : {}),
+                ...(status.disconnectSignal !== undefined ? { disconnectSignal: status.disconnectSignal } : {}),
+                updatedAt: Date.now(),
+              },
+            }
+          : restExtra;
+        db.updateConversation(this.conversation_id, {
+          extra: updatedExtra,
+        } as Partial<typeof conversation>);
+      }
+    } catch {
+      // Non-critical metadata, silently ignore errors
+    }
+  }
+
+  async markWarmupReadyStatus(): Promise<void> {
+    await this.saveAcpRuntimeStatus({
+      backend: this.options.backend,
+      status: 'session_active',
+      agentName: this.options.agentName,
+    });
+    ipcBridge.acpConversation.responseStream.emit({
+      type: 'agent_status',
+      conversation_id: this.conversation_id,
+      msg_id: uuid(),
+      hidden: true,
+      data: {
+        backend: this.options.backend,
+        status: 'session_active',
+        agentName: this.options.agentName,
+      },
+    });
   }
 
   /**

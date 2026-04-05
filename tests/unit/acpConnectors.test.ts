@@ -265,6 +265,89 @@ describe('connectCodex - Windows diagnostics', () => {
   });
 });
 
+describe('connectCodex - E2E override CLI path', () => {
+  let originalPlatform: PropertyDescriptor | undefined;
+  let originalArch: PropertyDescriptor | undefined;
+  const mockChild = { unref: vi.fn() };
+
+  beforeEach(() => {
+    originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+    originalArch = Object.getOwnPropertyDescriptor(process, 'arch');
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    Object.defineProperty(process, 'arch', { value: 'x64', configurable: true });
+    mockSpawn.mockReturnValue(mockChild as unknown as ReturnType<typeof spawn>);
+    mockFsPromises.readdir.mockRejectedValue(new Error('cache not found'));
+    mockFsPromises.stat.mockRejectedValue(new Error('not found'));
+  });
+
+  afterEach(() => {
+    delete process.env.AIONUI_E2E_TEST;
+    delete process.env.AIONUI_E2E_CODEX_ACP_CLI_PATH;
+    vi.clearAllMocks();
+    if (originalPlatform) {
+      Object.defineProperty(process, 'platform', originalPlatform);
+    }
+    if (originalArch) {
+      Object.defineProperty(process, 'arch', originalArch);
+    }
+  });
+
+  it('uses the override CLI only when E2E test mode is enabled', async () => {
+    process.env.AIONUI_E2E_TEST = '1';
+    process.env.AIONUI_E2E_CODEX_ACP_CLI_PATH = 'node /tmp/fake-codex-acp.js';
+
+    const hooks = {
+      setup: vi.fn(async () => {}),
+      cleanup: vi.fn(async () => {}),
+    };
+
+    await connectCodex('/cwd', hooks);
+
+    expect(mockExecFile).not.toHaveBeenCalled();
+    expect(mockSpawn).toHaveBeenCalledWith(
+      'node',
+      ['/tmp/fake-codex-acp.js'],
+      expect.objectContaining({
+        cwd: '/cwd',
+        detached: false,
+        shell: false,
+      })
+    );
+    expect(hooks.setup).toHaveBeenCalledTimes(1);
+    expect(hooks.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('ignores the override CLI outside E2E test mode', async () => {
+    process.env.AIONUI_E2E_CODEX_ACP_CLI_PATH = 'node /tmp/fake-codex-acp.js';
+
+    const hooks = {
+      setup: vi.fn(async () => {}),
+      cleanup: vi.fn(async () => {}),
+    };
+
+    await connectCodex('/cwd', hooks);
+
+    expect(mockExecFile).toHaveBeenCalled();
+    const [, args] = mockSpawn.mock.calls[0];
+    expect(args).toContain('@zed-industries/codex-acp-linux-x64');
+  });
+
+  it('uses the default Codex connector when E2E mode is on but no override CLI is provided', async () => {
+    process.env.AIONUI_E2E_TEST = '1';
+
+    const hooks = {
+      setup: vi.fn(async () => {}),
+      cleanup: vi.fn(async () => {}),
+    };
+
+    await connectCodex('/cwd', hooks);
+
+    expect(mockExecFile).toHaveBeenCalled();
+    const [, args] = mockSpawn.mock.calls[0];
+    expect(args).toContain('@zed-industries/codex-acp-linux-x64');
+  });
+});
+
 describe('connectClaude - detached process group', () => {
   let originalPlatform: PropertyDescriptor | undefined;
   const mockChild = { unref: vi.fn() };

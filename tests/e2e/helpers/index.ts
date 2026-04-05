@@ -42,3 +42,4 @@ export {
   type ChannelPluginStatus,
 } from './extensions';
 export { invokeBridge } from './bridge';
+export { ensureFreshElectronBundle } from './electronBuild';

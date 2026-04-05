@@ -7,8 +7,8 @@
  *   1. **Packaged mode** (CI default): Launches from electron-builder's unpacked output
  *      (e.g. out/linux-unpacked/aionui, out/mac-arm64/AionUi.app, out/win-unpacked/AionUi.exe).
  *      This validates that packaged resources are intact.
- *   2. **Dev mode** (local default): Launches via `electron .` from project root with
- *      the Vite dev server (electron-vite dev).
+ *   2. **Local build mode** (local default): Builds the current branch's Electron bundles
+ *      into `out/` and then launches via `electron .` from project root.
  *
  * Set `E2E_PACKAGED=1` to force packaged mode, or `E2E_DEV=1` to force dev mode.
  */
@@ -17,6 +17,7 @@ import { _electron as electron } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { ensureFreshElectronBundle } from './helpers/electronBuild';
 
 type Fixtures = {
   electronApp: ElectronApplication;
@@ -33,10 +34,30 @@ function isDevToolsWindow(page: Page): boolean {
   return page.url().startsWith('devtools://');
 }
 
+async function waitForRendererReady(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const bodyText = document.body?.textContent?.trim() ?? '';
+      return bodyText.length > 20;
+    },
+    undefined,
+    { timeout: 20_000 }
+  );
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      })
+  );
+}
+
 async function resolveMainWindow(electronApp: ElectronApplication): Promise<Page> {
   const existingMainWindow = electronApp.windows().find((win) => !isDevToolsWindow(win));
   if (existingMainWindow) {
     await existingMainWindow.waitForLoadState('domcontentloaded');
+    await waitForRendererReady(existingMainWindow);
     return existingMainWindow;
   }
 
@@ -45,6 +66,7 @@ async function resolveMainWindow(electronApp: ElectronApplication): Promise<Page
     const win = await electronApp.waitForEvent('window', { timeout: 1_000 }).catch(() => null);
     if (win && !isDevToolsWindow(win)) {
       await win.waitForLoadState('domcontentloaded');
+      await waitForRendererReady(win);
       return win;
     }
   }
@@ -147,8 +169,8 @@ async function launchApp(): Promise<ElectronApplication> {
     return electronApp;
   }
 
-  // Dev mode: launch via electron .
-  console.log(`[E2E] Launching DEV app from: ${projectRoot}`);
+  ensureFreshElectronBundle();
+  console.log(`[E2E] Launching LOCAL app from current out/ build: ${projectRoot}`);
 
   const launchArgs = ['.'];
   if (process.platform === 'linux' && process.env.CI) {
@@ -266,5 +288,26 @@ function registerCleanup(): void {
 }
 
 registerCleanup();
+
+export async function closeSharedElectronApp(): Promise<void> {
+  if (!app) {
+    mainPage = null;
+    return;
+  }
+
+  const closePromise = app.waitForEvent('close', { timeout: 15_000 }).catch(() => undefined);
+  try {
+    await app.evaluate(async ({ app: electronApp }) => {
+      electronApp.exit(0);
+    });
+  } catch {
+    // ignore: app may already be closed
+  }
+
+  await app.close().catch(() => {});
+  await closePromise;
+  app = null;
+  mainPage = null;
+}
 
 export { expect };

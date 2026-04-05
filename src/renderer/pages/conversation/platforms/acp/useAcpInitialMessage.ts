@@ -5,7 +5,6 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { TMessage } from '@/common/chat/chatLib';
 import { uuid } from '@/common/utils';
 import { emitter } from '@/renderer/utils/emitter';
 import { useEffect } from 'react';
@@ -13,9 +12,24 @@ import { useEffect } from 'react';
 type UseAcpInitialMessageParams = {
   conversationId: string;
   backend: string;
+  agentName?: string;
+  sessionMode?: string;
   setAiProcessing: (value: boolean) => void;
+  appendAcpUiLog: (entry: {
+    kind: 'send_failed';
+    level: 'error';
+    backend: string;
+    agentName?: string;
+    detail?: string;
+  }) => void;
+  primeRequestTraceFallback: (trace: {
+    backend: string;
+    agentName?: string;
+    sessionMode?: string;
+    timestamp?: number;
+  }) => void;
+  clearPendingRequestTraceFallback: () => boolean;
   checkAndUpdateTitle: (conversationId: string, input: string) => void;
-  addOrUpdateMessage: (message: TMessage, prepend?: boolean) => void;
 };
 
 /**
@@ -25,9 +39,13 @@ type UseAcpInitialMessageParams = {
 export const useAcpInitialMessage = ({
   conversationId,
   backend,
+  agentName,
+  sessionMode,
   setAiProcessing,
+  appendAcpUiLog,
+  primeRequestTraceFallback,
+  clearPendingRequestTraceFallback,
   checkAndUpdateTitle,
-  addOrUpdateMessage,
 }: UseAcpInitialMessageParams): void => {
   useEffect(() => {
     const storageKey = `acp_initial_message_${conversationId}`;
@@ -46,16 +64,20 @@ export const useAcpInitialMessage = ({
         // ACP: don't use buildDisplayMessage, pass raw input directly
         // File references are added by the backend ACP agent (using actual copied paths)
         // Avoid two inconsistent sets of file references in the message
-        const msg_id = uuid();
-
         // Start AI processing loading state (user message will be added via backend response)
         setAiProcessing(true);
+        primeRequestTraceFallback({
+          backend,
+          agentName,
+          sessionMode,
+          timestamp: Date.now(),
+        });
 
         // Send the message
         void checkAndUpdateTitle(conversationId, input);
         const result = await ipcBridge.acpConversation.sendMessage.invoke({
           input,
-          msg_id,
+          msg_id: uuid(),
           conversation_id: conversationId,
           files,
         });
@@ -66,24 +88,28 @@ export const useAcpInitialMessage = ({
         } else {
           // Handle send failure
           console.error('[ACP-FRONTEND] Failed to send initial message:', result);
-          // Create error message in UI
-          const errorMessage: TMessage = {
-            id: uuid(),
-            msg_id: uuid(),
-            conversation_id: conversationId,
-            type: 'tips',
-            position: 'center',
-            content: {
-              content: 'Failed to send message. Please try again.',
-              type: 'error',
-            },
-            createdAt: Date.now() + 2,
-          };
-          addOrUpdateMessage(errorMessage, true);
+          if (clearPendingRequestTraceFallback()) {
+            appendAcpUiLog({
+              kind: 'send_failed',
+              level: 'error',
+              backend,
+              agentName,
+              detail: result?.msg || 'Failed to send initial message.',
+            });
+          }
           setAiProcessing(false); // Stop loading state on failure
         }
       } catch (error) {
         console.error('Error sending initial message:', error);
+        if (clearPendingRequestTraceFallback()) {
+          appendAcpUiLog({
+            kind: 'send_failed',
+            level: 'error',
+            backend,
+            agentName,
+            detail: error instanceof Error ? error.message : String(error),
+          });
+        }
         setAiProcessing(false); // Stop loading state on error
       }
     };
@@ -91,5 +117,15 @@ export const useAcpInitialMessage = ({
     sendInitialMessage().catch((error) => {
       console.error('Failed to send initial message:', error);
     });
-  }, [conversationId, backend]);
+  }, [
+    conversationId,
+    backend,
+    agentName,
+    sessionMode,
+    setAiProcessing,
+    appendAcpUiLog,
+    primeRequestTraceFallback,
+    clearPendingRequestTraceFallback,
+    checkAndUpdateTitle,
+  ]);
 };

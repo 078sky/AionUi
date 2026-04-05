@@ -2,7 +2,13 @@
   "auth": {
     "failed": "{{backend}} kimlik doğrulaması başarısız:\n\n{{error}}\n\nLütfen yerel CLI aracı kimlik doğrulama durumunuzu kontrol edin",
     "console_error": "ACP kimlik doğrulama hatası detayları:",
-    "failed_confirm": "ACP {{backend}} kimlik doğrulaması başarısız:\n\n{{error}}\n\nŞimdi yapılandırmak için ayarlar sayfasına gitmek ister misiniz?"
+    "failed_confirm": "ACP {{backend}} kimlik doğrulaması başarısız:\n\n{{error}}\n\nŞimdi yapılandırmak için ayarlar sayfasına gitmek ister misiniz?",
+    "requiredHint": "Bu iş parçacığının devam etmesi için {{agent}} kimlik doğrulaması gerekiyor. Şimdi doğrulayın veya yerel CLI oturumunu yenileyin.",
+    "authenticate": "Doğrula",
+    "authenticateFailed": "{{agent}} için kimlik doğrulama başarısız oldu. Yeniden deneyin veya yerel CLI oturumunu yenileyin."
+  },
+  "send": {
+    "failed": "{{backend}} için mesaj gönderilemedi:\n\n{{error}}"
   },
   "sendbox": {
     "placeholder": "{{backend}}'a mesaj gönder..."
@@ -12,8 +18,31 @@
     "connected": "{{agent}} ajanına bağlanıldı",
     "authenticated": "{{agent}} ile kimlik doğrulandı",
     "session_active": "{{agent}} ile oturum aktif",
+    "auth_required": "{{agent}} kimlik doğrulaması gerekiyor",
+    "disconnected": "{{agent}} bağlantısı kesildi",
     "error": "Bağlantı hatası",
     "unknown": "Bilinmeyen durum"
+  },
+  "connection": {
+    "disconnectedHint": "ACP çalışma zamanı beklenmedik şekilde durdu. Şimdi bağlantıyı yeniden deneyebilir veya yeni bir oturum başlatmak için başka bir mesaj gönderebilirsiniz.",
+    "retryFailed": "{{agent}} ısıtması başarısız oldu. Yeniden deneyin veya yeni bir mesaj gönderin."
+  },
+  "logs": {
+    "title": "ACP Günlükleri",
+    "requestStarted": "{{backend}} -> {{model}} başlatıldı",
+    "firstResponse": "{{backend}} -> {{model}} ilk yanıtı {{duration}}ms içinde verdi",
+    "requestFinished": "{{backend}} -> {{model}} {{duration}}ms içinde tamamlandı",
+    "requestErrored": "{{backend}} -> {{model}} {{duration}}ms içinde başarısız oldu",
+    "sendFailed": "{{agent}} için gönderim isteği başarısız oldu",
+    "authRequested": "{{agent}} için kimlik doğrulama istendi",
+    "authReady": "{{agent}} kimlik doğrulaması tamamlandı, bağlantı geri geldi",
+    "authFailed": "{{agent}} kimlik doğrulaması başarısız oldu",
+    "retryRequested": "{{agent}} için yeniden bağlanma istendi",
+    "retryReady": "{{agent}} için bağlantı ısınması hazır",
+    "retryFailed": "{{agent}} için bağlantı ısınması başarısız oldu",
+    "sendNowRequested": "{{agent}} için sonraki komutun hemen gönderilmesi istendi",
+    "cancelRequested": "Durdurma istendi",
+    "disconnectReason": "çıkış kodu: {{code}}, sinyal: {{signal}}"
   },
   "config": {
     "reasoning_effort": "Akıl Yürütme Çabası",

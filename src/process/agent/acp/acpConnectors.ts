@@ -36,6 +36,7 @@ const execFile = promisify(execFileCb);
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 export const ACP_PERF_LOG = process.env.ACP_PERF === '1';
+const CODEX_E2E_OVERRIDE_ENV = 'AIONUI_E2E_CODEX_ACP_CLI_PATH';
 
 function resolveCodexAcpPlatformPackage(): string | null {
   if (process.platform === 'win32') {
@@ -104,6 +105,15 @@ function isCodexMetaPackageOptionalDependencyError(errorMessage: string): boolea
     (errorMessage.includes('@zed-industries/codex-acp') &&
       /ERR_MODULE_NOT_FOUND|Cannot find package|Failed to locate .* binary/i.test(errorMessage))
   );
+}
+
+function getCodexE2eOverrideCliPath(): string | null {
+  if (process.env.AIONUI_E2E_TEST !== '1') {
+    return null;
+  }
+
+  const cliPath = process.env[CODEX_E2E_OVERRIDE_ENV]?.trim();
+  return cliPath ? cliPath : null;
 }
 
 // ── Environment helpers ─────────────────────────────────────────────
@@ -566,6 +576,21 @@ export function connectClaude(workingDir: string, hooks: NpxConnectHooks): Promi
 /** Connect to Codex ACP bridge via npx. */
 export function connectCodex(workingDir: string, hooks: NpxConnectHooks): Promise<void> {
   return (async () => {
+    const e2eCliPath = getCodexE2eOverrideCliPath();
+    if (e2eCliPath) {
+      const cleanEnv = await prepareCleanEnv();
+      const config = createGenericSpawnConfig(
+        e2eCliPath,
+        workingDir,
+        [],
+        undefined,
+        cleanEnv as Record<string, string>
+      );
+      const child = spawn(config.command, config.args, { ...config.options, detached: false });
+      await hooks.setup({ child, isDetached: false });
+      return;
+    }
+
     const cachedBinary = await resolveCachedCodexAcpBinary();
     if (cachedBinary) {
       try {

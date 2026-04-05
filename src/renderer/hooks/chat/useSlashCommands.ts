@@ -40,10 +40,13 @@ interface UseSlashCommandsOptions {
   /** When provided, changes to this value trigger a re-fetch. Used by ACP to
    *  re-fetch commands after the agent becomes active. */
   agentStatus?: string | null;
+  /** ACP runtime can invalidate slash commands without changing the visible
+   *  status banner. Use a dedicated revision token for those refreshes. */
+  agentRevision?: number;
 }
 
 export function useSlashCommands(conversationId: string, options: UseSlashCommandsOptions = {}) {
-  const { conversationType, codexStatus, agentStatus } = options;
+  const { conversationType, codexStatus, agentStatus, agentRevision } = options;
   const canUseCachedCommands = isSlashCommandListEnabled({ conversationType, codexStatus });
   const requestIdRef = useRef(0);
   const [commands, setCommands] = useState<SlashCommandItem[]>(() => {
@@ -96,7 +99,7 @@ export function useSlashCommands(conversationId: string, options: UseSlashComman
     return () => {
       isCancelled = true;
     };
-  }, [conversationId, canUseCachedCommands, codexStatus, conversationType, agentStatus]);
+  }, [conversationId, canUseCachedCommands, codexStatus, conversationType, agentRevision, agentStatus]);
 
   return commands;
 }

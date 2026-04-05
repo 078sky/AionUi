@@ -203,6 +203,35 @@ describe('SendBox warmup debounce logic', () => {
     expect(mockWarmupInvoke).not.toHaveBeenCalled();
   });
 
+  it('cancels pending warmup after a real send and does not re-trigger it for the same conversation', () => {
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      React.createElement(SendBox, {
+        value: 'hello from sendbox',
+        onChange: vi.fn(),
+        onSend,
+      })
+    );
+
+    const textarea = container.querySelector('textarea');
+    const sendButton = container.querySelector('button');
+    expect(textarea).toBeTruthy();
+    expect(sendButton).toBeTruthy();
+
+    fireEvent.focus(textarea!);
+    vi.advanceTimersByTime(500);
+    fireEvent.click(sendButton!);
+
+    expect(onSend).toHaveBeenCalledWith('hello from sendbox');
+
+    vi.advanceTimersByTime(1000);
+    expect(mockWarmupInvoke).not.toHaveBeenCalled();
+
+    fireEvent.focus(textarea!);
+    vi.advanceTimersByTime(1000);
+    expect(mockWarmupInvoke).not.toHaveBeenCalled();
+  });
+
   it('does not re-trigger warmup for same conversation', () => {
     const { container, unmount } = render(
       React.createElement(SendBox, {

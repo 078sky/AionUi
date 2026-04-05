@@ -2,7 +2,13 @@
   "auth": {
     "failed": "{{backend}} authentication failed:\n\n{{error}}\n\nPlease check your local CLI tool authentication status",
     "console_error": "ACP authentication error details:",
-    "failed_confirm": "ACP {{backend}} authentication failed:\n\n{{error}}\n\nWould you like to go to settings page to configure now?"
+    "failed_confirm": "ACP {{backend}} authentication failed:\n\n{{error}}\n\nWould you like to go to settings page to configure now?",
+    "requiredHint": "{{agent}} needs authentication before this thread can continue. Authenticate now, or refresh the local CLI login.",
+    "authenticate": "Authenticate",
+    "authenticateFailed": "Failed to authenticate {{agent}}. Try again or refresh your local CLI login."
+  },
+  "send": {
+    "failed": "Failed to send message to {{backend}}:\n\n{{error}}"
   },
   "sendbox": {
     "placeholder": "Send message to {{backend}}..."
@@ -12,8 +18,31 @@
     "connected": "Connected to {{agent}}",
     "authenticated": "Authenticated with {{agent}}",
     "session_active": "Active session with {{agent}}",
+    "auth_required": "{{agent}} authentication required",
+    "disconnected": "{{agent}} disconnected",
     "error": "Connection error",
     "unknown": "Unknown status"
+  },
+  "connection": {
+    "disconnectedHint": "The ACP runtime stopped unexpectedly. Retry the connection now, or send another message to start a fresh session.",
+    "retryFailed": "Failed to warm up {{agent}}. Try again or send a new message."
+  },
+  "logs": {
+    "title": "ACP Logs",
+    "requestStarted": "{{backend}} -> {{model}} started",
+    "firstResponse": "{{backend}} -> {{model}} first response in {{duration}}ms",
+    "requestFinished": "{{backend}} -> {{model}} finished in {{duration}}ms",
+    "requestErrored": "{{backend}} -> {{model}} failed in {{duration}}ms",
+    "sendFailed": "Failed to send request for {{agent}}",
+    "authRequested": "Authenticate requested for {{agent}}",
+    "authReady": "Authentication ready for {{agent}}",
+    "authFailed": "Authentication failed for {{agent}}",
+    "retryRequested": "Retry requested for {{agent}}",
+    "retryReady": "Connection warmup ready for {{agent}}",
+    "retryFailed": "Connection warmup failed for {{agent}}",
+    "sendNowRequested": "Send Now requested for {{agent}}",
+    "cancelRequested": "Stop requested",
+    "disconnectReason": "code: {{code}}, signal: {{signal}}"
   },
   "config": {
     "reasoning_effort": "Reasoning Effort",

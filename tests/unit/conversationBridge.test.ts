@@ -283,23 +283,27 @@ describe('conversationBridge', () => {
   describe('warmup', () => {
     it('calls getOrBuildTask for the given conversation_id', async () => {
       const handler = handlers['warmup'];
-      await handler({ conversation_id: 'test-id' });
+      const result = await handler({ conversation_id: 'test-id' });
 
       expect(taskManager.getOrBuildTask).toHaveBeenCalledWith('test-id');
+      expect(result).toBe(false);
     });
 
     it('calls initAgent() when task type is "acp"', async () => {
       const initAgent = vi.fn();
-      const acpTask = { type: 'acp', initAgent } as unknown as Awaited<
+      const markWarmupReadyStatus = vi.fn();
+      const acpTask = { type: 'acp', initAgent, markWarmupReadyStatus } as unknown as Awaited<
         ReturnType<IWorkerTaskManager['getOrBuildTask']>
       >;
       vi.mocked(taskManager.getOrBuildTask).mockResolvedValue(acpTask);
 
       const handler = handlers['warmup'];
-      await handler({ conversation_id: 'acp-id' });
+      const result = await handler({ conversation_id: 'acp-id' });
 
       expect(taskManager.getOrBuildTask).toHaveBeenCalledWith('acp-id');
       expect(initAgent).toHaveBeenCalled();
+      expect(markWarmupReadyStatus).toHaveBeenCalled();
+      expect(result).toBe(true);
     });
 
     it('does not call initAgent when task type is not "acp"', async () => {
@@ -311,18 +315,18 @@ describe('conversationBridge', () => {
       vi.mocked(taskManager.getOrBuildTask).mockResolvedValue(geminiTask);
 
       const handler = handlers['warmup'];
-      await handler({ conversation_id: 'gemini-id' });
+      const result = await handler({ conversation_id: 'gemini-id' });
 
       expect(taskManager.getOrBuildTask).toHaveBeenCalledWith('gemini-id');
       expect(initAgent).not.toHaveBeenCalled();
+      expect(result).toBe(true);
     });
 
     it('silently ignores errors (best-effort)', async () => {
       vi.mocked(taskManager.getOrBuildTask).mockRejectedValue(new Error('Task build failed'));
 
       const handler = handlers['warmup'];
-      // Should not throw
-      await expect(handler({ conversation_id: 'failing-id' })).resolves.toBeUndefined();
+      await expect(handler({ conversation_id: 'failing-id' })).resolves.toBe(false);
 
       expect(taskManager.getOrBuildTask).toHaveBeenCalledWith('failing-id');
     });

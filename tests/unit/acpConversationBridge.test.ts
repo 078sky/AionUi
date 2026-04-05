@@ -23,6 +23,7 @@ vi.mock('../../src/common', () => ({
       testCustomAgent: makeChannel('testCustomAgent'),
       checkAgentHealth: makeChannel('checkAgentHealth'),
       getMode: makeChannel('getMode'),
+      authenticate: makeChannel('authenticate'),
       getModelInfo: makeChannel('getModelInfo'),
       probeModelInfo: makeChannel('probeModelInfo'),
       setModel: makeChannel('setModel'),
@@ -112,6 +113,32 @@ describe('acpConversationBridge', () => {
     await handlers['getMode']({ conversationId: 'c1' });
 
     expect(taskManager.getTask).toHaveBeenCalledWith('c1');
+  });
+
+  it('authenticate proxies to the ACP task authenticate method', async () => {
+    const authenticate = vi.fn().mockResolvedValue({ success: true });
+    const { default: AcpAgentManager } = await import('../../src/process/task/AcpAgentManager');
+    const task = new AcpAgentManager() as any;
+    task.authenticate = authenticate;
+    vi.mocked(taskManager.getOrBuildTask).mockResolvedValue(task);
+
+    const result = await handlers['authenticate']({ conversationId: 'c-auth' });
+
+    expect(taskManager.getOrBuildTask).toHaveBeenCalledWith('c-auth');
+    expect(authenticate).toHaveBeenCalled();
+    expect(result).toEqual({ success: true });
+  });
+
+  it('authenticate returns an error for non-ACP tasks', async () => {
+    const { GeminiAgentManager } = await import('../../src/process/task/GeminiAgentManager');
+    vi.mocked(taskManager.getOrBuildTask).mockResolvedValue(new GeminiAgentManager() as any);
+
+    const result = await handlers['authenticate']({ conversationId: 'c-gemini' });
+
+    expect(result).toEqual({
+      success: false,
+      msg: 'Conversation not found or not an ACP agent',
+    });
   });
 
   // --- refreshCustomAgents ---
