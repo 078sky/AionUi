@@ -13,7 +13,8 @@
  * the app is launched from Finder / launchd instead of a terminal.
  */
 
-import { app } from 'electron';
+// Electron app reference — only loaded when running inside Electron to avoid crashes in server mode
+const app = process.versions.electron ? require('electron').app : null;
 import { execFile, execFileSync, spawn } from 'child_process';
 import { accessSync, existsSync, readdirSync } from 'fs';
 import os from 'os';
@@ -32,6 +33,8 @@ const PERF_LOG = process.env.ACP_PERF === '1';
  * the bun executable. Returns null if the directory doesn't exist.
  */
 export function getBundledBunDir(): string | null {
+  // In server/headless mode (no Electron), bundled bun is unavailable — return null gracefully
+  if (!app) return null;
   const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources');
   const platform = process.platform === 'win32' ? 'win32' : process.platform;
   const arch = process.arch;

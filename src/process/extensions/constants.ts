@@ -6,7 +6,8 @@
 
 import { getPlatformServices } from '@/common/platform';
 import { getDataPath } from '@process/utils';
-import { app } from 'electron';
+// Electron app reference — only loaded when running inside Electron to avoid crashes in server mode
+const app = process.versions.electron ? require('electron').app : null;
 import * as path from 'path';
 import type { ExtensionSource } from './types';
 export const AIONUI_EXTENSIONS_PATH_ENV = 'AIONUI_EXTENSIONS_PATH';
@@ -45,6 +46,8 @@ export const HUB_INDEX_FILE = 'index.json';
 
 /** Path to the bundled hub resources directory. */
 export function getHubResourcesDir(): string {
+  // In server/headless mode (no Electron), fall back to resources/ next to the server bundle
+  if (!app) return path.join(process.cwd(), 'resources', 'hub');
   const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources');
   return path.join(resourcesPath, 'hub');
 }
