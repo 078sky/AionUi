@@ -139,11 +139,13 @@ export default defineConfig(({ mode }) => {
         // Vite auto-increments to the next available port.
         // electron-vite reads the actual port and sets ELECTRON_RENDERER_URL accordingly.
         port: 5173,
-        // Explicit HMR host so Vite client connects directly to the Vite dev server,
+        // Explicit HMR host and port so Vite client connects directly to the Vite dev server,
         // not to the WebUI proxy server (which would reject the WebSocket and cause infinite reload).
-        // Port is omitted so it automatically matches the server port.
+        // Port must be explicit because when loaded through the proxy (e.g. :25809),
+        // the Vite client defaults to the page's port, not the Vite server's port.
         hmr: {
           host: 'localhost',
+          port: 5173,
         },
       },
       resolve: {
