@@ -316,6 +316,11 @@ export const useGeminiMessage = (conversation_id: string, onError?: (message: IR
     setHasThinkingMessage(false);
     setHasHydratedRunningState(false);
 
+    // Snapshot whether an initial message is queued (from GuidPage via sessionStorage).
+    // If present, the initial message hook will fire soon and needs waitingResponse=true,
+    // so we must NOT force it to false or the processing indicator won't appear.
+    const hasInitialMessage = !!sessionStorage.getItem(`gemini_initial_message_${conversation_id}`);
+
     // Check actual conversation status from backend before resetting all running states
     // to avoid flicker when switching to a running conversation
     void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
@@ -328,8 +333,10 @@ export const useGeminiMessage = (conversation_id: string, onError?: (message: IR
         streamRunningRef.current = false;
         setHasActiveTools(false);
         hasActiveToolsRef.current = false;
-        setWaitingResponse(false);
-        waitingResponseRef.current = false;
+        if (!hasInitialMessage) {
+          setWaitingResponse(false);
+          waitingResponseRef.current = false;
+        }
         setHasHydratedRunningState(true);
         return;
       }
@@ -339,8 +346,11 @@ export const useGeminiMessage = (conversation_id: string, onError?: (message: IR
       // Reset tool states - they will be restored by incoming messages if still active
       setHasActiveTools(false);
       hasActiveToolsRef.current = false;
-      setWaitingResponse(isRunning);
-      waitingResponseRef.current = isRunning;
+      // If an initial message is pending, force waiting=true so the processing
+      // indicator appears immediately. The stream listener will manage state from here.
+      const shouldWait = isRunning || hasInitialMessage;
+      setWaitingResponse(shouldWait);
+      waitingResponseRef.current = shouldWait;
       // Load persisted token usage stats
       if (res.type === 'gemini' && res.extra?.lastTokenUsage) {
         const { lastTokenUsage } = res.extra;

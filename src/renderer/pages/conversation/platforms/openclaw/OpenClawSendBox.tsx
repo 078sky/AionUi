@@ -216,8 +216,13 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
   useEffect(() => {
     let cancelled = false;
 
-    setAiProcessing(false);
-    aiProcessingRef.current = false;
+    // Snapshot whether an initial message is queued (from GuidPage).
+    const hasInitialMessage = !!sessionStorage.getItem(`openclaw_initial_message_${conversation_id}`);
+
+    if (!hasInitialMessage) {
+      setAiProcessing(false);
+      aiProcessingRef.current = false;
+    }
     setHasHydratedRunningState(false);
     setOpenClawStatus(null);
     setThought({ subject: '', description: '' });
@@ -225,21 +230,23 @@ const OpenClawSendBox: React.FC<{ conversation_id: string }> = ({ conversation_i
 
     // Check actual conversation status from backend before resetting aiProcessing
     // to avoid flicker when switching to a running conversation
-    // 先获取后端状态再重置 aiProcessing，避免切换到运行中的会话时闪烁
     void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
       if (cancelled) {
         return;
       }
 
       if (!res) {
-        setAiProcessing(false);
-        aiProcessingRef.current = false;
+        if (!hasInitialMessage) {
+          setAiProcessing(false);
+          aiProcessingRef.current = false;
+        }
         setHasHydratedRunningState(true);
         return;
       }
       const isRunning = res.status === 'running';
-      setAiProcessing(isRunning);
-      aiProcessingRef.current = isRunning;
+      const shouldProcess = isRunning || hasInitialMessage;
+      setAiProcessing(shouldProcess);
+      aiProcessingRef.current = shouldProcess;
       setHasHydratedRunningState(true);
     });
 
