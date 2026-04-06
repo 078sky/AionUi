@@ -19,6 +19,7 @@ import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react
 import { ArrowUp, FolderOpen, Plus, Shield, UploadOne } from '@icon-park/react';
 import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ProjectSelector from '@/renderer/components/project/ProjectSelector';
 import styles from '../index.module.css';
 
 type GuidActionRowProps = {
@@ -52,6 +53,12 @@ type GuidActionRowProps = {
   cachedConfigOptions?: AcpSessionConfigOption[];
   onConfigOptionSelect?: (configId: string, value: string) => void;
 
+  // Project selector
+  selectedProjectId?: string;
+  selectedProjectName?: string;
+  onProjectSelect: (projectId: string, projectName: string) => void;
+  onProjectClear: () => void;
+
   // Send button
   loading: boolean;
   isButtonDisabled: boolean;
@@ -79,6 +86,10 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   configOptionsBackend,
   cachedConfigOptions,
   onConfigOptionSelect,
+  selectedProjectId,
+  selectedProjectName,
+  onProjectSelect,
+  onProjectClear,
   hidePresetTag = false,
   loading,
   isButtonDisabled,
@@ -229,6 +240,14 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             />
           )}
         </div>
+
+        {/* Project selector — "Work in a project" dropdown */}
+        <ProjectSelector
+          selectedProjectId={selectedProjectId}
+          selectedProjectName={selectedProjectName}
+          onProjectSelect={onProjectSelect}
+          onProjectClear={onProjectClear}
+        />
 
         <div
           className={`${styles.actionConfigGroup} ${configOptionCount > 1 ? styles.actionConfigGroupWithDivider : ''}`}

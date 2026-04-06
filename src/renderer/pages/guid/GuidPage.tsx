@@ -35,6 +35,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
+import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@/common/config/storage';
 
 // Agent switcher options — same list as AssistantEditDrawer
 const BUILTIN_AGENT_OPTIONS: { value: string; label: string }[] = [
@@ -77,8 +79,23 @@ const GuidPage: React.FC = () => {
   });
 
   const guidInput = useGuidInput({
-    locationState: location.state as { workspace?: string } | null,
+    locationState: location.state as { workspace?: string; projectId?: string; projectName?: string } | null,
   });
+
+  // --- Project context ---
+  // Can be set via location.state (from ProjectsListPage) or via ProjectSelector dropdown
+  const locationState = location.state as { projectId?: string; projectName?: string } | null;
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(locationState?.projectId);
+  const [selectedProjectName, setSelectedProjectName] = useState<string | undefined>(locationState?.projectName);
+  const [projectConversations, setProjectConversations] = useState<TChatConversation[]>([]);
+
+  // Sync from location state when navigating from ProjectsListPage
+  useEffect(() => {
+    if (locationState?.projectId) {
+      setSelectedProjectId(locationState.projectId);
+      setSelectedProjectName(locationState.projectName);
+    }
+  }, [locationState?.projectId, locationState?.projectName]);
 
   const mention = useGuidMention({
     availableAgents: agentSelection.availableAgents,
@@ -99,6 +116,7 @@ const GuidPage: React.FC = () => {
     setDir: guidInput.setDir,
     setLoading: guidInput.setLoading,
     loading: guidInput.loading,
+    projectId: selectedProjectId,
 
     // Agent state
     selectedAgent: agentSelection.selectedAgent,
@@ -314,6 +332,18 @@ const GuidPage: React.FC = () => {
     setIsDescriptionExpanded(false);
   }, [location.key]);
 
+  // Fetch project conversations when in project mode
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setProjectConversations([]);
+      return;
+    }
+    ipcBridge.project.getConversations
+      .invoke({ projectId: selectedProjectId })
+      .then((convs) => setProjectConversations(convs || []))
+      .catch((err) => console.warn('[GuidPage] Failed to load project conversations:', err));
+  }, [selectedProjectId]);
+
   useEffect(() => {
     const node = descriptionTextRef.current;
     if (!node || !agentSelection.isPresetAgent || !selectedAssistantDescription) {
@@ -476,11 +506,21 @@ const GuidPage: React.FC = () => {
       }
       cachedConfigOptions={agentSelection.cachedConfigOptions}
       onConfigOptionSelect={agentSelection.setPendingConfigOption}
+      selectedProjectId={selectedProjectId}
+      selectedProjectName={selectedProjectName}
+      onProjectSelect={(id, name) => {
+        setSelectedProjectId(id);
+        setSelectedProjectName(name);
+      }}
+      onProjectClear={() => {
+        setSelectedProjectId(undefined);
+        setSelectedProjectName(undefined);
+      }}
       hidePresetTag
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
       onSend={() => {
-        send.handleSend().catch((error) => {
+        return send.handleSend().catch((error) => {
           console.error('Failed to send message:', error);
         });
       }}
@@ -599,6 +639,8 @@ const GuidPage: React.FC = () => {
                   </Dropdown>
                 </div>
               </div>
+            ) : selectedProjectId && selectedProjectName ? (
+              <p className='text-2xl font-semibold mb-0 text-0 text-center'>{selectedProjectName}</p>
             ) : (
               <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
             )}
@@ -696,11 +738,35 @@ const GuidPage: React.FC = () => {
           />
         </div>
 
-        <QuickActionButtons
-          onOpenLink={openLink}
-          inactiveBorderColor={inactiveBorderColor}
-          activeShadow={activeShadow}
-        />
+        {selectedProjectId && projectConversations.length > 0 ? (
+          <div className={styles.projectRecents}>
+            <p className='text-13px text-t-secondary font-bold mb-8px px-4px'>
+              {t('project.recents', { defaultValue: 'Recents' })}
+            </p>
+            <div className={styles.projectRecentsList}>
+              {projectConversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  className={styles.projectRecentItem}
+                  onClick={() => void navigate(`/conversation/${conv.id}`)}
+                >
+                  <div className={styles.projectRecentName}>{conv.name || t('conversation.untitled', { defaultValue: 'Untitled' })}</div>
+                  <div className={styles.projectRecentDate}>
+                    {conv.modifyTime
+                      ? new Date(conv.modifyTime).toLocaleDateString()
+                      : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <QuickActionButtons
+            onOpenLink={openLink}
+            inactiveBorderColor={inactiveBorderColor}
+            activeShadow={activeShadow}
+          />
+        )}
       </div>
     </ConfigProvider>
   );
