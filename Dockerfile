@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy only build artifacts and production deps
 COPY --from=builder /app/dist-server ./dist-server
 COPY --from=builder /app/out/renderer ./out/renderer
+COPY --from=builder /app/patches ./patches
 COPY package.json bun.lock ./
 RUN bun install --production
 
