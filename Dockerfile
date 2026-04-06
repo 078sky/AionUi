@@ -8,7 +8,8 @@ RUN npm install -g bun
 COPY package.json bun.lock ./
 # bun install applies these patches (e.g. 7zip-bin); must exist before RUN bun install
 COPY patches ./patches
-RUN bun install
+# --ignore-scripts: skip postinstall (would try to install Electron native binaries — not needed for server build)
+RUN bun install --ignore-scripts
 
 # Copy source
 COPY . .
