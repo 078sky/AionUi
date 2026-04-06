@@ -76,6 +76,21 @@ export interface IConversationRow {
   status?: 'pending' | 'running' | 'finished';
   source?: ConversationSource; // 会话来源 / Conversation source
   channel_chat_id?: string; // Channel chat isolation ID (e.g. user:xxx or group:xxx)
+  project_id?: string; // Project binding (nullable — standalone chats have no project)
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * Project stored in database
+ * Binds multiple conversations to a single persistent workspace directory.
+ */
+export interface IProjectRow {
+  id: string;
+  user_id: string;
+  name: string;
+  directory: string;
+  description?: string;
   created_at: number;
   updated_at: number;
 }

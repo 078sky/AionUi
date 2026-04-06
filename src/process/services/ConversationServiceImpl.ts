@@ -17,6 +17,8 @@ import {
   createRemoteAgent,
   createAionrsAgent,
 } from '@process/utils/initAgent';
+import { getProjectWorkspace } from './ProjectService';
+import { getDatabase } from '@process/services/database';
 
 /**
  * Concrete implementation of IConversationService.
@@ -122,6 +124,13 @@ export class ConversationServiceImpl implements IConversationService {
   }
 
   async createConversation(params: CreateConversationParams): Promise<TChatConversation> {
+    // If projectId is provided, resolve workspace from the project directory
+    if (params.projectId && !params.extra.workspace) {
+      const projectDir = await getProjectWorkspace(params.projectId);
+      params.extra.workspace = projectDir;
+      params.extra.customWorkspace = true;
+    }
+
     let conversation: TChatConversation;
 
     switch (params.type) {
@@ -193,6 +202,17 @@ export class ConversationServiceImpl implements IConversationService {
     } as TChatConversation;
 
     await this.repo.createConversation(finalConversation);
+
+    // Link conversation to project in the database if projectId was provided
+    if (params.projectId) {
+      try {
+        const db = await getDatabase();
+        db.setConversationProject(finalConversation.id, params.projectId);
+      } catch (err) {
+        console.error('[ConversationServiceImpl] Failed to link conversation to project:', err);
+      }
+    }
+
     return finalConversation;
   }
 }

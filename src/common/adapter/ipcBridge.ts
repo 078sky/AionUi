@@ -892,6 +892,8 @@ export interface ICreateConversationParams {
   id?: string;
   name?: string;
   model: TProviderWithModel;
+  /** Bind this conversation to a project — workspace resolves to project.directory */
+  projectId?: string;
   extra: {
     workspace?: string;
     customWorkspace?: boolean;
@@ -1277,4 +1279,26 @@ export const team = {
   agentSpawned: bridge.buildEmitter<import('@/common/types/teamTypes').ITeamAgentSpawnedEvent>('team.agent.spawned'),
   agentRemoved: bridge.buildEmitter<import('@/common/types/teamTypes').ITeamAgentRemovedEvent>('team.agent.removed'),
   agentRenamed: bridge.buildEmitter<import('@/common/types/teamTypes').ITeamAgentRenamedEvent>('team.agent.renamed'),
+};
+
+// Project management API / 项目管理接口
+export interface IProjectInfo {
+  id: string;
+  name: string;
+  directory: string;
+  description?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export const project = {
+  create: bridge.buildProvider<IProjectInfo, { name: string; description?: string; directory?: string }>('project.create'),
+  list: bridge.buildProvider<IProjectInfo[], void>('project.list'),
+  get: bridge.buildProvider<IProjectInfo | null, { id: string }>('project.get'),
+  update: bridge.buildProvider<void, { id: string; name?: string; description?: string }>('project.update'),
+  delete: bridge.buildProvider<void, { id: string }>('project.delete'),
+  getConversations: bridge.buildProvider<
+    import('@/common/config/storage').TChatConversation[],
+    { projectId: string }
+  >('project.get-conversations'),
 };
