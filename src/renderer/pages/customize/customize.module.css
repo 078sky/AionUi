@@ -1,0 +1,469 @@
+/* Three-panel layout for the Customize page (Skills & Tools browser) */
+
+.container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg-1);
+}
+
+/* Panel 1: Sub-navigation sidebar (Skills / Tools tabs) */
+.subNav {
+  width: 200px;
+  min-width: 200px;
+  border-right: 1px solid var(--color-border-2);
+  background: var(--color-bg-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.subNavHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 16px 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.subNavBackBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text-2);
+  transition: all 0.15s;
+}
+
+.subNavBackBtn:hover {
+  background: var(--color-fill-3);
+  color: var(--color-text-1);
+}
+
+.subNavItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  margin: 0 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--color-text-1);
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.subNavItem:hover {
+  background: var(--color-fill-2);
+}
+
+.subNavItemActive {
+  background: rgba(var(--primary-6), 0.12);
+  color: rgb(var(--primary-6));
+  font-weight: 500;
+}
+
+.subNavItemIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* Panel 2: List panel (skills file tree or tools list) */
+.listPanel {
+  width: 280px;
+  min-width: 240px;
+  border-right: 1px solid var(--color-border-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  border-bottom: 1px solid var(--color-border-2);
+  flex-shrink: 0;
+}
+
+/* Add (+) button in list panel header */
+.listHeaderBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-2);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.listHeaderBtn:hover {
+  background: var(--color-fill-3);
+  color: var(--color-text-1);
+}
+
+.listContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+/* Skill group header (Personal / Built-in) */
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.groupHeader:hover {
+  color: var(--color-text-2);
+}
+
+.groupChevron {
+  display: flex;
+  align-items: center;
+  transition: transform 0.15s;
+}
+
+.groupChevronOpen {
+  transform: rotate(90deg);
+}
+
+/* Skill item in the list */
+.skillItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-1);
+  transition: all 0.12s;
+  user-select: none;
+}
+
+.skillItem:hover {
+  background: var(--color-fill-2);
+}
+
+.skillItemActive {
+  background: rgba(var(--primary-6), 0.1);
+  color: rgb(var(--primary-6));
+}
+
+.skillItemIcon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--color-text-3);
+}
+
+.skillItemActive .skillItemIcon {
+  color: rgb(var(--primary-6));
+}
+
+/* File tree items (nested under a skill) */
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-2);
+  transition: all 0.12s;
+  user-select: none;
+}
+
+.fileItem:hover {
+  background: var(--color-fill-2);
+  color: var(--color-text-1);
+}
+
+/* Clickable directory row in file tree */
+.fileItemDir {
+  cursor: pointer;
+}
+
+.fileItemActive {
+  background: rgba(var(--primary-6), 0.08);
+  color: rgb(var(--primary-6));
+}
+
+.fileItemNested {
+  padding-left: 48px;
+}
+
+.fileItemIcon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* Panel 3: Preview panel */
+.previewPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-border-2);
+  flex-shrink: 0;
+}
+
+.previewTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.previewContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Empty state for preview panel */
+.previewEmpty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-3);
+  font-size: 14px;
+}
+
+/* MCP/Tools list items */
+.toolItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 2px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  user-select: none;
+}
+
+.toolItem:hover {
+  background: var(--color-fill-2);
+}
+
+.toolItemActive {
+  background: rgba(var(--primary-6), 0.1);
+}
+
+.toolItemIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-fill-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-text-2);
+}
+
+.toolItemInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.toolItemName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolItemDesc {
+  font-size: 12px;
+  color: var(--color-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.toolItemBadge {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--color-fill-3);
+  color: var(--color-text-3);
+  flex-shrink: 0;
+}
+
+.toolItemEnabled {
+  background: rgba(var(--green-6), 0.15);
+  color: rgb(var(--green-6));
+}
+
+/* Tool detail panel */
+.toolDetail {
+  padding: 20px;
+}
+
+.toolDetailHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.toolDetailName {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.toolDetailSection {
+  margin-top: 16px;
+}
+
+.toolDetailSectionTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-2);
+  margin-bottom: 8px;
+}
+
+/* MCP tool/function list */
+.toolFunctionList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolFunctionItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--color-fill-2);
+}
+
+.toolFunctionName {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgb(var(--primary-6));
+  flex-shrink: 0;
+}
+
+.toolFunctionDesc {
+  font-size: 12px;
+  color: var(--color-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Markdown content styling in preview */
+.markdownPreview {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text-1);
+}
+
+/* Code preview styling */
+.codePreview {
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 2;
+}
+
+/* Edit textarea for skill files */
+.editTextarea {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  padding: 16px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  tab-size: 2;
+  color: var(--color-text-1);
+  background: var(--color-bg-2);
+  box-sizing: border-box;
+}
+
+.editTextarea:focus {
+  border-color: rgb(var(--primary-6));
+  box-shadow: 0 0 0 2px rgba(var(--primary-6), 0.1);
+}
+
+/* Formatted code/JSON block */
+.codeBlock {
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-1);
+  background: var(--color-fill-2);
+  padding: 12px 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
+  margin: 0;
+}
