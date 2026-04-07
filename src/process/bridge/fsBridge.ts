@@ -174,7 +174,8 @@ export function initFsBridge(): void {
 
   ipcBridge.fs.getFilesByDir.provider(async ({ dir }) => {
     try {
-      const tree = await readDirectoryRecursive(dir);
+      // maxDepth: 5 — deep enough for skill directories with nested folders
+      const tree = await readDirectoryRecursive(dir, { maxDepth: 5 });
       return tree ? [tree] : [];
     } catch (error) {
       console.error('[fsBridge] Failed to read directory:', dir, error);
