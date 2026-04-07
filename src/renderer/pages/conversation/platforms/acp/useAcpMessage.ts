@@ -321,6 +321,11 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
     hasContentInTurnRef.current = false;
     setHasHydratedRunningState(false);
 
+    // Snapshot whether an initial message is queued (from GuidPage via sessionStorage).
+    // If present, the initial message hook will fire and needs aiProcessing=true,
+    // so hydration must NOT force it to false or the indicator won't appear.
+    const hasInitialMessage = !!sessionStorage.getItem(`acp_initial_message_${conversation_id}`);
+
     // Check actual conversation status from backend before resetting running/aiProcessing
     // to avoid flicker when switching to a running conversation
     void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
@@ -331,16 +336,21 @@ export const useAcpMessage = (conversation_id: string): UseAcpMessageReturn => {
       if (!res) {
         setRunning(false);
         runningRef.current = false;
-        setAiProcessing(false);
-        aiProcessingRef.current = false;
+        if (!hasInitialMessage) {
+          setAiProcessing(false);
+          aiProcessingRef.current = false;
+        }
         setHasHydratedRunningState(true);
         return;
       }
       const isRunning = res.status === 'running';
       setRunning(isRunning);
       runningRef.current = isRunning;
-      setAiProcessing(isRunning);
-      aiProcessingRef.current = isRunning;
+      // If an initial message is pending, force processing=true so the
+      // indicator appears immediately. The stream listener manages state from here.
+      const shouldProcess = isRunning || hasInitialMessage;
+      setAiProcessing(shouldProcess);
+      aiProcessingRef.current = shouldProcess;
       setHasHydratedRunningState(true);
 
       // Restore persisted context usage data

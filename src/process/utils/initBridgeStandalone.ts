@@ -42,6 +42,8 @@ import { initNotificationBridge } from '@process/bridge/notificationBridge';
 import { initSystemSettingsBridge } from '@process/bridge/systemSettingsBridge';
 import { initTaskBridge } from '@process/bridge/taskBridge';
 import { initSpeechToTextBridge } from '@process/bridge/speechToTextBridge';
+import { initTeamBridge } from '@process/bridge/teamBridge';
+import { TeamSessionService, SqliteTeamRepository } from '@process/team';
 
 logger.config({ print: true });
 
@@ -78,6 +80,12 @@ export async function initBridgeStandalone(): Promise<void> {
   initTaskBridge(workerTaskManager);
   initStarOfficeBridge();
   initSpeechToTextBridge();
+
+  // Team bridge: multi-agent teams — must be initialized in standalone mode too.
+  // TeamSessionService needs conversationService (same instance as conversation bridge).
+  const teamRepo = new SqliteTeamRepository();
+  const teamSessionService = new TeamSessionService(teamRepo, workerTaskManager, conversationService);
+  initTeamBridge(teamSessionService);
 
   // Initialize ACP detector to scan for installed CLI agents (claude, codex, etc.)
   // Must mirror Electron's initializeAcpDetector() call in src/index.ts

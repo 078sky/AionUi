@@ -31,6 +31,7 @@ import { hasCronCommands } from './CronCommandDetector';
 import { extractTextFromMessage, processCronInMessage } from './MessageMiddleware';
 import { stripThinkTags, extractAndStripThinkTags } from './ThinkTagDetector';
 import { teamEventBus } from '@process/team/teamEventBus';
+import { autoCommitWorkspace } from '@process/utils/autoCommit';
 import * as fs from 'node:fs';
 
 // gemini agent管理器类
@@ -706,6 +707,8 @@ export class GeminiAgentManager extends BaseAgentManager<
           this.thinkingStartTime = null;
           this.thinkingContent = '';
         }
+        // Auto-commit workspace changes after turn completes (fire-and-forget)
+        void autoCommitWorkspace(this.workspace, this.conversation_id);
       }
       if (data.type === 'start') {
         this.status = 'running';

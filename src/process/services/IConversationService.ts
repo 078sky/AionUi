@@ -17,6 +17,8 @@ export interface CreateConversationParams {
   model: TProviderWithModel;
   source?: ConversationSource;
   channelChatId?: string;
+  /** Bind this conversation to a project — workspace resolves to project.directory */
+  projectId?: string;
   extra: {
     workspace?: string;
     customWorkspace?: boolean;

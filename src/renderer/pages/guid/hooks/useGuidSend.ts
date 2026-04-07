@@ -29,6 +29,9 @@ export type GuidSendDeps = {
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   loading: boolean;
 
+  /** Optional project binding — workspace resolves to project directory on backend */
+  projectId?: string;
+
   // Agent state
   selectedAgent: AcpBackend | 'custom';
   selectedAgentKey: string;
@@ -86,6 +89,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     setDir,
     setLoading,
     loading,
+    projectId,
     selectedAgent,
     selectedAgentKey,
     selectedAgentInfo,
@@ -182,6 +186,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         const conversation = await ipcBridge.conversation.create.invoke({
           ...geminiConversationParams,
+          projectId,
           extra: {
             ...geminiConversationParams.extra,
             presetAssistantId: presetAssistantIdToPass,
@@ -244,7 +249,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       });
 
       try {
-        const conversation = await ipcBridge.conversation.create.invoke(openclawConversationParams);
+        const conversation = await ipcBridge.conversation.create.invoke({ ...openclawConversationParams, projectId });
 
         if (!conversation || !conversation.id) {
           alert('Failed to create OpenClaw conversation. Please ensure the OpenClaw Gateway is running.');
@@ -293,7 +298,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       });
 
       try {
-        const conversation = await ipcBridge.conversation.create.invoke(nanobotConversationParams);
+        const conversation = await ipcBridge.conversation.create.invoke({ ...nanobotConversationParams, projectId });
 
         if (!conversation || !conversation.id) {
           alert('Failed to create Nanobot conversation. Please ensure nanobot is installed.');
@@ -332,6 +337,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           type: 'aionrs',
           name: input,
           model: currentModel!,
+          projectId,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -439,7 +445,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           agentConversationParams.extra = { ...agentConversationParams.extra, pendingConfigOptions };
         }
 
-        const conversation = await ipcBridge.conversation.create.invoke(agentConversationParams);
+        const conversation = await ipcBridge.conversation.create.invoke({ ...agentConversationParams, projectId });
         if (!conversation || !conversation.id) {
           console.error('Failed to create ACP conversation - conversation object is null or missing id');
           return;
@@ -469,6 +475,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     input,
     files,
     dir,
+    projectId,
     selectedAgent,
     selectedAgentKey,
     selectedAgentInfo,

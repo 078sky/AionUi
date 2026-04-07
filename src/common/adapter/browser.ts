@@ -51,7 +51,7 @@ if (win.electronAPI) {
   let emitterRef: { emit: (name: string, data: unknown) => void } | null = null;
   let reconnectTimer: number | null = null;
   let reconnectDelay = 500;
-  let shouldReconnect = true; // Flag to control reconnection
+  let shouldReconnect = false; // Disabled until login; enabled by __websocketReconnect()
 
   const messageQueue: QueuedMessage[] = [];
 
@@ -133,22 +133,9 @@ if (win.electronAPI) {
             reconnectTimer = null;
           }
 
-          // 关闭 socket 并跳转到登录页
-          // Close the socket and redirect to login page
+          // 关闭 socket，由 React AuthContext/Router 处理登录页跳转
+          // Close the socket; React AuthContext/Router handles login redirect
           socket?.close();
-
-          // 已在登录页则不再重定向，防止无限刷新循环
-          // Skip redirect if already on login page to prevent infinite reload loop
-          if (window.location.pathname === '/login' || window.location.hash.includes('/login')) {
-            return;
-          }
-
-          // 短暂延迟后跳转到登录页，以便显示 UI 反馈
-          // Redirect to login page after a short delay to show any UI feedback
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1000);
-
           return;
         }
 
@@ -168,20 +155,14 @@ if (win.electronAPI) {
         return; // Already handled by auth-expired message handler
       }
       if (event.code === 1008) {
-        console.warn('[WebSocket] Connection rejected by server (policy violation), redirecting to login');
+        console.warn('[WebSocket] Connection rejected by server (policy violation)');
         shouldReconnect = false;
         if (reconnectTimer !== null) {
           window.clearTimeout(reconnectTimer);
           reconnectTimer = null;
         }
-        // 已在登录页则不再重定向，防止无限刷新循环
-        // Skip redirect if already on login page to prevent infinite reload loop
-        if (window.location.pathname === '/login' || window.location.hash.includes('/login')) {
-          return;
-        }
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 500);
+        // 不做硬跳转，由 React AuthContext/Router 通过 HashRouter 处理登录重定向
+        // No hard redirect; React AuthContext/Router handles login redirect via HashRouter
         return;
       }
 
@@ -194,8 +175,12 @@ if (win.electronAPI) {
   };
 
   // 4.确保在发送/订阅前已经发起连接
+  // Only attempt connection if reconnection is enabled (i.e. after login)
   const ensureSocket = () => {
-    if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+    if (
+      shouldReconnect &&
+      (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)
+    ) {
       connect();
     }
   };
@@ -227,11 +212,11 @@ if (win.electronAPI) {
         emitter.emit(name, data);
       };
 
-      ensureSocket();
+      // Don't auto-connect here; wait for __websocketReconnect() after login
     },
   });
 
-  connect();
+  // Don't connect on module load — __websocketReconnect() called after login starts the socket
 
   // Expose reconnection control for login flow
   win.__websocketReconnect = () => {

@@ -15,6 +15,7 @@ import type {
   IConversationRow,
   IMessageRow,
   IPaginatedResult,
+  IProjectRow,
   IQueryResult,
   IUser,
   TChatConversation,
@@ -760,6 +761,132 @@ export class AionUIDatabase {
         error: error.message,
       };
     }
+  }
+
+  /**
+   * ==================
+   * Project operations
+   * ==================
+   */
+
+  /**
+   * Create a new project with a workspace directory.
+   * The caller is responsible for creating the directory and running git init.
+   */
+  createProject(project: IProjectRow): IQueryResult<IProjectRow> {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO projects (id, user_id, name, directory, description, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(
+        project.id,
+        project.user_id,
+        project.name,
+        project.directory,
+        project.description ?? null,
+        project.created_at,
+        project.updated_at
+      );
+      return { success: true, data: project };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getProject(projectId: string): IQueryResult<IProjectRow> {
+    try {
+      const row = this.db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as IProjectRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Project not found' };
+      }
+      return { success: true, data: row };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getProjectByDirectory(directory: string): IQueryResult<IProjectRow | null> {
+    try {
+      const row = this.db.prepare('SELECT * FROM projects WHERE directory = ?').get(directory) as
+        | IProjectRow
+        | undefined;
+      return { success: true, data: row ?? null };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getUserProjects(userId?: string): IProjectRow[] {
+    const finalUserId = userId || this.defaultUserId;
+    return this.db
+      .prepare('SELECT * FROM projects WHERE user_id = ? ORDER BY updated_at DESC')
+      .all(finalUserId) as IProjectRow[];
+  }
+
+  updateProject(projectId: string, updates: Partial<Pick<IProjectRow, 'name' | 'description'>>): IQueryResult<boolean> {
+    try {
+      const setClauses: string[] = ['updated_at = ?'];
+      const params: unknown[] = [Date.now()];
+
+      if (updates.name !== undefined) {
+        setClauses.push('name = ?');
+        params.push(updates.name);
+      }
+      if (updates.description !== undefined) {
+        setClauses.push('description = ?');
+        params.push(updates.description);
+      }
+
+      params.push(projectId);
+      this.db.prepare(`UPDATE projects SET ${setClauses.join(', ')} WHERE id = ?`).run(...params);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteProject(projectId: string): IQueryResult<boolean> {
+    try {
+      // ON DELETE SET NULL handles conversations.project_id automatically
+      const result = this.db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Link a conversation to a project.
+   * Sets project_id on the conversation row.
+   */
+  setConversationProject(conversationId: string, projectId: string | null): IQueryResult<boolean> {
+    try {
+      this.db
+        .prepare('UPDATE conversations SET project_id = ?, updated_at = ? WHERE id = ?')
+        .run(projectId, Date.now(), conversationId);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all conversations belonging to a project, ordered by most recent first.
+   */
+  getProjectConversations(projectId: string): TChatConversation[] {
+    const rows = this.db
+      .prepare('SELECT * FROM conversations WHERE project_id = ? ORDER BY updated_at DESC')
+      .all(projectId) as IConversationRow[];
+    const result: TChatConversation[] = [];
+    for (const row of rows) {
+      try {
+        result.push(rowToConversation(row));
+      } catch (e) {
+        console.warn('[Database] Skipping conversation row with unknown type:', row.type, row.id);
+      }
+    }
+    return result;
   }
 
   /**

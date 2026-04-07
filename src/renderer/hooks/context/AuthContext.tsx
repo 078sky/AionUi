@@ -122,6 +122,13 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     if (currentUser) {
       setUser(currentUser);
       setStatus('authenticated');
+
+      // Re-enable WebSocket bridge for session-restored users (WebUI mode only).
+      // Without this, the bridge stays dormant because login() was never called,
+      // and all IPC data (chats, agents, settings) fails to load.
+      if (typeof window !== 'undefined' && (window as any).__websocketReconnect) {
+        (window as any).__websocketReconnect();
+      }
     } else {
       setUser(null);
       setStatus('unauthenticated');

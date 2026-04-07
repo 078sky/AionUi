@@ -732,3 +732,54 @@
     max-width: 100px;
   }
 }
+
+/* Project recents section — shown below input when in project mode */
+.projectRecents {
+  width: 100%;
+  max-width: 760px;
+  margin: 24px auto 0;
+}
+
+.projectRecentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.projectRecentItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.projectRecentItem:hover {
+  background-color: var(--color-fill-2);
+}
+
+.projectRecentItem:active {
+  background-color: var(--color-fill-3);
+}
+
+.projectRecentName {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-1);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.projectRecentDate {
+  font-size: 12px;
+  color: var(--color-text-3);
+  white-space: nowrap;
+  flex-shrink: 0;
+}

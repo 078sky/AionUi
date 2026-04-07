@@ -24,6 +24,7 @@ import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '@process/
 import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
+import { autoCommitWorkspace } from '@process/utils/autoCommit';
 import {
   getCodexSandboxModeForSessionMode,
   type CodexSandboxMode,
@@ -1188,6 +1189,8 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   private clearBusyState(): void {
     cronBusyGuard.setProcessing(this.conversation_id, false);
     this.status = 'finished';
+    // Auto-commit workspace changes after turn completes (fire-and-forget)
+    void autoCommitWorkspace(this.workspace, this.conversation_id);
   }
 
   private async saveContextUsage(usage: { used: number; size: number }): Promise<void> {
