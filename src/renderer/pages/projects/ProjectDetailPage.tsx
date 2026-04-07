@@ -81,9 +81,7 @@ const ProjectDetailPage: React.FC = () => {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>{project.name}</h1>
-          {project.description && (
-            <div className='text-13px text-t-secondary mt-4px'>{project.description}</div>
-          )}
+          {project.description && <div className='text-13px text-t-secondary mt-4px'>{project.description}</div>}
           <div className='text-12px text-t-tertiary mt-2px'>{project.directory}</div>
         </div>
         <Button
@@ -107,13 +105,11 @@ const ProjectDetailPage: React.FC = () => {
       ) : (
         <div className={styles.projectList}>
           {conversations.map((conv) => (
-            <div
-              key={conv.id}
-              className={styles.projectCard}
-              onClick={() => handleConversationClick(conv)}
-            >
+            <div key={conv.id} className={styles.projectCard} onClick={() => handleConversationClick(conv)}>
               <div className={styles.projectInfo}>
-                <div className={styles.projectName}>{conv.title || t('common.untitled', { defaultValue: 'Untitled' })}</div>
+                <div className={styles.projectName}>
+                  {conv.name || t('common.untitled', { defaultValue: 'Untitled' })}
+                </div>
               </div>
             </div>
           ))}
