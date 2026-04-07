@@ -77,12 +77,23 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
       {projects.map((p) => (
         <Menu.Item key={p.id}>
           <div className='flex items-center gap-8px'>
-            <FolderOpen theme='outline' size='14' fill={iconColors.secondary} style={{ lineHeight: 0, flexShrink: 0 }} />
+            <FolderOpen
+              theme='outline'
+              size='14'
+              fill={iconColors.secondary}
+              style={{ lineHeight: 0, flexShrink: 0 }}
+            />
             <span className='truncate'>{p.name}</span>
           </div>
         </Menu.Item>
       ))}
-      {projects.length > 0 && <Menu.Item key='__divider__' disabled style={{ height: 1, padding: 0, margin: '4px 0', background: 'var(--color-border-2)' }} />}
+      {projects.length > 0 && (
+        <Menu.Item
+          key='__divider__'
+          disabled
+          style={{ height: 1, padding: 0, margin: '4px 0', background: 'var(--color-border-2)' }}
+        />
+      )}
       <Menu.Item key='__create__'>
         <div className='flex items-center gap-8px'>
           <Plus theme='outline' size='14' fill={iconColors.secondary} style={{ lineHeight: 0, flexShrink: 0 }} />
@@ -102,11 +113,7 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
             if (visible) void fetchProjects();
           }}
         >
-          <Button
-            type='text'
-            size='mini'
-            style={{ color: 'var(--color-text-2)', padding: '0 8px', height: '28px' }}
-          >
+          <Button type='text' size='mini' style={{ color: 'var(--color-text-2)', padding: '0 8px', height: '28px' }}>
             <span className='flex items-center gap-4px'>
               <FolderOpen theme='outline' size='14' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
               <span style={{ fontSize: '13px' }}>
@@ -137,11 +144,7 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
         )}
       </div>
 
-      <CreateProjectModal
-        visible={createVisible}
-        onClose={() => setCreateVisible(false)}
-        onCreated={handleCreated}
-      />
+      <CreateProjectModal visible={createVisible} onClose={() => setCreateVisible(false)} onCreated={handleCreated} />
     </>
   );
 };

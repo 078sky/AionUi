@@ -11,6 +11,7 @@ import SiderScheduledEntry from './SiderScheduledEntry';
 import SiderFooter from './SiderFooter';
 import SiderProjectsEntry from './SiderProjectsEntry';
 import SiderProjectFiles from './SiderProjectFiles';
+import SiderCustomizeEntry from './SiderCustomizeEntry';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('@renderer/pages/conversation/GroupedHistory'));
 const SettingsSider = React.lazy(() => import('@renderer/pages/settings/components/SettingsSider'));
@@ -108,6 +109,19 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     }
   };
 
+  const handleCustomizeClick = () => {
+    cleanupSiderTooltips();
+    blurActiveElement();
+    closePreview();
+    setIsBatchMode(false);
+    Promise.resolve(navigate('/customize')).catch((error) => {
+      console.error('Navigation failed:', error);
+    });
+    if (onSessionClick) {
+      onSessionClick();
+    }
+  };
+
   const handleQuickThemeToggle = () => {
     void setTheme(theme === 'dark' ? 'light' : 'dark');
   };
@@ -164,6 +178,14 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               collapsed={collapsed}
               siderTooltipProps={siderTooltipProps}
               onClick={handleProjectsClick}
+            />
+            {/* Customize nav entry (Skills & Tools browser) */}
+            <SiderCustomizeEntry
+              isMobile={isMobile}
+              isActive={pathname.startsWith('/customize')}
+              collapsed={collapsed}
+              siderTooltipProps={siderTooltipProps}
+              onClick={handleCustomizeClick}
             />
             {/* Scrollable content: project files or conversation history */}
             {projectIdMatch ? (

@@ -41,22 +41,22 @@ Result:  Response pushed to the user via a Lark Message Card
 
 ### 2.1 Platform Comparison
 
-| Item              | Telegram                         | Lark                             |
-| ----------------- | -------------------------------- | -------------------------------- |
-| **Bot Library**   | grammY                           | @larksuiteoapi/node-sdk          |
-| **Runtime Mode**  | Polling / Webhook                | WebSocket long-connection / Webhook |
-| **Auth Method**   | Bot Token                        | App ID + App Secret              |
-| **UI Components** | Inline Keyboard + Reply Keyboard | Message Card                     |
-| **Message Format**| Markdown / HTML                  | Rich Text / Message Card JSON    |
-| **Streaming**     | editMessageText                  | PATCH /im/v1/messages/:id        |
+| Item               | Telegram                         | Lark                                |
+| ------------------ | -------------------------------- | ----------------------------------- |
+| **Bot Library**    | grammY                           | @larksuiteoapi/node-sdk             |
+| **Runtime Mode**   | Polling / Webhook                | WebSocket long-connection / Webhook |
+| **Auth Method**    | Bot Token                        | App ID + App Secret                 |
+| **UI Components**  | Inline Keyboard + Reply Keyboard | Message Card                        |
+| **Message Format** | Markdown / HTML                  | Rich Text / Message Card JSON       |
+| **Streaming**      | editMessageText                  | PATCH /im/v1/messages/:id           |
 
 ### 2.2 Technology Choices
 
-| Item        | Choice                   | Notes                                       |
-| ----------- | ------------------------ | ------------------------------------------- |
-| SDK         | @larksuiteoapi/node-sdk  | Official Node.js SDK                        |
-| Runtime Mode| WebSocket (preferred)    | No public IP required; ideal for desktop apps |
-| Message Format | Message Card          | Supports rich text and interactive buttons  |
+| Item           | Choice                  | Notes                                         |
+| -------------- | ----------------------- | --------------------------------------------- |
+| SDK            | @larksuiteoapi/node-sdk | Official Node.js SDK                          |
+| Runtime Mode   | WebSocket (preferred)   | No public IP required; ideal for desktop apps |
+| Message Format | Message Card            | Supports rich text and interactive buttons    |
 
 ---
 
@@ -89,15 +89,15 @@ Result:  Response pushed to the user via a Lark Message Card
 
 ### 3.2 Configuration Fields
 
-| Field        | Type                 | Description                     | Required |
-| ------------ | -------------------- | ------------------------------- | :------: |
-| App ID       | string               | Lark application ID             |    ✅    |
-| App Secret   | string               | Lark application secret key     |    ✅    |
-| Runtime Mode | websocket / webhook  | Event delivery mode             |    ✅    |
-| Webhook URL  | string               | Required only in webhook mode   |    ❌    |
-| Pairing Mode | boolean              | Whether pairing-code auth is required |  ✅  |
-| Rate Limit   | number               | Maximum messages per minute     |    ❌    |
-| Default Agent| gemini / acp / codex | Default agent to use            |    ✅    |
+| Field         | Type                 | Description                           | Required |
+| ------------- | -------------------- | ------------------------------------- | :------: |
+| App ID        | string               | Lark application ID                   |    ✅    |
+| App Secret    | string               | Lark application secret key           |    ✅    |
+| Runtime Mode  | websocket / webhook  | Event delivery mode                   |    ✅    |
+| Webhook URL   | string               | Required only in webhook mode         |    ❌    |
+| Pairing Mode  | boolean              | Whether pairing-code auth is required |    ✅    |
+| Rate Limit    | number               | Maximum messages per minute           |    ❌    |
+| Default Agent | gemini / acp / codex | Default agent to use                  |    ✅    |
 
 ---
 
@@ -133,13 +133,13 @@ Result:  Response pushed to the user via a Lark Message Card
 
 ### 4.2 Security Measures
 
-| Mechanism            | Description                                         |
-| -------------------- | --------------------------------------------------- |
-| Pairing code auth    | 6-character random code, valid for 10 minutes       |
-| Local approval       | Must be approved in AionUi, not in Lark             |
-| User whitelist       | Only authorized users can interact                  |
-| Rate limiting        | Prevents abuse                                      |
-| Encrypted credentials| App Secret stored encrypted                         |
+| Mechanism             | Description                                   |
+| --------------------- | --------------------------------------------- |
+| Pairing code auth     | 6-character random code, valid for 10 minutes |
+| Local approval        | Must be approved in AionUi, not in Lark       |
+| User whitelist        | Only authorized users can interact            |
+| Rate limiting         | Prevents abuse                                |
+| Encrypted credentials | App Secret stored encrypted                   |
 
 ---
 
@@ -157,12 +157,12 @@ Result:  Response pushed to the user via a Lark Message Card
 
 ### 5.2 Outbound (Unified Format → Lark)
 
-| Unified message type | Lark API                   | content_type |
-| -------------------- | -------------------------- | ------------ |
-| `text`               | POST /im/v1/messages       | text         |
-| `image`              | POST /im/v1/messages       | image        |
-| `buttons`            | POST /im/v1/messages       | interactive  |
-| Streaming update     | PATCH /im/v1/messages/:id  | -            |
+| Unified message type | Lark API                  | content_type |
+| -------------------- | ------------------------- | ------------ |
+| `text`               | POST /im/v1/messages      | text         |
+| `image`              | POST /im/v1/messages      | image        |
+| `buttons`            | POST /im/v1/messages      | interactive  |
+| Streaming update     | PATCH /im/v1/messages/:id | -            |
 
 ### 5.3 Message Card Structure
 
@@ -203,13 +203,13 @@ Result:  Response pushed to the user via a Lark Message Card
 
 ### 6.1 Component Mapping
 
-| Scenario              | Telegram              | Lark                            |
-| --------------------- | --------------------- | ------------------------------- |
-| **Persistent actions**| Reply Keyboard        | Message Card bottom button group|
-| **Message actions**   | Inline Keyboard       | Message Card interactive buttons|
-| **Pairing request**   | Text + buttons        | Message Card                    |
-| **AI response**       | Markdown + buttons    | Rich text / Card + buttons      |
-| **Settings menu**     | Multi-level Inline KB | Message Card                    |
+| Scenario               | Telegram              | Lark                             |
+| ---------------------- | --------------------- | -------------------------------- |
+| **Persistent actions** | Reply Keyboard        | Message Card bottom button group |
+| **Message actions**    | Inline Keyboard       | Message Card interactive buttons |
+| **Pairing request**    | Text + buttons        | Message Card                     |
+| **AI response**        | Markdown + buttons    | Rich text / Card + buttons       |
+| **Settings menu**      | Multi-level Inline KB | Message Card                     |
 
 ### 6.2 Interaction Scenarios
 
@@ -322,7 +322,7 @@ interface LarkPluginConfig {
   appSecret: string;
   mode: 'websocket' | 'webhook';
   webhookUrl?: string;
-  encryptKey?: string;        // Event encryption key
+  encryptKey?: string; // Event encryption key
   verificationToken?: string; // Event verification token
 }
 ```
@@ -331,14 +331,14 @@ interface LarkPluginConfig {
 
 ## 9. Lark-Specific Considerations
 
-| Item                   | Notes                                                         |
-| ---------------------- | ------------------------------------------------------------- |
+| Item                   | Notes                                                                      |
+| ---------------------- | -------------------------------------------------------------------------- |
 | **App Type**           | Enterprise (self-built) app recommended; personal apps have feature limits |
-| **Permission Review**  | Some permissions require admin approval                       |
-| **Card Size Limit**    | Message Card JSON max 30 KB; long messages must be chunked    |
-| **Token Refresh**      | Access Token expires in 2 hours; requires automatic refresh   |
-| **Event Subscription** | WebSocket mode needs no public IP; ideal for desktop apps     |
-| **@-mention**          | In group chats, the bot must be @-mentioned to receive messages |
+| **Permission Review**  | Some permissions require admin approval                                    |
+| **Card Size Limit**    | Message Card JSON max 30 KB; long messages must be chunked                 |
+| **Token Refresh**      | Access Token expires in 2 hours; requires automatic refresh                |
+| **Event Subscription** | WebSocket mode needs no public IP; ideal for desktop apps                  |
+| **@-mention**          | In group chats, the bot must be @-mentioned to receive messages            |
 
 ---
 
@@ -375,18 +375,18 @@ interface LarkPluginConfig {
 
 ## 11. Feature Alignment Checklist
 
-| Feature              | Telegram | Lark | Reused Component      |
-| -------------------- | :------: | :--: | --------------------- |
-| Bot config validation|    ✅    |  🔲  | -                     |
-| Bot start/stop       |    ✅    |  🔲  | ChannelManager        |
-| Pairing code auth    |    ✅    |  🔲  | PairingService        |
-| Local approval flow  |    ✅    |  🔲  | Existing UI           |
-| User whitelist       |    ✅    |  🔲  | Database              |
-| Button interactions  |    ✅    |  🔲  | SystemActions         |
-| Streaming response   |    ✅    |  🔲  | ChannelMessageService |
-| Agent switching      |    ✅    |  🔲  | SystemActions         |
-| New session          |    ✅    |  🔲  | SessionManager        |
-| Rate limiting        |    ✅    |  🔲  | RateLimiter           |
+| Feature               | Telegram | Lark | Reused Component      |
+| --------------------- | :------: | :--: | --------------------- |
+| Bot config validation |    ✅    |  🔲  | -                     |
+| Bot start/stop        |    ✅    |  🔲  | ChannelManager        |
+| Pairing code auth     |    ✅    |  🔲  | PairingService        |
+| Local approval flow   |    ✅    |  🔲  | Existing UI           |
+| User whitelist        |    ✅    |  🔲  | Database              |
+| Button interactions   |    ✅    |  🔲  | SystemActions         |
+| Streaming response    |    ✅    |  🔲  | ChannelMessageService |
+| Agent switching       |    ✅    |  🔲  | SystemActions         |
+| New session           |    ✅    |  🔲  | SessionManager        |
+| Rate limiting         |    ✅    |  🔲  | RateLimiter           |
 
 ---
 

@@ -750,11 +750,11 @@ const GuidPage: React.FC = () => {
                   className={styles.projectRecentItem}
                   onClick={() => void navigate(`/conversation/${conv.id}`)}
                 >
-                  <div className={styles.projectRecentName}>{conv.name || t('conversation.untitled', { defaultValue: 'Untitled' })}</div>
+                  <div className={styles.projectRecentName}>
+                    {conv.name || t('conversation.untitled', { defaultValue: 'Untitled' })}
+                  </div>
                   <div className={styles.projectRecentDate}>
-                    {conv.modifyTime
-                      ? new Date(conv.modifyTime).toLocaleDateString()
-                      : ''}
+                    {conv.modifyTime ? new Date(conv.modifyTime).toLocaleDateString() : ''}
                   </div>
                 </div>
               ))}

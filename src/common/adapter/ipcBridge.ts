@@ -1292,13 +1292,14 @@ export interface IProjectInfo {
 }
 
 export const project = {
-  create: bridge.buildProvider<IProjectInfo, { name: string; description?: string; directory?: string }>('project.create'),
+  create: bridge.buildProvider<IProjectInfo, { name: string; description?: string; directory?: string }>(
+    'project.create'
+  ),
   list: bridge.buildProvider<IProjectInfo[], void>('project.list'),
   get: bridge.buildProvider<IProjectInfo | null, { id: string }>('project.get'),
   update: bridge.buildProvider<void, { id: string; name?: string; description?: string }>('project.update'),
   delete: bridge.buildProvider<void, { id: string }>('project.delete'),
-  getConversations: bridge.buildProvider<
-    import('@/common/config/storage').TChatConversation[],
-    { projectId: string }
-  >('project.get-conversations'),
+  getConversations: bridge.buildProvider<import('@/common/config/storage').TChatConversation[], { projectId: string }>(
+    'project.get-conversations'
+  ),
 };

@@ -177,7 +177,10 @@ if (win.electronAPI) {
   // 4.确保在发送/订阅前已经发起连接
   // Only attempt connection if reconnection is enabled (i.e. after login)
   const ensureSocket = () => {
-    if (shouldReconnect && (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)) {
+    if (
+      shouldReconnect &&
+      (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)
+    ) {
       connect();
     }
   };

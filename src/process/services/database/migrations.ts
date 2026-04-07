@@ -1140,9 +1140,7 @@ const migration_v23: IMigration = {
     db.exec('CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at)');
 
     // 2. Add project_id column to conversations (nullable — existing chats have no project)
-    const convColumns = new Set(
-      (db.pragma('table_info(conversations)') as Array<{ name: string }>).map((c) => c.name)
-    );
+    const convColumns = new Set((db.pragma('table_info(conversations)') as Array<{ name: string }>).map((c) => c.name));
     if (!convColumns.has('project_id')) {
       db.exec('ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL');
       db.exec('CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id)');

@@ -22,6 +22,7 @@ const TaskDetailPage = React.lazy(() => import('@renderer/pages/cron/ScheduledTa
 const TeamIndex = React.lazy(() => import('@renderer/pages/team'));
 const ProjectsListPage = React.lazy(() => import('@renderer/pages/projects'));
 const ProjectDetailPage = React.lazy(() => import('@renderer/pages/projects/ProjectDetailPage'));
+const CustomizePage = React.lazy(() => import('@renderer/pages/customize'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
   <Suspense fallback={<AppLoader />}>
@@ -76,6 +77,8 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/scheduled/:jobId' element={withRouteFallback(TaskDetailPage)} />
           <Route path='/projects' element={withRouteFallback(ProjectsListPage)} />
           <Route path='/projects/:id' element={withRouteFallback(ProjectDetailPage)} />
+          <Route path='/customize' element={<Navigate to='/customize/skills' replace />} />
+          <Route path='/customize/:tab' element={withRouteFallback(CustomizePage)} />
         </Route>
         <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />
       </Routes>

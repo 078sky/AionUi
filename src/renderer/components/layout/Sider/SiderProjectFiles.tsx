@@ -41,9 +41,8 @@ const FileTreeNode: React.FC<{ node: IDirOrFile; depth: number }> = ({ node, dep
           <FolderOpen theme='outline' size='14' fill='var(--color-text-3)' className='shrink-0' />
           <span className='truncate'>{node.name}</span>
         </div>
-        {expanded && node.children?.map((child) => (
-          <FileTreeNode key={child.fullPath} node={child} depth={depth + 1} />
-        ))}
+        {expanded &&
+          node.children?.map((child) => <FileTreeNode key={child.fullPath} node={child} depth={depth + 1} />)}
       </div>
     );
   }
@@ -90,9 +89,7 @@ const SiderProjectFiles: React.FC<SiderProjectFilesProps> = ({ projectId, collap
   return (
     <div className='flex-1 min-h-0 overflow-y-auto'>
       <div className='flex items-center px-12px py-8px'>
-        <span className='text-13px text-t-secondary font-bold leading-20px truncate'>
-          {project.name}
-        </span>
+        <span className='text-13px text-t-secondary font-bold leading-20px truncate'>{project.name}</span>
       </div>
       {loading ? (
         <div className='flex items-center justify-center py-24px'>
@@ -104,9 +101,7 @@ const SiderProjectFiles: React.FC<SiderProjectFilesProps> = ({ projectId, collap
         <div className='pb-8px'>
           {files.map((node) =>
             node.children ? (
-              node.children.map((child) => (
-                <FileTreeNode key={child.fullPath} node={child} depth={0} />
-              ))
+              node.children.map((child) => <FileTreeNode key={child.fullPath} node={child} depth={0} />)
             ) : (
               <FileTreeNode key={node.fullPath} node={node} depth={0} />
             )

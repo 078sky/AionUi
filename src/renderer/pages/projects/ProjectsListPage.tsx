@@ -107,20 +107,14 @@ const ProjectsListPage: React.FC = () => {
       ) : (
         <div className={styles.projectList}>
           {filteredProjects.map((project) => (
-            <div
-              key={project.id}
-              className={styles.projectCard}
-              onClick={() => handleProjectClick(project)}
-            >
+            <div key={project.id} className={styles.projectCard} onClick={() => handleProjectClick(project)}>
               <div className={styles.projectIcon}>
                 <FolderOpen theme='outline' size='20' fill='var(--color-text-3)' />
               </div>
               <div className={styles.projectInfo}>
                 <div className={styles.projectName}>{project.name}</div>
                 <div className={styles.projectDirectory}>{project.directory}</div>
-                {project.description && (
-                  <div className={styles.projectDescription}>{project.description}</div>
-                )}
+                {project.description && <div className={styles.projectDescription}>{project.description}</div>}
               </div>
               <div className={styles.projectDate}>{formatDate(project.created_at)}</div>
             </div>

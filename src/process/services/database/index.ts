@@ -796,9 +796,7 @@ export class AionUIDatabase {
 
   getProject(projectId: string): IQueryResult<IProjectRow> {
     try {
-      const row = this.db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as
-        | IProjectRow
-        | undefined;
+      const row = this.db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as IProjectRow | undefined;
       if (!row) {
         return { success: false, error: 'Project not found' };
       }

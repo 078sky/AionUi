@@ -88,14 +88,16 @@ async function gitInitIfNeeded(dirPath: string): Promise<void> {
  * Replaces unsafe characters with hyphens and trims length.
  */
 function sanitizeDirName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_\-. ]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 64) || 'unnamed-project';
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_\-. ]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 64) || 'unnamed-project'
+  );
 }
 
 // ─────────────────────────── Public API ───────────────────────────
@@ -114,7 +116,7 @@ function sanitizeDirName(name: string): string {
 export async function createProject(
   name: string,
   description?: string,
-  existingDirectory?: string,
+  existingDirectory?: string
 ): Promise<IProjectRow> {
   let directory: string;
 
